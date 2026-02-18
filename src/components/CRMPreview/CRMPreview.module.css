@@ -1,0 +1,401 @@
+.section {
+    padding: var(--space-24) 0;
+    background: var(--color-bg);
+}
+
+.header {
+    text-align: center;
+    max-width: 640px;
+    margin: 0 auto var(--space-12);
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: var(--space-4);
+}
+
+.title {
+    font-size: clamp(1.75rem, 3vw, 2.5rem);
+    font-weight: 700;
+    color: var(--color-primary);
+    letter-spacing: -0.02em;
+}
+
+.subtitle {
+    font-size: var(--font-size-lg);
+    color: var(--color-text-secondary);
+    line-height: 1.7;
+}
+
+.dashboardFrame {
+    background: var(--color-surface);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-xl);
+    box-shadow: var(--shadow-xl);
+    overflow: hidden;
+}
+
+.frameHeader {
+    display: flex;
+    align-items: center;
+    gap: var(--space-3);
+    padding: var(--space-3) var(--space-5);
+    background: var(--color-primary);
+    border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.frameDots {
+    display: flex;
+    gap: 6px;
+}
+
+.frameDots span {
+    display: block;
+    width: 10px;
+    height: 10px;
+    border-radius: 50%;
+}
+
+.frameDots span:first-child {
+    background: #EF4444;
+}
+
+.frameDots span:nth-child(2) {
+    background: #F59E0B;
+}
+
+.frameDots span:last-child {
+    background: #10B981;
+}
+
+.frameUrl {
+    font-size: var(--font-size-xs);
+    color: rgba(255, 255, 255, 0.5);
+    font-family: monospace;
+}
+
+.dashBody {
+    padding: var(--space-6);
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-6);
+    background: var(--color-bg);
+}
+
+/* KPI Row */
+.kpiRow {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: var(--space-4);
+}
+
+.kpiCard {
+    background: var(--color-surface);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-lg);
+    padding: var(--space-5);
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-2);
+}
+
+.kpiTop {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+}
+
+.kpiLabel {
+    font-size: var(--font-size-xs);
+    font-weight: 600;
+    color: var(--color-text-muted);
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+}
+
+.kpiChange {
+    font-size: var(--font-size-xs);
+    font-weight: 600;
+    padding: 2px 6px;
+    border-radius: var(--radius-full);
+}
+
+.changeUp {
+    background: var(--color-success-bg);
+    color: var(--color-success);
+}
+
+.changeDown {
+    background: var(--color-warning-bg);
+    color: var(--color-warning);
+}
+
+.kpiValue {
+    font-size: var(--font-size-2xl);
+    font-weight: 700;
+    color: var(--color-primary);
+    letter-spacing: -0.02em;
+}
+
+/* Charts Row */
+.chartsRow {
+    display: grid;
+    grid-template-columns: 2fr 1fr;
+    gap: var(--space-4);
+}
+
+.chartCard,
+.shipCard,
+.activityCard,
+.transCard {
+    background: var(--color-surface);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-lg);
+    padding: var(--space-5);
+}
+
+.chartCardHeader {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    margin-bottom: var(--space-4);
+}
+
+.chartTitle {
+    font-size: var(--font-size-sm);
+    font-weight: 600;
+    color: var(--color-text-primary);
+}
+
+.chartSubtitle {
+    font-size: var(--font-size-xs);
+    color: var(--color-text-muted);
+    margin-top: 2px;
+}
+
+.lineChart {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-2);
+}
+
+.lineSvg {
+    width: 100%;
+    height: 160px;
+}
+
+.chartMonths {
+    display: flex;
+    justify-content: space-between;
+    padding: 0 var(--space-2);
+}
+
+.chartMonths span {
+    font-size: 10px;
+    color: var(--color-text-muted);
+    font-weight: 500;
+}
+
+/* Shipment List */
+.shipList {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-3);
+    margin-top: var(--space-4);
+}
+
+.shipItem {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-1);
+}
+
+.shipTop {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+}
+
+.shipId {
+    font-size: var(--font-size-xs);
+    font-weight: 600;
+    color: var(--color-primary);
+    font-family: monospace;
+}
+
+.shipStatus {
+    font-size: 10px;
+    font-weight: 600;
+    padding: 2px 8px;
+    border-radius: var(--radius-full);
+}
+
+.statusTransit {
+    background: var(--color-accent-light);
+    color: var(--color-accent);
+}
+
+.statusHold {
+    background: var(--color-warning-bg);
+    color: var(--color-warning);
+}
+
+.statusDelivered {
+    background: var(--color-success-bg);
+    color: var(--color-success);
+}
+
+.statusBooked {
+    background: var(--color-surface-2);
+    color: var(--color-text-secondary);
+}
+
+.shipRoute {
+    font-size: 10px;
+    color: var(--color-text-muted);
+}
+
+.progressBar {
+    height: 4px;
+    background: var(--color-border);
+    border-radius: var(--radius-full);
+    overflow: hidden;
+}
+
+.progressFill {
+    height: 100%;
+    border-radius: var(--radius-full);
+    transition: width 0.6s ease;
+}
+
+/* Bottom Row */
+.bottomRow {
+    display: grid;
+    grid-template-columns: 1fr 2fr;
+    gap: var(--space-4);
+}
+
+/* Activity */
+.activityList {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-3);
+    margin-top: var(--space-4);
+}
+
+.activityItem {
+    display: flex;
+    align-items: flex-start;
+    gap: var(--space-3);
+}
+
+.activityDot {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    margin-top: 5px;
+    flex-shrink: 0;
+}
+
+.dot_lead {
+    background: var(--color-accent);
+}
+
+.dot_shipment {
+    background: var(--color-success);
+}
+
+.dot_finance {
+    background: var(--color-warning);
+}
+
+.dot_compliance {
+    background: #8B5CF6;
+}
+
+.dot_crm {
+    background: var(--color-text-muted);
+}
+
+.activityContent {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+}
+
+.activityText {
+    font-size: var(--font-size-xs);
+    color: var(--color-text-primary);
+    line-height: 1.5;
+}
+
+.activityTime {
+    font-size: 10px;
+    color: var(--color-text-muted);
+}
+
+/* Table */
+.table {
+    width: 100%;
+    border-collapse: collapse;
+    margin-top: var(--space-4);
+    font-size: var(--font-size-xs);
+}
+
+.table th {
+    text-align: left;
+    padding: var(--space-2) var(--space-3);
+    font-weight: 600;
+    color: var(--color-text-muted);
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    border-bottom: 1px solid var(--color-border);
+    font-size: 10px;
+}
+
+.table td {
+    padding: var(--space-3);
+    color: var(--color-text-primary);
+    border-bottom: 1px solid var(--color-border-light);
+}
+
+.table tr:last-child td {
+    border-bottom: none;
+}
+
+.table tr:hover td {
+    background: var(--color-bg);
+}
+
+.tdMono {
+    font-family: monospace;
+    font-weight: 600;
+    color: var(--color-accent) !important;
+}
+
+.tdAmount {
+    font-weight: 600;
+}
+
+@media (max-width: 1024px) {
+    .kpiRow {
+        grid-template-columns: repeat(2, 1fr);
+    }
+
+    .chartsRow {
+        grid-template-columns: 1fr;
+    }
+
+    .bottomRow {
+        grid-template-columns: 1fr;
+    }
+}
+
+@media (max-width: 640px) {
+    .kpiRow {
+        grid-template-columns: 1fr 1fr;
+    }
+
+    .dashBody {
+        padding: var(--space-4);
+    }
+}
