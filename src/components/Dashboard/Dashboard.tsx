@@ -1,10 +1,11 @@
 'use client';
 import { useState } from 'react';
+import { usePathname } from 'next/navigation';
 import Link from 'next/link';
 import styles from './Dashboard.module.css';
 
 const navItems = [
-    { icon: '⊞', label: 'Dashboard', href: '/dashboard', active: true },
+    { icon: '⊞', label: 'Dashboard', href: '/dashboard' },
     { icon: '◈', label: 'Leads', href: '/dashboard/leads' },
     { icon: '◉', label: 'Clients', href: '/dashboard/clients' },
     { icon: '▷', label: 'Shipments', href: '/dashboard/shipments' },
@@ -54,6 +55,7 @@ const maxVal = Math.max(...revenueData);
 export default function Dashboard() {
     const [collapsed, setCollapsed] = useState(false);
     const [notifOpen, setNotifOpen] = useState(false);
+    const pathname = usePathname();
 
     return (
         <div className={styles.layout}>
@@ -76,12 +78,15 @@ export default function Dashboard() {
                 </div>
 
                 <nav className={styles.sidebarNav}>
-                    {navItems.map((item) => (
-                        <Link key={item.label} href={item.href} className={`${styles.navItem} ${item.active ? styles.navItemActive : ''}`}>
-                            <span className={styles.navIcon}>{item.icon}</span>
-                            {!collapsed && <span className={styles.navLabel}>{item.label}</span>}
-                        </Link>
-                    ))}
+                    {navItems.map((item) => {
+                        const isActive = pathname === item.href || (item.href !== '/dashboard' && pathname.startsWith(item.href));
+                        return (
+                            <Link key={item.label} href={item.href} className={`${styles.navItem} ${isActive ? styles.navItemActive : ''}`}>
+                                <span className={styles.navIcon}>{item.icon}</span>
+                                {!collapsed && <span className={styles.navLabel}>{item.label}</span>}
+                            </Link>
+                        );
+                    })}
                 </nav>
 
                 <div className={styles.sidebarFooter}>
@@ -230,8 +235,8 @@ export default function Dashboard() {
                                         <div className={styles.shipTop}>
                                             <span className={styles.shipId}>{s.id}</span>
                                             <span className={`${styles.shipStatus} ${s.status === 'Delivered' ? styles.statusDelivered :
-                                                    s.status === 'Customs Hold' ? styles.statusHold :
-                                                        s.status === 'Booked' ? styles.statusBooked : styles.statusTransit
+                                                s.status === 'Customs Hold' ? styles.statusHold :
+                                                    s.status === 'Booked' ? styles.statusBooked : styles.statusTransit
                                                 }`}>{s.status}</span>
                                         </div>
                                         <div className={styles.shipMeta}>

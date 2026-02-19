@@ -1,71 +1,145 @@
 'use client';
 import { useState, useEffect, useRef } from 'react';
 import styles from './Chatbot.module.css';
+import LeadForm from './LeadForm';
 
 const API_BASE = process.env.NEXT_PUBLIC_API_URL || 'http://127.0.0.1:8000';
 
-type Message = { role: 'user' | 'assistant'; text: string };
+type Message = {
+    role: 'user' | 'assistant';
+    text: string;
+    type?: 'MESSAGE' | 'CTA';
+    cta_label?: string;
+    action?: string;
+};
 
 export default function Chatbot() {
     const [open, setOpen] = useState(false);
     const [messages, setMessages] = useState<Message[]>([]);
     const [input, setInput] = useState('');
     const [loading, setLoading] = useState(false);
-    const [sessionId, setSessionId] = useState<string | null>(null);
+    const [isInitialized, setIsInitialized] = useState(false);
+    const [error, setError] = useState<string | null>(null);
+    const [showLeadForm, setShowLeadForm] = useState(false);
     const messagesEndRef = useRef<HTMLDivElement>(null);
+    const inputRef = useRef<HTMLInputElement>(null);
 
     useEffect(() => {
         messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
     }, [messages, loading]);
 
     useEffect(() => {
-        if (open && !sessionId) {
-            startSession();
+        if (open && !isInitialized) {
+            initSession();
         }
-    }, [open]);
+    }, [open, isInitialized]);
 
-    const startSession = async () => {
+    const initSession = async () => {
         setLoading(true);
+        setError(null);
         try {
-            const res = await fetch(`${API_BASE}/chat/start`, {
+            const res = await fetch(`${API_BASE}/chat/session/init`, {
                 method: 'POST',
                 headers: { 'accept': 'application/json' },
+                credentials: 'include',
             });
+
+            if (!res.ok) {
+                if (res.status === 429) throw new Error('Rate limit exceeded. Please try again later.');
+                throw new Error('Failed to initialize session.');
+            }
+
             const data = await res.json();
-            setSessionId(data.sessionId);
-            setMessages([{ role: 'assistant', text: data.message }]);
-        } catch {
-            setMessages([{ role: 'assistant', text: 'Unable to connect. Please ensure the backend service is running.' }]);
+            setIsInitialized(true);
+            if (data.message) {
+                setMessages([{
+                    role: 'assistant',
+                    text: data.message,
+                    type: data.type || 'MESSAGE',
+                    cta_label: data.cta_label,
+                    action: data.action
+                }]);
+            }
+            // Auto-focus after init
+            setTimeout(() => inputRef.current?.focus(), 100);
+        } catch (err: unknown) {
+            setError(err instanceof Error ? err.message : 'Unable to connect to support.');
         } finally {
             setLoading(false);
         }
     };
 
     const sendMessage = async (text: string) => {
-        if (!text.trim() || !sessionId) return;
-        setMessages((prev) => [...prev, { role: 'user', text }]);
+        if (!text.trim() || !isInitialized) return;
+
+        const userMsg: Message = { role: 'user', text };
+        setMessages((prev) => [...prev, userMsg]);
         setInput('');
         setLoading(true);
+        setError(null);
 
         try {
             const res = await fetch(`${API_BASE}/chat/message`, {
                 method: 'POST',
-                headers: { 'accept': 'application/json', 'Content-Type': 'application/json' },
-                body: JSON.stringify({ sessionId, message: text }),
+                headers: {
+                    'accept': 'application/json',
+                    'Content-Type': 'application/json'
+                },
+                credentials: 'include',
+                body: JSON.stringify({ message: text }),
             });
+
+            if (!res.ok) {
+                if (res.status === 401) {
+                    setIsInitialized(false);
+                    throw new Error('Session expired. Please restart the chat.');
+                }
+                if (res.status === 429) throw new Error('Rate limit exceeded. Please slow down.');
+                throw new Error('Service unavailable. Please retry.');
+            }
+
             const data = await res.json();
-            setMessages((prev) => [...prev, { role: 'assistant', text: data.message || 'Request received.' }]);
-        } catch {
-            setMessages((prev) => [...prev, { role: 'assistant', text: 'Connection error. Please try again.' }]);
+            setMessages((prev) => [...prev, {
+                role: 'assistant',
+                text: data.message,
+                type: data.type || 'MESSAGE',
+                cta_label: data.cta_label,
+                action: data.action
+            }]);
+            // Keep focus on input
+            setTimeout(() => inputRef.current?.focus(), 50);
+        } catch (err: unknown) {
+            setError(err instanceof Error ? err.message : 'An unknown error occurred.');
         } finally {
+            setLoading(false);
+        }
+    };
+
+    const handleEndChat = async () => {
+        setLoading(true);
+        try {
+            await fetch(`${API_BASE}/chat/session/end`, {
+                method: 'POST',
+                credentials: 'include',
+            });
+        } catch (err) {
+            console.error('Failed to end session cleanly:', err);
+        } finally {
+            setMessages([]);
+            setIsInitialized(false);
+            setOpen(false);
             setLoading(false);
         }
     };
 
     const handleClose = () => {
         setOpen(false);
-        setSessionId(null);
-        setMessages([]);
+    };
+
+    const handleAction = (action: string) => {
+        if (action === 'OPEN_LEAD_FORM') {
+            setShowLeadForm(true);
+        }
     };
 
     return (
@@ -105,25 +179,46 @@ export default function Chatbot() {
                                 <div className={styles.headerTitle}>Trade Support</div>
                                 <div className={styles.headerStatus}>
                                     <span className={styles.statusDot}></span>
-                                    {sessionId ? 'Support Available' : 'Connecting...'}
+                                    {isInitialized ? 'Online' : 'Connecting...'}
                                 </div>
                             </div>
                         </div>
-                        <button className={styles.closeBtn} onClick={handleClose} aria-label="Close">
-                            <svg width="14" height="14" viewBox="0 0 24 24" fill="none">
-                                <path d="M6 18L18 6M6 6l12 12" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
-                            </svg>
-                        </button>
+                        <div className={styles.headerActions}>
+                            {isInitialized && (
+                                <button
+                                    className={styles.endChatBtn}
+                                    onClick={handleEndChat}
+                                    title="End Conversation"
+                                >
+                                    End Chat
+                                </button>
+                            )}
+                            <button className={styles.closeBtn} onClick={handleClose} aria-label="Close">
+                                <svg width="14" height="14" viewBox="0 0 24 24" fill="none">
+                                    <path d="M6 18L18 6M6 6l12 12" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
+                                </svg>
+                            </button>
+                        </div>
                     </div>
 
                     {/* Messages — scrollable only */}
                     <div className={styles.messages}>
                         {messages.map((msg, i) => (
                             <div key={i} className={`${styles.message} ${msg.role === 'user' ? styles.userMessage : styles.assistantMessage}`}>
-                                <div className={styles.msgBubble}>{msg.text}</div>
+                                <div className={styles.msgBubble}>
+                                    {msg.text}
+                                    {msg.type === 'CTA' && msg.cta_label && (
+                                        <button
+                                            className={styles.ctaBtn}
+                                            onClick={() => msg.action && handleAction(msg.action)}
+                                        >
+                                            {msg.cta_label}
+                                        </button>
+                                    )}
+                                </div>
                             </div>
                         ))}
-                        {loading && (
+                        {loading && !error && (
                             <div className={`${styles.message} ${styles.assistantMessage}`}>
                                 <div className={styles.msgBubble}>
                                     <div className={styles.typing}>
@@ -132,24 +227,35 @@ export default function Chatbot() {
                                 </div>
                             </div>
                         )}
+                        {error && (
+                            <div className={styles.errorBanner}>
+                                <div className={styles.errorText}>{error}</div>
+                                {!isInitialized && (
+                                    <button className={styles.retryBtn} onClick={initSession}>
+                                        Retry Connection
+                                    </button>
+                                )}
+                            </div>
+                        )}
                         <div ref={messagesEndRef} />
                     </div>
 
                     {/* Input — fixed footer */}
                     <div className={styles.inputArea}>
                         <input
+                            ref={inputRef}
                             className={styles.chatInput}
                             type="text"
-                            placeholder={sessionId ? 'Type your message...' : 'Connecting...'}
+                            placeholder={isInitialized ? 'Type your message...' : 'Initializing...'}
                             value={input}
-                            disabled={!sessionId || loading}
+                            disabled={!isInitialized || loading}
                             onChange={(e) => setInput(e.target.value)}
                             onKeyDown={(e) => e.key === 'Enter' && sendMessage(input)}
                         />
                         <button
                             className={styles.sendBtn}
                             onClick={() => sendMessage(input)}
-                            disabled={!input.trim() || !sessionId || loading}
+                            disabled={!input.trim() || !isInitialized || loading}
                             aria-label="Send"
                         >
                             <svg width="15" height="15" viewBox="0 0 24 24" fill="none">
@@ -158,6 +264,20 @@ export default function Chatbot() {
                         </button>
                     </div>
                 </div>
+            )}
+
+            {showLeadForm && (
+                <LeadForm
+                    apiBase={API_BASE}
+                    onClose={() => setShowLeadForm(false)}
+                    onSubmitSuccess={(message) => {
+                        setMessages(prev => [...prev, {
+                            role: 'assistant',
+                            text: message,
+                            type: 'MESSAGE'
+                        }]);
+                    }}
+                />
             )}
         </>
     );
