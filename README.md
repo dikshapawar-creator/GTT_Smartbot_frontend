@@ -36,7 +36,7 @@ The easiest way to deploy your Next.js app is to use the [Vercel Platform](https
 
 Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
 =======
-# GTT_Smartbot
+# GTD_Smartbot
 AI-powered chatbot for import-export businesses that automates customer interaction, captures and qualifies leads, and enables seamless demo booking. It helps companies improve response time, streamline sales, and increase conversions through intelligent, real-time conversations and automated lead management.
 A scalable, full-stack AI chatbot application built with modern web technologies.
 This project demonstrates secure API integration, modular backend architecture, and a responsive frontend interface designed for real-world deployment.
