@@ -5,6 +5,14 @@ export const metadata = {
     description: 'Manage and track enterprise leads captured via GTT SmartBot.',
 };
 
+import Chatbot from '@/components/Chatbot/Chatbot';
+
 export default function LeadsPage() {
-    return <LeadsList />;
+    return (
+        <>
+            <LeadsList />
+            <Chatbot />
+        </>
+    );
 }
+

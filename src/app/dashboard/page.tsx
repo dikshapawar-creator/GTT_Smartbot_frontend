@@ -5,6 +5,14 @@ export const metadata = {
     description: 'Enterprise CRM dashboard for global trade operations.',
 };
 
+import Chatbot from '@/components/Chatbot/Chatbot';
+
 export default function DashboardPage() {
-    return <Dashboard />;
+    return (
+        <>
+            <Dashboard />
+            <Chatbot />
+        </>
+    );
 }
+

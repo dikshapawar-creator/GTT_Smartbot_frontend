@@ -3,15 +3,30 @@ import { useState, useEffect, useRef } from 'react';
 import styles from './Chatbot.module.css';
 import LeadForm from './LeadForm';
 
-const API_BASE = process.env.NEXT_PUBLIC_API_URL || 'http://127.0.0.1:8000';
+const API_BASE = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
 
-type Message = {
-    role: 'user' | 'assistant';
-    text: string;
-    type?: 'MESSAGE' | 'CTA';
-    cta_label?: string;
-    action?: string;
+type BaseMessage = {
+    id: string;
+    role: 'bot' | 'user';
 };
+
+type TextMessage = BaseMessage & {
+    type: 'text';
+    content: string;
+};
+
+type CtaMessage = BaseMessage & {
+    type: 'cta';
+    label: string;
+    action: string;
+};
+
+type FormMessage = BaseMessage & {
+    type: 'form';
+    formType: 'demo';
+};
+
+type Message = TextMessage | CtaMessage | FormMessage;
 
 export default function Chatbot() {
     const [open, setOpen] = useState(false);
@@ -20,19 +35,29 @@ export default function Chatbot() {
     const [loading, setLoading] = useState(false);
     const [isInitialized, setIsInitialized] = useState(false);
     const [error, setError] = useState<string | null>(null);
-    const [showLeadForm, setShowLeadForm] = useState(false);
+    const [statusText, setStatusText] = useState('Online');
+
     const messagesEndRef = useRef<HTMLDivElement>(null);
     const inputRef = useRef<HTMLInputElement>(null);
 
     useEffect(() => {
         messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
-    }, [messages, loading]);
+    }, [messages, loading, open]);
 
     useEffect(() => {
         if (open && !isInitialized) {
             initSession();
         }
     }, [open, isInitialized]);
+
+    // Update status based on initialization
+    useEffect(() => {
+        if (isInitialized && statusText !== 'Demo Submitted') {
+            setStatusText('Online');
+        } else if (!isInitialized) {
+            setStatusText('Connecting...');
+        }
+    }, [isInitialized]);
 
     const initSession = async () => {
         setLoading(true);
@@ -51,15 +76,31 @@ export default function Chatbot() {
 
             const data = await res.json();
             setIsInitialized(true);
+
+            const newMessages: Message[] = [];
+
+            // 1. Always push the text welcome message
             if (data.message) {
-                setMessages([{
-                    role: 'assistant',
-                    text: data.message,
-                    type: data.type || 'MESSAGE',
-                    cta_label: data.cta_label,
-                    action: data.action
-                }]);
+                newMessages.push({
+                    id: Date.now().toString() + '-text',
+                    role: 'bot',
+                    type: 'text',
+                    content: data.message
+                });
             }
+
+            // 2. If it's a CTA response, push a SEPARATE CTA message
+            if (data.type === 'CTA' && data.cta_label && data.action) {
+                newMessages.push({
+                    id: Date.now().toString() + '-cta',
+                    role: 'bot',
+                    type: 'cta',
+                    label: data.cta_label,
+                    action: data.action
+                });
+            }
+
+            setMessages(newMessages);
             // Auto-focus after init
             setTimeout(() => inputRef.current?.focus(), 100);
         } catch (err: unknown) {
@@ -72,7 +113,12 @@ export default function Chatbot() {
     const sendMessage = async (text: string) => {
         if (!text.trim() || !isInitialized) return;
 
-        const userMsg: Message = { role: 'user', text };
+        const userMsg: Message = {
+            id: Date.now().toString(),
+            role: 'user',
+            type: 'text',
+            content: text
+        };
         setMessages((prev) => [...prev, userMsg]);
         setInput('');
         setLoading(true);
@@ -99,13 +145,31 @@ export default function Chatbot() {
             }
 
             const data = await res.json();
-            setMessages((prev) => [...prev, {
-                role: 'assistant',
-                text: data.message,
-                type: data.type || 'MESSAGE',
-                cta_label: data.cta_label,
-                action: data.action
-            }]);
+
+            const newBotMessages: Message[] = [];
+
+            // Push text response
+            if (data.message) {
+                newBotMessages.push({
+                    id: Date.now().toString() + '-reply',
+                    role: 'bot',
+                    type: 'text',
+                    content: data.message
+                });
+            }
+
+            // Push CTA if present
+            if (data.type === 'CTA' && data.cta_label && data.action) {
+                newBotMessages.push({
+                    id: Date.now().toString() + '-cta-reply',
+                    role: 'bot',
+                    type: 'cta',
+                    label: data.cta_label,
+                    action: data.action
+                });
+            }
+
+            setMessages((prev) => [...prev, ...newBotMessages]);
             // Keep focus on input
             setTimeout(() => inputRef.current?.focus(), 50);
         } catch (err: unknown) {
@@ -138,7 +202,62 @@ export default function Chatbot() {
 
     const handleAction = (action: string) => {
         if (action === 'OPEN_LEAD_FORM') {
-            setShowLeadForm(true);
+            // Push form message to chat instead of modal
+            setMessages(prev => [...prev, {
+                id: Date.now().toString(),
+                role: 'bot',
+                type: 'form',
+                formType: 'demo'
+            }]);
+        }
+    };
+
+    const handleFormSuccess = (message: string) => {
+        // Add success message from bot
+        setMessages(prev => [...prev, {
+            id: Date.now().toString(),
+            role: 'bot',
+            type: 'text',
+            content: message
+        }]);
+        setStatusText('Demo Submitted');
+    };
+
+    const renderMessage = (msg: Message) => {
+        switch (msg.type) {
+            case 'text':
+                return (
+                    <div className={`${styles.message} ${msg.role === 'user' ? styles.userMessage : styles.assistantMessage}`}>
+                        <div className={styles.msgBubble}>
+                            {msg.content}
+                        </div>
+                    </div>
+                );
+            case 'cta':
+                return (
+                    <div className={`${styles.message} ${styles.assistantMessage}`}>
+                        <div className={styles.ctaCard}>
+                            <button
+                                className={styles.ctaCardButton}
+                                onClick={() => handleAction(msg.action)}
+                            >
+                                {msg.label}
+                            </button>
+                        </div>
+                    </div>
+                );
+            case 'form':
+                return (
+                    <div className={`${styles.message} ${styles.assistantMessage}`} style={{ width: '100%', maxWidth: '100%' }}>
+                        <LeadForm
+                            apiBase={API_BASE}
+                            onClose={() => { }} // No close needed for inline
+                            onSubmitSuccess={handleFormSuccess}
+                        />
+                    </div>
+                );
+            default:
+                return null;
         }
     };
 
@@ -178,8 +297,8 @@ export default function Chatbot() {
                             <div>
                                 <div className={styles.headerTitle}>Trade Support</div>
                                 <div className={styles.headerStatus}>
-                                    <span className={styles.statusDot}></span>
-                                    {isInitialized ? 'Online' : 'Connecting...'}
+                                    <span className={`${styles.statusDot} ${statusText === 'Demo Submitted' ? styles.statusDotGreen : ''}`}></span>
+                                    {statusText}
                                 </div>
                             </div>
                         </div>
@@ -203,19 +322,9 @@ export default function Chatbot() {
 
                     {/* Messages — scrollable only */}
                     <div className={styles.messages}>
-                        {messages.map((msg, i) => (
-                            <div key={i} className={`${styles.message} ${msg.role === 'user' ? styles.userMessage : styles.assistantMessage}`}>
-                                <div className={styles.msgBubble}>
-                                    {msg.text}
-                                    {msg.type === 'CTA' && msg.cta_label && (
-                                        <button
-                                            className={styles.ctaBtn}
-                                            onClick={() => msg.action && handleAction(msg.action)}
-                                        >
-                                            {msg.cta_label}
-                                        </button>
-                                    )}
-                                </div>
+                        {messages.map((msg) => (
+                            <div key={msg.id} style={{ width: '100%', display: 'flex', flexDirection: 'column' }}>
+                                {renderMessage(msg)}
                             </div>
                         ))}
                         {loading && !error && (
@@ -246,9 +355,9 @@ export default function Chatbot() {
                             ref={inputRef}
                             className={styles.chatInput}
                             type="text"
-                            placeholder={isInitialized ? 'Type your message...' : 'Initializing...'}
+                            placeholder={statusText === 'Demo Submitted' ? 'Thank you! We will contact you soon.' : (isInitialized ? 'Type your message...' : 'Initializing...')}
                             value={input}
-                            disabled={!isInitialized || loading}
+                            disabled={!isInitialized || loading || statusText === 'Demo Submitted'}
                             onChange={(e) => setInput(e.target.value)}
                             onKeyDown={(e) => e.key === 'Enter' && sendMessage(input)}
                         />
@@ -264,20 +373,6 @@ export default function Chatbot() {
                         </button>
                     </div>
                 </div>
-            )}
-
-            {showLeadForm && (
-                <LeadForm
-                    apiBase={API_BASE}
-                    onClose={() => setShowLeadForm(false)}
-                    onSubmitSuccess={(message) => {
-                        setMessages(prev => [...prev, {
-                            role: 'assistant',
-                            text: message,
-                            type: 'MESSAGE'
-                        }]);
-                    }}
-                />
             )}
         </>
     );

@@ -7,6 +7,8 @@ import TrustSection from '@/components/TrustSection/TrustSection';
 import CTASection from '@/components/CTASection/CTASection';
 import Footer from '@/components/Footer/Footer';
 
+import Chatbot from '@/components/Chatbot/Chatbot';
+
 export default function Home() {
   return (
     <main>
@@ -18,6 +20,8 @@ export default function Home() {
       <TrustSection />
       <CTASection />
       <Footer />
+      <Chatbot />
     </main>
   );
 }
+
