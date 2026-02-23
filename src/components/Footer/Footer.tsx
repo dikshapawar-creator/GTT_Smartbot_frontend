@@ -1,3 +1,4 @@
+import Image from 'next/image';
 import styles from './Footer.module.css';
 
 const footerLinks = {
@@ -15,21 +16,20 @@ export default function Footer() {
                     {/* Brand */}
                     <div className={styles.brand}>
                         <div className={styles.logo}>
-                            <div className={styles.logoIcon}>
-                                <svg width="18" height="18" viewBox="0 0 24 24" fill="none">
-                                    <rect x="2" y="3" width="20" height="14" rx="2" stroke="currentColor" strokeWidth="1.8" />
-                                    <path d="M8 21h8M12 17v4" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" />
-                                    <path d="M7 8h10M7 11h6" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
-                                </svg>
-                            </div>
-                            <span className={styles.logoText}>TradeFlow CRM</span>
+                            <Image
+                                src="/logo.png"
+                                alt="GTD Service"
+                                width={140}
+                                height={40}
+                                className="object-contain"
+                            />
                         </div>
                         <p className={styles.brandDesc}>
-                            Enterprise Import &amp; Export Management Platform. Trusted by logistics companies and freight forwarders across 50+ countries.
+                            Enterprise Trade Data Intelligence Platform. Precision insights for global trade partners across 200+ countries.
                         </p>
                         <div className={styles.contact}>
-                            <span>enterprise@tradeflowcrm.com</span>
-                            <span>+1 (800) 555-TRADE</span>
+                            <span>enterprise@gtdservice.com</span>
+                            <span>+1 (800) GTD-TRADE</span>
                         </div>
                     </div>
 
@@ -50,7 +50,7 @@ export default function Footer() {
 
                 <div className={styles.bottom}>
                     <p className={styles.copyright}>
-                        © 2025 TradeFlow CRM. All rights reserved.
+                        © 2026 GTD Service. All rights reserved.
                     </p>
                     <div className={styles.bottomLinks}>
                         <a href="#" className={styles.bottomLink}>Privacy</a>

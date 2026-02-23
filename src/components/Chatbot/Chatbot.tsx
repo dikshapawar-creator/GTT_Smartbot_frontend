@@ -1,5 +1,6 @@
 'use client';
 import { useState, useEffect, useRef } from 'react';
+import Image from 'next/image';
 import styles from './Chatbot.module.css';
 import LeadForm from './LeadForm';
 
@@ -57,7 +58,7 @@ export default function Chatbot() {
         } else if (!isInitialized) {
             setStatusText('Connecting...');
         }
-    }, [isInitialized]);
+    }, [isInitialized, statusText]);
 
     const initSession = async () => {
         setLoading(true);
@@ -269,16 +270,21 @@ export default function Chatbot() {
                 <button
                     className={`${styles.fab} ${open ? styles.fabOpen : ''}`}
                     onClick={() => open ? handleClose() : setOpen(true)}
-                    aria-label="Open Trade Support"
+                    aria-label="Open GTD Support"
                 >
                     {open ? (
                         <svg width="18" height="18" viewBox="0 0 24 24" fill="none">
                             <path d="M6 18L18 6M6 6l12 12" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
                         </svg>
                     ) : (
-                        <svg width="20" height="20" viewBox="0 0 24 24" fill="none">
-                            <path d="M8 10h.01M12 10h.01M16 10h.01M9 16H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-5l-5 5v-5z" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />
-                        </svg>
+                        <div className="relative w-8 h-8">
+                            <Image
+                                src="/logo.png"
+                                alt="GTD Logo"
+                                fill
+                                className="object-contain"
+                            />
+                        </div>
                     )}
                 </button>
             </div>
@@ -289,13 +295,15 @@ export default function Chatbot() {
                     {/* Header */}
                     <div className={styles.panelHeader}>
                         <div className={styles.headerLeft}>
-                            <div className={styles.headerIcon}>
-                                <svg width="14" height="14" viewBox="0 0 24 24" fill="none">
-                                    <path d="M8 10h.01M12 10h.01M16 10h.01M9 16H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-5l-5 5v-5z" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />
-                                </svg>
-                            </div>
+                            <Image
+                                src="/logo.png"
+                                alt="GTD Support"
+                                width={90}
+                                height={28}
+                                className="object-contain inverted-logo"
+                            />
                             <div>
-                                <div className={styles.headerTitle}>Trade Support</div>
+                                <div className={styles.headerTitle}>GTD Support</div>
                                 <div className={styles.headerStatus}>
                                     <span className={`${styles.statusDot} ${statusText === 'Demo Submitted' ? styles.statusDotGreen : ''}`}></span>
                                     {statusText}

@@ -2,17 +2,40 @@
 import { useState } from 'react';
 import { usePathname } from 'next/navigation';
 import Link from 'next/link';
+import Image from 'next/image';
+import { Button } from '@/components/ui/Button';
 import styles from './Dashboard.module.css';
 
+import { auth } from '@/lib/auth';
+
+import {
+    LayoutDashboard,
+    Users,
+    Ship,
+    FileText,
+    BarChart3,
+    Settings,
+    Zap,
+    Contact2,
+    Search,
+    Bell,
+    ChevronDown,
+    ChevronLeft,
+    ChevronRight,
+    LogOut,
+    Plus,
+    Download
+} from 'lucide-react';
+
 const navItems = [
-    { icon: '⊞', label: 'Dashboard', href: '/dashboard' },
-    { icon: '◈', label: 'Leads', href: '/dashboard/leads' },
-    { icon: '◉', label: 'Clients', href: '/dashboard/clients' },
-    { icon: '▷', label: 'Shipments', href: '/dashboard/shipments' },
-    { icon: '☰', label: 'Documentation', href: '/dashboard/docs' },
-    { icon: '◎', label: 'Analytics', href: '/dashboard/analytics' },
-    { icon: '⚙', label: 'Automation', href: '/dashboard/automation' },
-    { icon: '⊙', label: 'Settings', href: '/dashboard/settings' },
+    { icon: <LayoutDashboard size={18} />, label: 'Overview', href: '/crm/dashboard' },
+    { icon: <Contact2 size={18} />, label: 'Captured Leads', href: '/crm/dashboard/leads' },
+    { icon: <Users size={18} />, label: 'User Management', href: '/crm/users', adminOnly: true },
+    { icon: <Ship size={18} />, label: 'Shipments', href: '/crm/dashboard/shipments' },
+    { icon: <FileText size={18} />, label: 'Documents', href: '/crm/dashboard/docs' },
+    { icon: <BarChart3 size={18} />, label: 'Analytics', href: '/crm/dashboard/analytics' },
+    { icon: <Zap size={18} />, label: 'Automation', href: '/crm/dashboard/automation' },
+    { icon: <Settings size={18} />, label: 'Settings', href: '/crm/dashboard/settings' },
 ];
 
 const kpis = [
@@ -52,7 +75,7 @@ const transactions = [
 
 const maxVal = Math.max(...revenueData);
 
-export default function Dashboard() {
+export default function Dashboard({ children }: { children?: React.ReactNode }) {
     const [collapsed, setCollapsed] = useState(false);
     const [notifOpen, setNotifOpen] = useState(false);
     const pathname = usePathname();
@@ -63,22 +86,22 @@ export default function Dashboard() {
             <aside className={`${styles.sidebar} ${collapsed ? styles.collapsed : ''}`}>
                 <div className={styles.sidebarHeader}>
                     <div className={styles.sidebarLogo}>
-                        <div className={styles.logoIcon}>
-                            <svg width="16" height="16" viewBox="0 0 24 24" fill="none">
-                                <path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
-                            </svg>
-                        </div>
-                        {!collapsed && <span className={styles.logoText}>AI Trade CRM</span>}
+                        <Image
+                            src="/logo.png"
+                            alt="GTD Service"
+                            width={collapsed ? 36 : 140}
+                            height={36}
+                            className="object-contain inverted-logo"
+                            priority
+                        />
                     </div>
                     <button className={styles.collapseBtn} onClick={() => setCollapsed(!collapsed)}>
-                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none">
-                            <path d={collapsed ? "M9 18l6-6-6-6" : "M15 18l-6-6 6-6"} stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
-                        </svg>
+                        {collapsed ? <ChevronRight size={16} /> : <ChevronLeft size={16} />}
                     </button>
                 </div>
 
                 <nav className={styles.sidebarNav}>
-                    {navItems.map((item) => {
+                    {navItems.filter(item => !item.adminOnly || auth.isAdmin()).map((item) => {
                         const isActive = pathname === item.href || (item.href !== '/dashboard' && pathname.startsWith(item.href));
                         return (
                             <Link key={item.label} href={item.href} className={`${styles.navItem} ${isActive ? styles.navItemActive : ''}`}>
@@ -97,9 +120,19 @@ export default function Dashboard() {
                                 <span className={styles.userName}>Harsh Kumar</span>
                                 <span className={styles.userRole}>Admin</span>
                             </div>
+                            <button className="ml-auto text-slate-400 hover:text-red-500 transition-colors">
+                                <LogOut size={16} />
+                            </button>
                         </div>
                     )}
-                    {collapsed && <div className={styles.userAvatarSm}>HK</div>}
+                    {collapsed && (
+                        <div className="flex flex-col items-center gap-4">
+                            <div className={styles.userAvatarSm}>HK</div>
+                            <button className="text-slate-400 hover:text-red-500 transition-colors">
+                                <LogOut size={16} />
+                            </button>
+                        </div>
+                    )}
                 </div>
             </aside>
 
@@ -117,16 +150,12 @@ export default function Dashboard() {
                     </div>
                     <div className={styles.headerRight}>
                         <div className={styles.orgSwitcher}>
-                            <span>GTT Enterprises</span>
-                            <svg width="14" height="14" viewBox="0 0 24 24" fill="none">
-                                <path d="M19 9l-7 7-7-7" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
-                            </svg>
+                            <span>GTD Service</span>
+                            <ChevronDown size={14} className="text-slate-400" />
                         </div>
                         <div className={styles.notifWrap}>
                             <button className={styles.iconBtn} onClick={() => setNotifOpen(!notifOpen)}>
-                                <svg width="18" height="18" viewBox="0 0 24 24" fill="none">
-                                    <path d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
-                                </svg>
+                                <Bell size={18} />
                                 <span className={styles.notifBadge}>3</span>
                             </button>
                         </div>
@@ -136,180 +165,192 @@ export default function Dashboard() {
                                 <span className={styles.profileName}>Harsh Kumar</span>
                                 <span className={styles.profileRole}>Administrator</span>
                             </div>
-                            <svg width="14" height="14" viewBox="0 0 24 24" fill="none">
-                                <path d="M19 9l-7 7-7-7" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
-                            </svg>
+                            <ChevronDown size={14} className="text-slate-400 ml-1" />
                         </div>
                     </div>
                 </header>
 
                 {/* Page Content */}
                 <div className={styles.content}>
-                    {/* Page Title */}
-                    <div className={styles.pageTitle}>
-                        <div>
-                            <h1 className={styles.pageTitleText}>Dashboard</h1>
-                            <p className={styles.pageTitleSub}>Welcome back, Harsh. Here is your trade operations overview.</p>
-                        </div>
-                        <div className={styles.pageTitleActions}>
-                            <button className="btn btn-outline btn-sm">Export Report</button>
-                            <button className="btn btn-primary btn-sm">+ New Shipment</button>
-                        </div>
-                    </div>
-
-                    {/* KPI Cards */}
-                    <div className={styles.kpiGrid}>
-                        {kpis.map((kpi, i) => (
-                            <div key={i} className={styles.kpiCard}>
-                                <div className={styles.kpiTop}>
-                                    <span className={styles.kpiLabel}>{kpi.label}</span>
-                                    <span className={`${styles.kpiChange} ${kpi.trend === 'up' ? styles.changeUp : styles.changeDown}`}>
-                                        {kpi.trend === 'up' ? '↑' : '↓'} {kpi.change}
-                                    </span>
-                                </div>
-                                <div className={styles.kpiValue}>{kpi.value}</div>
-                                <div className={styles.kpiSub}>{kpi.sub}</div>
-                            </div>
-                        ))}
-                    </div>
-
-                    {/* Charts Row */}
-                    <div className={styles.chartsRow}>
-                        {/* Revenue Chart */}
-                        <div className={styles.chartCard}>
-                            <div className={styles.cardHeader}>
+                    {children ? children : (
+                        <>
+                            {/* Page Title */}
+                            <div className={styles.pageTitle}>
                                 <div>
-                                    <h3 className={styles.cardTitle}>Revenue Overview</h3>
-                                    <p className={styles.cardSubtitle}>Monthly revenue in USD (millions)</p>
+                                    <h1 className={styles.pageTitleText}>{pathname === '/dashboard/leads' ? 'Captured Leads' : 'Dashboard'}</h1>
+                                    <p className={styles.pageTitleSub}>
+                                        {pathname === '/dashboard/leads'
+                                            ? 'Manage and follow up on enterprise inquiries.'
+                                            : 'Welcome back, Harsh. Here is your trade operations overview.'}
+                                    </p>
                                 </div>
-                                <div className={styles.cardActions}>
-                                    <span className="badge badge-success">+18% YoY</span>
-                                    <select className={styles.periodSelect}>
-                                        <option>2025</option>
-                                        <option>2024</option>
-                                    </select>
-                                </div>
-                            </div>
-                            <div className={styles.lineChart}>
-                                <svg viewBox="0 0 700 180" className={styles.lineSvg} preserveAspectRatio="none">
-                                    <defs>
-                                        <linearGradient id="dashAreaGrad" x1="0" y1="0" x2="0" y2="1">
-                                            <stop offset="0%" stopColor="#2563EB" stopOpacity="0.12" />
-                                            <stop offset="100%" stopColor="#2563EB" stopOpacity="0" />
-                                        </linearGradient>
-                                    </defs>
-                                    {[0, 1, 2, 3, 4].map(i => (
-                                        <line key={i} x1="0" y1={i * 35 + 10} x2="700" y2={i * 35 + 10} stroke="#F1F5F9" strokeWidth="1" />
-                                    ))}
-                                    <path
-                                        d={`M ${revenueData.map((v, i) => `${i * 58 + 29},${160 - (v / maxVal) * 140}`).join(' L ')} L ${11 * 58 + 29},160 L 29,160 Z`}
-                                        fill="url(#dashAreaGrad)"
-                                    />
-                                    <polyline
-                                        points={revenueData.map((v, i) => `${i * 58 + 29},${160 - (v / maxVal) * 140}`).join(' ')}
-                                        fill="none"
-                                        stroke="#2563EB"
-                                        strokeWidth="2.5"
-                                        strokeLinejoin="round"
-                                        strokeLinecap="round"
-                                    />
-                                    {revenueData.map((v, i) => (
-                                        <circle key={i} cx={i * 58 + 29} cy={160 - (v / maxVal) * 140} r="4" fill="#2563EB" stroke="#fff" strokeWidth="2" />
-                                    ))}
-                                </svg>
-                                <div className={styles.chartMonths}>
-                                    {months.map(m => <span key={m}>{m}</span>)}
+                                <div className={styles.pageTitleActions}>
+                                    <Button variant="outline" size="sm" className="gap-2">
+                                        <Download size={14} />
+                                        Export Report
+                                    </Button>
+                                    <Button size="sm" className="gap-2 shadow-md shadow-primary/20">
+                                        <Plus size={14} />
+                                        New Shipment
+                                    </Button>
                                 </div>
                             </div>
-                        </div>
 
-                        {/* Shipment Overview */}
-                        <div className={styles.shipCard}>
-                            <div className={styles.cardHeader}>
-                                <h3 className={styles.cardTitle}>Shipment Progress</h3>
-                                <span className="badge badge-accent">Live</span>
-                            </div>
-                            <div className={styles.shipList}>
-                                {shipments.map((s) => (
-                                    <div key={s.id} className={styles.shipItem}>
-                                        <div className={styles.shipTop}>
-                                            <span className={styles.shipId}>{s.id}</span>
-                                            <span className={`${styles.shipStatus} ${s.status === 'Delivered' ? styles.statusDelivered :
-                                                s.status === 'Customs Hold' ? styles.statusHold :
-                                                    s.status === 'Booked' ? styles.statusBooked : styles.statusTransit
-                                                }`}>{s.status}</span>
+                            {/* KPI Cards */}
+                            <div className={styles.kpiGrid}>
+                                {kpis.map((kpi, i) => (
+                                    <div key={i} className={styles.kpiCard}>
+                                        <div className={styles.kpiTop}>
+                                            <span className={styles.kpiLabel}>{kpi.label}</span>
+                                            <span className={`${styles.kpiChange} ${kpi.trend === 'up' ? styles.changeUp : styles.changeDown}`}>
+                                                {kpi.trend === 'up' ? '↑' : '↓'} {kpi.change}
+                                            </span>
                                         </div>
-                                        <div className={styles.shipMeta}>
-                                            <span>{s.origin} → {s.dest}</span>
-                                            <span>ETA: {s.eta}</span>
-                                        </div>
-                                        <div className={styles.progressBar}>
-                                            <div className={styles.progressFill} style={{
-                                                width: `${s.progress}%`,
-                                                background: s.status === 'Customs Hold' ? '#F59E0B' : s.status === 'Delivered' ? '#10B981' : '#2563EB'
-                                            }}></div>
-                                        </div>
+                                        <div className={styles.kpiValue}>{kpi.value}</div>
+                                        <div className={styles.kpiSub}>{kpi.sub}</div>
                                     </div>
                                 ))}
                             </div>
-                        </div>
-                    </div>
 
-                    {/* Bottom Row */}
-                    <div className={styles.bottomRow}>
-                        {/* Activity Feed */}
-                        <div className={styles.activityCard}>
-                            <div className={styles.cardHeader}>
-                                <h3 className={styles.cardTitle}>Activity Feed</h3>
-                                <button className="btn btn-ghost btn-sm">View All</button>
-                            </div>
-                            <div className={styles.activityList}>
-                                {activities.map((a, i) => (
-                                    <div key={i} className={styles.activityItem}>
-                                        <div className={`${styles.activityDot} ${styles[`dot_${a.type}`]}`}></div>
-                                        <div className={styles.activityContent}>
-                                            <span className={styles.activityText}>{a.text}</span>
-                                            <span className={styles.activityTime}>{a.time}</span>
+                            {/* Charts Row */}
+                            <div className={styles.chartsRow}>
+                                {/* Revenue Chart */}
+                                <div className={styles.chartCard}>
+                                    <div className={styles.cardHeader}>
+                                        <div>
+                                            <h3 className={styles.cardTitle}>Revenue Overview</h3>
+                                            <p className={styles.cardSubtitle}>Monthly revenue in USD (millions)</p>
+                                        </div>
+                                        <div className={styles.cardActions}>
+                                            <span className="badge badge-success">+18% YoY</span>
+                                            <select className={styles.periodSelect}>
+                                                <option>2025</option>
+                                                <option>2024</option>
+                                            </select>
                                         </div>
                                     </div>
-                                ))}
-                            </div>
-                        </div>
+                                    <div className={styles.lineChart}>
+                                        <svg viewBox="0 0 700 180" className={styles.lineSvg} preserveAspectRatio="none">
+                                            <defs>
+                                                <linearGradient id="dashAreaGrad" x1="0" y1="0" x2="0" y2="1">
+                                                    <stop offset="0%" stopColor="#2563EB" stopOpacity="0.12" />
+                                                    <stop offset="100%" stopColor="#2563EB" stopOpacity="0" />
+                                                </linearGradient>
+                                            </defs>
+                                            {[0, 1, 2, 3, 4].map(i => (
+                                                <line key={i} x1="0" y1={i * 35 + 10} x2="700" y2={i * 35 + 10} stroke="#F1F5F9" strokeWidth="1" />
+                                            ))}
+                                            <path
+                                                d={`M ${revenueData.map((v, i) => `${i * 58 + 29},${160 - (v / maxVal) * 140}`).join(' L ')} L ${11 * 58 + 29},160 L 29,160 Z`}
+                                                fill="url(#dashAreaGrad)"
+                                            />
+                                            <polyline
+                                                points={revenueData.map((v, i) => `${i * 58 + 29},${160 - (v / maxVal) * 140}`).join(' ')}
+                                                fill="none"
+                                                stroke="#2563EB"
+                                                strokeWidth="2.5"
+                                                strokeLinejoin="round"
+                                                strokeLinecap="round"
+                                            />
+                                            {revenueData.map((v, i) => (
+                                                <circle key={i} cx={i * 58 + 29} cy={160 - (v / maxVal) * 140} r="4" fill="#2563EB" stroke="#fff" strokeWidth="2" />
+                                            ))}
+                                        </svg>
+                                        <div className={styles.chartMonths}>
+                                            {months.map(m => <span key={m}>{m}</span>)}
+                                        </div>
+                                    </div>
+                                </div>
 
-                        {/* Transactions */}
-                        <div className={styles.transCard}>
-                            <div className={styles.cardHeader}>
-                                <h3 className={styles.cardTitle}>Recent Transactions</h3>
-                                <button className="btn btn-ghost btn-sm">View All</button>
+                                {/* Shipment Overview */}
+                                <div className={styles.shipCard}>
+                                    <div className={styles.cardHeader}>
+                                        <h3 className={styles.cardTitle}>Shipment Progress</h3>
+                                        <span className="badge badge-accent">Live</span>
+                                    </div>
+                                    <div className={styles.shipList}>
+                                        {shipments.map((s) => (
+                                            <div key={s.id} className={styles.shipItem}>
+                                                <div className={styles.shipTop}>
+                                                    <span className={styles.shipId}>{s.id}</span>
+                                                    <span className={`${styles.shipStatus} ${s.status === 'Delivered' ? styles.statusDelivered :
+                                                        s.status === 'Customs Hold' ? styles.statusHold :
+                                                            s.status === 'Booked' ? styles.statusBooked : styles.statusTransit
+                                                        }`}>{s.status}</span>
+                                                </div>
+                                                <div className={styles.shipMeta}>
+                                                    <span>{s.origin} → {s.dest}</span>
+                                                    <span>ETA: {s.eta}</span>
+                                                </div>
+                                                <div className={styles.progressBar}>
+                                                    <div className={styles.progressFill} style={{
+                                                        width: `${s.progress}%`,
+                                                        background: s.status === 'Customs Hold' ? '#F59E0B' : s.status === 'Delivered' ? '#10B981' : '#2563EB'
+                                                    }}></div>
+                                                </div>
+                                            </div>
+                                        ))}
+                                    </div>
+                                </div>
                             </div>
-                            <table className={styles.table}>
-                                <thead>
-                                    <tr>
-                                        <th>Invoice</th>
-                                        <th>Client</th>
-                                        <th>Amount</th>
-                                        <th>Date</th>
-                                        <th>Status</th>
-                                    </tr>
-                                </thead>
-                                <tbody>
-                                    {transactions.map((t, i) => (
-                                        <tr key={i}>
-                                            <td className={styles.tdMono}>{t.inv}</td>
-                                            <td>{t.client}</td>
-                                            <td className={styles.tdAmount}>{t.amount}</td>
-                                            <td className={styles.tdMuted}>{t.date}</td>
-                                            <td>
-                                                <span className={`badge ${t.status === 'Paid' ? 'badge-success' : t.status === 'Overdue' ? 'badge-danger' : 'badge-warning'}`}>
-                                                    {t.status}
-                                                </span>
-                                            </td>
-                                        </tr>
-                                    ))}
-                                </tbody>
-                            </table>
-                        </div>
-                    </div>
+
+                            {/* Bottom Row */}
+                            <div className={styles.bottomRow}>
+                                {/* Activity Feed */}
+                                <div className={styles.activityCard}>
+                                    <div className={styles.cardHeader}>
+                                        <h3 className={styles.cardTitle}>Activity Feed</h3>
+                                        <button className="btn btn-ghost btn-sm">View All</button>
+                                    </div>
+                                    <div className={styles.activityList}>
+                                        {activities.map((a, i) => (
+                                            <div key={i} className={styles.activityItem}>
+                                                <div className={`${styles.activityDot} ${styles[`dot_${a.type}`]}`}></div>
+                                                <div className={styles.activityContent}>
+                                                    <span className={styles.activityText}>{a.text}</span>
+                                                    <span className={styles.activityTime}>{a.time}</span>
+                                                </div>
+                                            </div>
+                                        ))}
+                                    </div>
+                                </div>
+
+                                {/* Transactions */}
+                                <div className={styles.transCard}>
+                                    <div className={styles.cardHeader}>
+                                        <h3 className={styles.cardTitle}>Recent Transactions</h3>
+                                        <button className="btn btn-ghost btn-sm">View All</button>
+                                    </div>
+                                    <table className={styles.table}>
+                                        <thead>
+                                            <tr>
+                                                <th>Invoice</th>
+                                                <th>Client</th>
+                                                <th>Amount</th>
+                                                <th>Date</th>
+                                                <th>Status</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody>
+                                            {transactions.map((t, i) => (
+                                                <tr key={i}>
+                                                    <td className={styles.tdMono}>{t.inv}</td>
+                                                    <td>{t.client}</td>
+                                                    <td className={styles.tdAmount}>{t.amount}</td>
+                                                    <td className={styles.tdMuted}>{t.date}</td>
+                                                    <td>
+                                                        <span className={`badge ${t.status === 'Paid' ? 'badge-success' : t.status === 'Overdue' ? 'badge-danger' : 'badge-warning'}`}>
+                                                            {t.status}
+                                                        </span>
+                                                    </td>
+                                                </tr>
+                                            ))}
+                                        </tbody>
+                                    </table>
+                                </div>
+                            </div>
+                        </>
+                    )}
                 </div>
             </div>
         </div>

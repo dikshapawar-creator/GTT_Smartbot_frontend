@@ -1,3 +1,4 @@
+import { Button } from '@/components/ui/Button';
 import styles from './CTASection.module.css';
 
 export default function CTASection() {
@@ -11,20 +12,24 @@ export default function CTASection() {
                             Ready to Modernise Your Trade Operations?
                         </h2>
                         <p className={styles.subtitle}>
-                            TradeFlow CRM is deployed by logistics companies, freight forwarders, and exporters across 50+ countries. Contact our enterprise team to schedule a platform walkthrough.
+                            GTD Service is trusted by logistics companies, freight forwarders, and exporters across 200+ countries. Access the GTIS database and modernise your trade intelligence today.
                         </p>
                         <div className={styles.ctas}>
-                            <a href="#" className="btn btn-primary btn-lg">Request Demo</a>
-                            <a href="#" className="btn btn-outline btn-lg">Contact Sales</a>
+                            <Button size="lg" className="h-14 px-10 text-base font-bold rounded-xl shadow-xl shadow-primary/30">
+                                Request Demo
+                            </Button>
+                            <Button variant="outline" size="lg" className="h-14 px-10 text-base font-bold rounded-xl">
+                                Contact Sales
+                            </Button>
                         </div>
                         <p className={styles.note}>Enterprise onboarding included. Dedicated implementation support.</p>
                     </div>
                     <div className={styles.visual}>
                         <div className={styles.statsGrid}>
                             {[
-                                { value: '120+', label: 'Global Trade Routes' },
-                                { value: '10,000+', label: 'Monthly Shipments' },
-                                { value: '50+', label: 'Countries Covered' },
+                                { value: '200+', label: 'Countries Markets' },
+                                { value: 'GTIS', label: 'Trade Database' },
+                                { value: '100%', label: 'Verified Data' },
                                 { value: '99.9%', label: 'Platform Uptime' },
                             ].map((s) => (
                                 <div key={s.label} className={styles.statItem}>

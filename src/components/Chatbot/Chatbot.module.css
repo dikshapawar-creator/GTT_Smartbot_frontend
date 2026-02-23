@@ -23,23 +23,24 @@
 }
 
 .fab {
-    width: 48px;
-    height: 48px;
-    border-radius: 4px;
-    background: var(--color-primary);
-    color: rgba(255, 255, 255, 0.9);
+    width: 52px;
+    height: 52px;
+    border-radius: 6px;
+    background: #0B1F3A;
+    color: #ffffff;
     border: none;
     cursor: pointer;
     display: flex;
     align-items: center;
     justify-content: center;
-    box-shadow: 0 4px 12px rgba(15, 23, 42, 0.3);
-    transition: background 150ms ease, box-shadow 150ms ease;
+    box-shadow: 0 4px 16px rgba(11, 31, 58, 0.35);
+    transition: all 150ms ease;
 }
 
 .fab:hover {
-    background: var(--color-primary-light);
-    box-shadow: 0 6px 16px rgba(15, 23, 42, 0.4);
+    background: #132d54;
+    box-shadow: 0 6px 20px rgba(11, 31, 58, 0.5);
+    transform: translateY(-1px);
 }
 
 .fabOpen {
@@ -99,9 +100,6 @@
     justify-content: center;
     width: 30px;
     height: 30px;
-    background: rgba(255, 255, 255, 0.12);
-    color: rgba(255, 255, 255, 0.9);
-    border-radius: 4px;
     flex-shrink: 0;
 }
 

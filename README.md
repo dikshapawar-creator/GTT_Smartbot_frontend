@@ -1,4 +1,4 @@
-<<<<<<< HEAD
+
 This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
 
 ## Getting Started
@@ -204,4 +204,3 @@ A portfolio-ready production architecture
 👩‍💻 Author
 
 Developed as a full-stack AI integration project demonstrating secure and scalable architecture.
->>>>>>> 6679cb94bbd275fb375318fcb608565c1ade0d25

@@ -1,10 +1,9 @@
 import type { Metadata } from 'next';
 import './globals.css';
-import Chatbot from '@/components/Chatbot/Chatbot';
 
 export const metadata: Metadata = {
-  title: 'TradeFlow CRM — Enterprise Import & Export Management Platform',
-  description: 'End-to-end trade operations management for global businesses. Manage shipments, documentation, compliance, and client operations across global trade routes.',
+  title: 'GTD Service — Enterprise Import & Export Management Platform',
+  description: 'Manage global trade operations, shipments, and intelligence with the GTD Service ecosystem.',
 };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {

@@ -1,6 +1,8 @@
 'use client';
 import { useState, useEffect } from 'react';
 import Link from 'next/link';
+import Image from 'next/image';
+import { Button } from '@/components/ui/Button';
 import styles from './Navbar.module.css';
 
 export default function Navbar() {
@@ -18,14 +20,14 @@ export default function Navbar() {
       <div className={`container ${styles.inner}`}>
         {/* Logo */}
         <Link href="/" className={styles.logo}>
-          <div className={styles.logoIcon}>
-            <svg width="18" height="18" viewBox="0 0 24 24" fill="none">
-              <rect x="2" y="3" width="20" height="14" rx="2" stroke="currentColor" strokeWidth="1.8" />
-              <path d="M8 21h8M12 17v4" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" />
-              <path d="M7 8h10M7 11h6" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
-            </svg>
-          </div>
-          <span className={styles.logoText}>TradeFlow CRM</span>
+          <Image
+            src="/logo.png"
+            alt="GTD Service"
+            width={160}
+            height={48}
+            className="object-contain"
+            priority
+          />
         </Link>
 
         {/* Desktop Nav */}
@@ -38,8 +40,16 @@ export default function Navbar() {
 
         {/* CTA Buttons */}
         <div className={styles.navActions}>
-          <Link href="/dashboard" className="btn btn-outline btn-sm">Client Login</Link>
-          <Link href="#contact" className="btn btn-primary btn-sm">Request Demo</Link>
+          <Link href="/signin">
+            <button className="h-9 px-5 text-sm font-semibold text-gray-800 bg-white border border-gray-200 rounded-lg hover:bg-gray-50 transition-all shadow-sm">
+              Client Login
+            </button>
+          </Link>
+          <Link href="#contact">
+            <button className="h-9 px-5 text-sm font-semibold text-white bg-blue-600 border border-blue-600 rounded-lg hover:bg-blue-700 transition-all shadow-md">
+              Request Demo
+            </button>
+          </Link>
         </div>
 
         {/* Mobile Toggle */}
@@ -56,8 +66,12 @@ export default function Navbar() {
           <a href="#compliance" className={styles.mobileLink} onClick={() => setMobileOpen(false)}>Compliance</a>
           <a href="#about" className={styles.mobileLink} onClick={() => setMobileOpen(false)}>About</a>
           <div className={styles.mobileCtas}>
-            <Link href="/dashboard" className="btn btn-outline">Client Login</Link>
-            <Link href="#contact" className="btn btn-primary">Request Demo</Link>
+            <Link href="/signin" onClick={() => setMobileOpen(false)}>
+              <Button variant="outline" className="w-full">Client Login</Button>
+            </Link>
+            <Link href="#contact" onClick={() => setMobileOpen(false)}>
+              <Button className="w-full">Request Demo</Button>
+            </Link>
           </div>
         </div>
       )}

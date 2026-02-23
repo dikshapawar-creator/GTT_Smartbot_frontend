@@ -1,8 +1,10 @@
 'use client';
 import { useState, useEffect } from 'react';
+import { Button } from '@/components/ui/Button';
+import { RefreshCw, ExternalLink, Filter } from 'lucide-react';
 import styles from './Dashboard.module.css';
 
-const API_BASE = process.env.NEXT_PUBLIC_API_URL || 'http://127.0.0.1:8000';
+const API_BASE = process.env.NEXT_PUBLIC_API_URL || 'https://api-test.gtdservice.com';
 
 interface Lead {
     id: string;
@@ -60,7 +62,10 @@ export default function LeadsList() {
                     <p className={styles.pageTitleSub}>Review and manage enterprise leads captured via SmartBot.</p>
                 </div>
                 <div className={styles.pageTitleActions}>
-                    <button className="btn btn-outline btn-sm" onClick={fetchLeads}>Refresh</button>
+                    <Button variant="outline" size="sm" onClick={fetchLeads} className="gap-2">
+                        <RefreshCw className={loading ? "animate-spin w-4 h-4" : "w-4 h-4"} />
+                        Refresh
+                    </Button>
                     <select
                         className={styles.filterSelect}
                         value={filter}
@@ -108,7 +113,10 @@ export default function LeadsList() {
                                     <td className={styles.tdMuted}>{formatDate(lead.created_at)}</td>
                                     <td className={styles.tdMuted}>{formatDate(lead.created_at, true)}</td>
                                     <td>
-                                        <button className="btn btn-ghost btn-sm" title="View Details">Details</button>
+                                        <Button variant="ghost" size="sm" className="h-8 gap-1">
+                                            <ExternalLink className="w-3.5 h-3.5" />
+                                            Details
+                                        </Button>
                                     </td>
                                 </tr>
                             ))}

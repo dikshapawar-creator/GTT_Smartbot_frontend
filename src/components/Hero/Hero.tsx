@@ -1,3 +1,5 @@
+import Link from 'next/link';
+import { Button } from '@/components/ui/Button';
 import styles from './Hero.module.css';
 
 export default function Hero() {
@@ -10,34 +12,42 @@ export default function Hero() {
                 {/* Left: Content */}
                 <div className={styles.content}>
                     <div className={styles.eyebrow}>
-                        <span className={styles.eyebrowTag}>Enterprise Import &amp; Export Management Platform</span>
+                        <span className={styles.eyebrowTag}>Enterprise Trade Data Intelligence Platform</span>
                     </div>
                     <h1 className={styles.headline}>
-                        Global Trade Operations,<br />
-                        Managed from One Platform
+                        Intelligence for Global Trade,<br />
+                        Powered by GTD Service
                     </h1>
                     <p className={styles.subheading}>
-                        Manage shipments, documentation, compliance, and client operations across global trade routes from a unified enterprise system.
+                        Access verified buyers, suppliers, and market trends across global trade routes from a single enterprise intelligence system.
                     </p>
                     <div className={styles.stats}>
                         <div className={styles.stat}>
-                            <span className={styles.statValue}>120+</span>
-                            <span className={styles.statLabel}>Global Trade Routes</span>
+                            <span className={styles.statValue}>200+</span>
+                            <span className={styles.statLabel}>Countries Markets</span>
                         </div>
                         <div className={styles.statDivider}></div>
                         <div className={styles.stat}>
-                            <span className={styles.statValue}>10,000+</span>
-                            <span className={styles.statLabel}>Monthly Shipments</span>
+                            <span className={styles.statValue}>GTIS</span>
+                            <span className={styles.statLabel}>Trade Database</span>
                         </div>
                         <div className={styles.statDivider}></div>
                         <div className={styles.stat}>
-                            <span className={styles.statValue}>50+</span>
-                            <span className={styles.statLabel}>Countries Covered</span>
+                            <span className={styles.statValue}>100%</span>
+                            <span className={styles.statLabel}>Verified Data</span>
                         </div>
                     </div>
                     <div className={styles.ctas}>
-                        <a href="#contact" className="btn btn-primary btn-lg">Request Demo</a>
-                        <a href="#contact" className="btn btn-outline btn-lg">Contact Sales</a>
+                        <Link href="#contact">
+                            <Button size="lg" className="h-12 px-8 text-base font-semibold bg-blue-600 hover:bg-blue-700 text-white rounded-xl shadow-lg transition-all">
+                                Request Demo
+                            </Button>
+                        </Link>
+                        <Link href="#contact">
+                            <Button variant="outline" size="lg" className="h-12 px-8 text-base font-semibold border-gray-200 text-gray-700 hover:bg-gray-50 rounded-xl transition-all">
+                                Contact Sales
+                            </Button>
+                        </Link>
                     </div>
                 </div>
 
@@ -48,7 +58,7 @@ export default function Hero() {
                             <div className={styles.previewDots}>
                                 <span></span><span></span><span></span>
                             </div>
-                            <span className={styles.previewTitle}>TradeFlow CRM — Operations Dashboard</span>
+                            <span className={styles.previewTitle}>GTD Service — Operations Dashboard</span>
                         </div>
                         <div className={styles.previewBody}>
                             {/* KPI Row */}

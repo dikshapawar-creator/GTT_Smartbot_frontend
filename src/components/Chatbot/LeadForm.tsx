@@ -26,15 +26,6 @@ const DIAL_CODES = [
     { code: '+39', country: 'IT', label: '🇮🇹 +39' },
 ] as const;
 
-// ── Free email providers (mirrored from backend) ────────────────────────────
-const FREE_EMAIL_DOMAINS = new Set([
-    'gmail.com', 'yahoo.com', 'hotmail.com', 'outlook.com', 'live.com',
-    'icloud.com', 'me.com', 'mac.com', 'aol.com', 'msn.com',
-    'yahoo.co.in', 'yahoo.co.uk', 'googlemail.com', 'protonmail.com',
-    'proton.me', 'yandex.com', 'yandex.ru', 'mail.com', 'zoho.com',
-    'rediffmail.com', 'inbox.com', 'gmx.com', 'gmx.net', 'fastmail.com',
-]);
-
 // ── Validation helpers ──────────────────────────────────────────────────────
 const NAME_REGEX = /^[A-Za-z\s\-'.]+$/;
 const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
