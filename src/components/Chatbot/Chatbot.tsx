@@ -282,7 +282,7 @@ export default function Chatbot() {
                                 src="/logo.png"
                                 alt="GTD Logo"
                                 fill
-                                className="object-contain"
+                                className="object-contain inverted-logo"
                             />
                         </div>
                     )}

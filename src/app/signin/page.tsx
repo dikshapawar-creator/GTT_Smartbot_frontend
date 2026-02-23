@@ -116,7 +116,7 @@ function SignInContent() {
                 </div>
             )}
 
-            <form onSubmit={handleSubmit(onSubmit)} className="space-y-7">
+            <form onSubmit={handleSubmit(onSubmit)} style={{ display: 'flex', flexDirection: 'column', gap: '24px' }}>
                 <InputField
                     label="Email Address"
                     placeholder="name@company.com"
@@ -135,36 +135,38 @@ function SignInContent() {
                         <button
                             type="button"
                             onClick={() => setShowPassword(!showPassword)}
-                            className="text-gray-400 hover:text-blue-700 transition-colors focus:outline-none"
+                            style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#9ca3af', padding: '4px' }}
                         >
-                            {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                            {showPassword ? <EyeOff style={{ width: '18px', height: '18px' }} /> : <Eye style={{ width: '18px', height: '18px' }} />}
                         </button>
                     }
                 />
 
-                <div className="flex items-center justify-between">
-                    <label className="flex items-center gap-2 text-black cursor-pointer group select-none text-sm font-medium">
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                    <label style={{ display: 'flex', alignItems: 'center', gap: '8px', color: '#000', cursor: 'pointer', fontSize: '14px', fontWeight: 500 }}>
                         <input
                             type="checkbox"
                             id="rememberMe"
-                            className="w-4 h-4 rounded border-gray-400 text-blue-700 focus:ring-blue-700 cursor-pointer transition-all"
+                            style={{ width: '16px', height: '16px', borderRadius: '4px', cursor: 'pointer' }}
                             {...register("rememberMe")}
                         />
-                        <span className="group-hover:text-black/70 transition-colors">Keep me signed in</span>
+                        Keep me signed in
                     </label>
                     <Link
                         href="/forgot-password"
-                        className="text-blue-700 hover:text-blue-900 font-semibold transition-colors hover:underline underline-offset-4 text-sm"
+                        style={{ color: '#1d4ed8', fontWeight: 600, fontSize: '14px', textDecoration: 'none' }}
                     >
                         Forgot password?
                     </Link>
                 </div>
 
-                <GradientButton type="submit" isLoading={isLoading}>
-                    Sign In to GTD Service
-                </GradientButton>
+                <div style={{ marginTop: '8px' }}>
+                    <GradientButton type="submit" isLoading={isLoading}>
+                        Sign In to GTD Service
+                    </GradientButton>
+                </div>
 
-                <p className="text-[11px] font-semibold text-black/40 uppercase tracking-widest text-center pt-2">
+                <p style={{ fontSize: '11px', fontWeight: 600, color: 'rgba(0,0,0,0.35)', textTransform: 'uppercase', letterSpacing: '0.1em', textAlign: 'center', margin: 0 }}>
                     For authorized trade partners only.
                 </p>
             </form>

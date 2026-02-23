@@ -41,12 +41,12 @@ export default function Navbar() {
         {/* CTA Buttons */}
         <div className={styles.navActions}>
           <Link href="/signin">
-            <button className="h-9 px-5 text-sm font-semibold text-gray-800 bg-white border border-gray-200 rounded-lg hover:bg-gray-50 transition-all shadow-sm">
+            <button style={{ height: '38px', padding: '0 20px', fontSize: '14px', fontWeight: 600, color: '#1f2937', background: '#ffffff', border: '1.5px solid #d1d5db', borderRadius: '8px', cursor: 'pointer', boxShadow: '0 1px 3px rgba(0,0,0,0.1)', whiteSpace: 'nowrap' }}>
               Client Login
             </button>
           </Link>
           <Link href="#contact">
-            <button className="h-9 px-5 text-sm font-semibold text-white bg-blue-600 border border-blue-600 rounded-lg hover:bg-blue-700 transition-all shadow-md">
+            <button style={{ height: '38px', padding: '0 20px', fontSize: '14px', fontWeight: 600, color: '#ffffff', background: '#1d4ed8', border: '1.5px solid #1d4ed8', borderRadius: '8px', cursor: 'pointer', boxShadow: '0 2px 8px rgba(29,78,216,0.35)', whiteSpace: 'nowrap' }}>
               Request Demo
             </button>
           </Link>

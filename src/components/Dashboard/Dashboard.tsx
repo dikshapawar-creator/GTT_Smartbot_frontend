@@ -172,17 +172,13 @@ export default function Dashboard({ children }: { children?: React.ReactNode }) 
 
                 {/* Page Content */}
                 <div className={styles.content}>
-                    {children ? children : (
+                    {pathname === '/crm/dashboard' ? (
                         <>
                             {/* Page Title */}
                             <div className={styles.pageTitle}>
                                 <div>
-                                    <h1 className={styles.pageTitleText}>{pathname === '/dashboard/leads' ? 'Captured Leads' : 'Dashboard'}</h1>
-                                    <p className={styles.pageTitleSub}>
-                                        {pathname === '/dashboard/leads'
-                                            ? 'Manage and follow up on enterprise inquiries.'
-                                            : 'Welcome back, Harsh. Here is your trade operations overview.'}
-                                    </p>
+                                    <h1 className={styles.pageTitleText}>Dashboard</h1>
+                                    <p className={styles.pageTitleSub}>Welcome back, Harsh. Here is your trade operations overview.</p>
                                 </div>
                                 <div className={styles.pageTitleActions}>
                                     <Button variant="outline" size="sm" className="gap-2">
@@ -350,6 +346,8 @@ export default function Dashboard({ children }: { children?: React.ReactNode }) 
                                 </div>
                             </div>
                         </>
+                    ) : (
+                        children
                     )}
                 </div>
             </div>
