@@ -7,10 +7,13 @@ import LeadForm from './LeadForm';
 const getApiBase = () => {
     if (typeof window === 'undefined') return 'https://api-test.gtdservice.com';
     const { hostname, protocol } = window.location;
-    // Always use http for local development on port 8000
-    const base = `${protocol}//${hostname}:8000`;
-    console.log('[Chatbot] API Base Derived:', base);
-    return base;
+
+    // Only use local port 8000 if we're on localhost
+    if (hostname === 'localhost' || hostname === '127.0.0.1') {
+        return `${protocol}//${hostname}:8000`;
+    }
+
+    return 'https://api-test.gtdservice.com';
 };
 
 const API_BASE = process.env.NEXT_PUBLIC_API_URL || getApiBase();
