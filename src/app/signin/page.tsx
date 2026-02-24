@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useState, Suspense } from "react";
-import { useRouter, useSearchParams } from "next/navigation";
+import { useSearchParams } from "next/navigation";
 import Link from "next/link";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -67,7 +67,7 @@ function SignInContent() {
 
             // Force hard refresh to ensure middleware and cookies are in sync
             window.location.href = callbackUrl;
-        } catch (_err: unknown) {
+        } catch {
             setError("Invalid credentials. Please try again.");
         } finally {
             setIsLoading(false);

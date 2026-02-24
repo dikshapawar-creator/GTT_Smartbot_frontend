@@ -76,11 +76,13 @@ export default function LeadForm({ onClose, onSubmitSuccess, apiBase }: LeadForm
                 if (!v) return 'Business Email is required';
                 if (!EMAIL_REGEX.test(v)) return 'Enter a valid email address';
                 return '';
-            case 'contact_number':
+            case 'contact_number': {
                 if (!v) return 'Phone number is required';
-                if (!/^\d{6,15}$/.test(v.replace(/[\s\-()]/g, '')))
-                    return 'Enter 6–15 digits (without country code)';
+                const digitsOnly = v.replace(/[\s\-()]/g, '');
+                if (digitsOnly.length < 6 || digitsOnly.length > 15)
+                    return 'Please enter 6–15 digits';
                 return '';
+            }
             default:
                 return '';
         }
@@ -148,7 +150,13 @@ export default function LeadForm({ onClose, onSubmitSuccess, apiBase }: LeadForm
         setLoading(true);
 
         // Compose E.164 phone: dialCode + local digits
-        const localDigits = formData.contact_number.replace(/[\s\-()]/g, '');
+        // Smart strip: if user includes + or dialCode in the input, remove it
+        let localDigits = formData.contact_number.replace(/[\s\-()+]/g, '');
+        const cleanDialCode = dialCode.replace('+', '');
+        if (localDigits.startsWith(cleanDialCode)) {
+            localDigits = localDigits.substring(cleanDialCode.length);
+        }
+
         const e164Phone = `${dialCode}${localDigits}`;
 
         // Trim all fields + add honeypot
@@ -157,7 +165,7 @@ export default function LeadForm({ onClose, onSubmitSuccess, apiBase }: LeadForm
             company_name: formData.company_name.trim(),
             website: formData.website.trim() || null,
             business_email: formData.business_email.trim().toLowerCase(),
-            contact_number: e164Phone,
+            contact_number: e164Phone.trim(),
             hp_field: '',  // Honeypot — always empty from real users
         };
 
@@ -165,6 +173,7 @@ export default function LeadForm({ onClose, onSubmitSuccess, apiBase }: LeadForm
             const res = await fetch(`${apiBase}/leads/submit`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
+                credentials: 'include',
                 body: JSON.stringify(payload),
             });
             const data = await res.json();
@@ -197,10 +206,12 @@ export default function LeadForm({ onClose, onSubmitSuccess, apiBase }: LeadForm
                 throw new Error(data.message || 'Submission failed');
             }
         } catch (err: unknown) {
+            console.error('[LeadSubmit] Submission error:', err);
             if (!errors.server) {
+                const msg = err instanceof Error ? err.message : 'Network error. Please try again.';
                 setErrors(prev => ({
                     ...prev,
-                    server: err instanceof Error ? err.message : 'Network error. Please try again.'
+                    server: `${msg} (Check Console)`
                 }));
             }
         } finally {

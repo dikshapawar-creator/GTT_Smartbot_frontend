@@ -273,6 +273,55 @@
     border-radius: 6px 2px 6px 6px;
 }
 
+/* Agent (human takeover) messages — distinct blue-tinted left-aligned */
+.agentMessage {
+    align-self: flex-start;
+    flex-direction: column;
+}
+
+.agentMessage .msgBubble {
+    background: linear-gradient(135deg, #eff6ff, #dbeafe);
+    border: 1px solid #bfdbfe;
+    color: #1e3a5f;
+    border-radius: 2px 6px 6px 6px;
+}
+
+.agentLabel {
+    font-size: 10px;
+    font-weight: 700;
+    color: #3b82f6;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    margin-bottom: 3px;
+    padding-left: 2px;
+}
+
+/* Live system notifications (agent joined, etc.) */
+.liveSystemMessage {
+    align-self: center;
+    max-width: 90%;
+}
+
+.systemLabel {
+    font-size: 10px;
+    font-weight: 600;
+    color: #94a3b8;
+    text-transform: uppercase;
+    letter-spacing: 0.4px;
+    margin-bottom: 2px;
+    text-align: center;
+}
+
+.liveSystemMessage .msgBubble {
+    background: #f1f5f9;
+    border: 1px solid #e2e8f0;
+    color: #64748b;
+    border-radius: 16px;
+    font-size: 12px;
+    text-align: center;
+    padding: 6px 16px;
+}
+
 .ctaCard {
     background: #ffffff;
     border: 1px solid #e2e8f0;

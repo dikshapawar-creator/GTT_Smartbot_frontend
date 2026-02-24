@@ -1,5 +1,5 @@
 'use client';
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { usePathname } from 'next/navigation';
 import Link from 'next/link';
 import Image from 'next/image';
@@ -17,14 +17,14 @@ import {
     Settings,
     Zap,
     Contact2,
-    Search,
     Bell,
     ChevronDown,
     ChevronLeft,
     ChevronRight,
     LogOut,
     Plus,
-    Download
+    Download,
+    MessageCircle
 } from 'lucide-react';
 
 const navItems = [
@@ -35,6 +35,7 @@ const navItems = [
     { icon: <FileText size={18} />, label: 'Documents', href: '/crm/dashboard/docs' },
     { icon: <BarChart3 size={18} />, label: 'Analytics', href: '/crm/dashboard/analytics' },
     { icon: <Zap size={18} />, label: 'Automation', href: '/crm/dashboard/automation' },
+    { icon: <MessageCircle size={18} />, label: 'Live Conversations', href: '/crm/dashboard/live-chat' },
     { icon: <Settings size={18} />, label: 'Settings', href: '/crm/dashboard/settings' },
 ];
 
@@ -78,7 +79,13 @@ const maxVal = Math.max(...revenueData);
 export default function Dashboard({ children }: { children?: React.ReactNode }) {
     const [collapsed, setCollapsed] = useState(false);
     const [notifOpen, setNotifOpen] = useState(false);
+    const [mounted, setMounted] = useState(false);
     const pathname = usePathname();
+
+    useEffect(() => {
+        // eslint-disable-next-line react-hooks/set-state-in-effect
+        setMounted(true);
+    }, []);
 
     return (
         <div className={styles.layout}>
@@ -101,7 +108,7 @@ export default function Dashboard({ children }: { children?: React.ReactNode }) 
                 </div>
 
                 <nav className={styles.sidebarNav}>
-                    {navItems.filter(item => !item.adminOnly || auth.isAdmin()).map((item) => {
+                    {mounted && navItems.filter(item => !item.adminOnly || auth.isAdmin()).map((item) => {
                         const isActive = pathname === item.href || (item.href !== '/dashboard' && pathname.startsWith(item.href));
                         return (
                             <Link key={item.label} href={item.href} className={`${styles.navItem} ${isActive ? styles.navItemActive : ''}`}>

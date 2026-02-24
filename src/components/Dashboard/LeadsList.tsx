@@ -1,7 +1,7 @@
 'use client';
 import { useState, useEffect } from 'react';
 import { Button } from '@/components/ui/Button';
-import { RefreshCw, ExternalLink, Filter } from 'lucide-react';
+import { RefreshCw, ExternalLink } from 'lucide-react';
 import styles from './Dashboard.module.css';
 
 const API_BASE = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';

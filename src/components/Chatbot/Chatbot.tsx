@@ -4,11 +4,22 @@ import Image from 'next/image';
 import styles from './Chatbot.module.css';
 import LeadForm from './LeadForm';
 
-const API_BASE = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
+const getApiBase = () => {
+    if (typeof window === 'undefined') return 'http://localhost:8000';
+    const { hostname, protocol } = window.location;
+    // Always use http for local development on port 8000
+    const base = `${protocol}//${hostname}:8000`;
+    console.log('[Chatbot] API Base Derived:', base);
+    return base;
+};
+
+const API_BASE = process.env.NEXT_PUBLIC_API_URL || getApiBase();
+
+type ConversationStatus = 'bot' | 'waiting_for_agent' | 'human' | 'closed';
 
 type BaseMessage = {
     id: string;
-    role: 'bot' | 'user';
+    role: 'bot' | 'user' | 'agent' | 'system';
 };
 
 type TextMessage = BaseMessage & {
@@ -37,6 +48,9 @@ export default function Chatbot() {
     const [isInitialized, setIsInitialized] = useState(false);
     const [error, setError] = useState<string | null>(null);
     const [statusText, setStatusText] = useState('Online');
+    const [conversationStatus, setConversationStatus] = useState<ConversationStatus>('bot');
+    const [sessionToken, setSessionToken] = useState<string | null>(null);
+    const wsRef = useRef<WebSocket | null>(null);
 
     const messagesEndRef = useRef<HTMLDivElement>(null);
     const inputRef = useRef<HTMLInputElement>(null);
@@ -78,30 +92,71 @@ export default function Chatbot() {
             const data = await res.json();
             setIsInitialized(true);
 
-            const newMessages: Message[] = [];
-
-            // 1. Always push the text welcome message
-            if (data.message) {
-                newMessages.push({
-                    id: Date.now().toString() + '-text',
-                    role: 'bot',
-                    type: 'text',
-                    content: data.message
-                });
+            // Track conversation status from backend
+            if (data.conversation_status) {
+                if (data.session_token) setSessionToken(data.session_token);
+                if (data.conversation_status) {
+                    setConversationStatus(data.conversation_status);
+                }
+                if (data.conversation_status === 'waiting_for_agent') {
+                    setStatusText('Waiting for Agent');
+                    // WS connection is now handled by reactive useEffect
+                } else if (data.conversation_status === 'human') {
+                    setStatusText('Agent Connected');
+                    // WS connection is now handled by reactive useEffect
+                }
             }
 
-            // 2. If it's a CTA response, push a SEPARATE CTA message
-            if (data.type === 'CTA' && data.cta_label && data.action) {
-                newMessages.push({
-                    id: Date.now().toString() + '-cta',
-                    role: 'bot',
-                    type: 'cta',
-                    label: data.cta_label,
-                    action: data.action
-                });
+            // ── Restore History ──────────────────────────────────────────
+            const historyRes = await fetch(`${API_BASE}/chat/history`, {
+                credentials: 'include',
+            });
+
+            let finalMessages: Message[] = [];
+
+            if (historyRes.ok) {
+                const history = await historyRes.json();
+                if (history.length > 0) {
+                    // Extract token and status from the first message
+                    if (history[0].sessionId) setSessionToken(history[0].sessionId);
+                    if (history[0].conversation_status) {
+                        setConversationStatus(history[0].conversation_status);
+                        if (history[0].conversation_status === 'waiting_for_agent') setStatusText('Waiting for Agent');
+                        else if (history[0].conversation_status === 'human') setStatusText('Agent Connected');
+                    }
+
+                    finalMessages = history.map((m: { role?: string; message: string; sessionId?: string; conversation_status?: ConversationStatus }, idx: number) => ({
+                        id: `${Date.now()}-h-${idx}`,
+                        role: (m.role || 'bot') as 'bot' | 'user' | 'agent' | 'system',
+                        type: 'text',
+                        content: m.message
+                    }));
+                }
             }
 
-            setMessages(newMessages);
+            // ── Fallback to initial message if no history ───────────────
+            if (finalMessages.length === 0) {
+                if (data.message) {
+                    finalMessages.push({
+                        id: Date.now().toString() + '-text',
+                        role: 'bot',
+                        type: 'text',
+                        content: data.message
+                    });
+                }
+
+                if (data.type === 'CTA' && data.cta_label && data.action) {
+                    finalMessages.push({
+                        id: Date.now().toString() + '-cta',
+                        role: 'bot',
+                        type: 'cta',
+                        label: data.cta_label,
+                        action: data.action
+                    });
+                }
+            }
+
+            setMessages(finalMessages);
             // Auto-focus after init
             setTimeout(() => inputRef.current?.focus(), 100);
         } catch (err: unknown) {
@@ -110,6 +165,67 @@ export default function Chatbot() {
             setLoading(false);
         }
     };
+
+    // ── WebSocket connect for live agent chat ────────────────────────
+    const connectClientWebSocket = (sessionId: string) => {
+        if (wsRef.current) {
+            wsRef.current.close();
+            wsRef.current = null;
+        }
+
+        const wsBase = API_BASE.replace(/^http/, 'ws');
+        const ws = new WebSocket(
+            `${wsBase}/ws/chat/${sessionId}?role=client&token=${sessionId}`
+        );
+
+        ws.onopen = () => console.log('Client WebSocket connected');
+
+        ws.onmessage = (event) => {
+            try {
+                const data = JSON.parse(event.data);
+                const role = data.sender === 'agent' ? 'agent' : data.sender === 'system' ? 'system' : 'bot';
+                setMessages((prev) => [...prev, {
+                    id: Date.now().toString() + '-ws',
+                    role: role as 'agent' | 'system' | 'bot',
+                    type: 'text',
+                    content: data.message,
+                }]);
+
+                if (data.type === 'system' && data.message.includes('agent has joined')) {
+                    setConversationStatus('human');
+                    setStatusText('Agent Connected');
+                }
+            } catch {
+                console.error('Failed to parse WS message');
+            }
+        };
+
+        ws.onclose = () => console.log('Client WebSocket disconnected');
+        ws.onerror = (err) => console.error('Client WebSocket error:', err);
+
+        wsRef.current = ws;
+    };
+
+    // ── Cleanup WebSocket on unmount ───────────────────────────────
+    // ── WebSocket Reactive Sync ─────────────────────────────────────
+    useEffect(() => {
+        if (conversationStatus !== 'bot' && isInitialized && !wsRef.current && sessionToken) {
+            connectClientWebSocket(sessionToken);
+        }
+
+        return () => {
+            if (wsRef.current && (conversationStatus === 'bot' || !isInitialized)) {
+                wsRef.current.close();
+                wsRef.current = null;
+            }
+        };
+    }, [conversationStatus, isInitialized, sessionToken]);
+
+    useEffect(() => {
+        return () => {
+            if (wsRef.current) wsRef.current.close();
+        };
+    }, []);
 
     const sendMessage = async (text: string) => {
         if (!text.trim() || !isInitialized) return;
@@ -122,6 +238,14 @@ export default function Chatbot() {
         };
         setMessages((prev) => [...prev, userMsg]);
         setInput('');
+
+        // ── WebSocket path: when agent is active ─────────────────
+        if (conversationStatus !== 'bot' && wsRef.current && wsRef.current.readyState === WebSocket.OPEN) {
+            wsRef.current.send(JSON.stringify({ message: text }));
+            return;
+        }
+
+        // ── REST API path: normal bot mode ───────────────────────
         setLoading(true);
         setError(null);
 
@@ -146,6 +270,11 @@ export default function Chatbot() {
             }
 
             const data = await res.json();
+
+            // Track status changes from API response
+            if (data.conversation_status && data.conversation_status !== conversationStatus) {
+                setConversationStatus(data.conversation_status);
+            }
 
             const newBotMessages: Message[] = [];
 
@@ -221,14 +350,29 @@ export default function Chatbot() {
             type: 'text',
             content: message
         }]);
-        setStatusText('Demo Submitted');
+        setStatusText('Waiting for Agent');
+        setConversationStatus('waiting_for_agent');
+        // WebSocket will auto-connect via reactive useEffect
     };
 
     const renderMessage = (msg: Message) => {
         switch (msg.type) {
             case 'text':
                 return (
-                    <div className={`${styles.message} ${msg.role === 'user' ? styles.userMessage : styles.assistantMessage}`}>
+                    <div className={`${styles.message} ${msg.role === 'user'
+                        ? styles.userMessage
+                        : msg.role === 'agent'
+                            ? styles.agentMessage
+                            : msg.role === 'system'
+                                ? styles.liveSystemMessage
+                                : styles.assistantMessage
+                        }`}>
+                        {msg.role === 'agent' && (
+                            <div className={styles.agentLabel}>Sales Agent</div>
+                        )}
+                        {msg.role === 'system' && (
+                            <div className={styles.systemLabel}>System</div>
+                        )}
                         <div className={styles.msgBubble}>
                             {msg.content}
                         </div>
