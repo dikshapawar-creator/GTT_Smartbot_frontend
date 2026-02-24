@@ -1,0 +1,226 @@
+/* History.module.css — Styles specific to the Conversation Archive page */
+
+/* ── Search ─────────────────────────────────────────────────────────── */
+
+.searchRow {
+    padding: 8px 16px 4px;
+}
+
+.searchWrap {
+    position: relative;
+    display: flex;
+    align-items: center;
+}
+
+.searchIcon {
+    position: absolute;
+    left: 11px;
+    color: var(--color-muted, #94a3b8);
+    pointer-events: none;
+}
+
+.searchInput {
+    width: 100%;
+    padding: 8px 12px 8px 34px;
+    font-size: 13px;
+    border: 1px solid var(--color-border, #e2e8f0);
+    border-radius: 8px;
+    background: var(--color-surface-subtle, #f8fafc);
+    color: var(--color-text, #1e293b);
+    outline: none;
+    transition: border-color 0.15s, box-shadow 0.15s;
+}
+
+.searchInput:focus {
+    border-color: var(--color-primary, #3b82f6);
+    box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1);
+}
+
+/* ── Filters ─────────────────────────────────────────────────────────── */
+
+.filterBar {
+    padding: 8px 16px;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    border-bottom: 1px solid var(--color-border, #e2e8f0);
+}
+
+.statusToggle {
+    display: flex;
+    gap: 4px;
+    background: var(--color-surface-subtle, #f1f5f9);
+    border-radius: 8px;
+    padding: 3px;
+}
+
+.toggleBtn {
+    flex: 1;
+    padding: 5px 10px;
+    font-size: 12px;
+    font-weight: 500;
+    border: none;
+    border-radius: 6px;
+    cursor: pointer;
+    background: transparent;
+    color: var(--color-muted, #64748b);
+    transition: all 0.15s;
+}
+
+.toggleBtn:hover {
+    background: white;
+    color: var(--color-text, #1e293b);
+}
+
+.toggleActive {
+    background: white !important;
+    color: var(--color-text, #1e293b) !important;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+}
+
+.dateRow {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+}
+
+.calIcon {
+    color: var(--color-muted, #94a3b8);
+    flex-shrink: 0;
+}
+
+.dateInput {
+    flex: 1;
+    padding: 5px 8px;
+    font-size: 12px;
+    border: 1px solid var(--color-border, #e2e8f0);
+    border-radius: 6px;
+    background: var(--color-surface-subtle, #f8fafc);
+    color: var(--color-text, #1e293b);
+    outline: none;
+    min-width: 0;
+    cursor: pointer;
+}
+
+.dateInput:focus {
+    border-color: var(--color-primary, #3b82f6);
+}
+
+.dateSep {
+    color: var(--color-muted, #94a3b8);
+    font-size: 13px;
+}
+
+.clearBtn {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    padding: 4px 10px;
+    font-size: 12px;
+    border: 1px solid var(--color-border, #e2e8f0);
+    border-radius: 6px;
+    cursor: pointer;
+    background: white;
+    color: var(--color-muted, #64748b);
+    transition: all 0.15s;
+    align-self: flex-start;
+}
+
+.clearBtn:hover {
+    background: #fef2f2;
+    border-color: #fca5a5;
+    color: #dc2626;
+}
+
+/* ── Pagination ──────────────────────────────────────────────────────── */
+
+.paginationBar {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 12px;
+    padding: 12px 16px;
+    border-top: 1px solid var(--color-border, #e2e8f0);
+    background: var(--color-surface-subtle, #f8fafc);
+    flex-shrink: 0;
+}
+
+.pageBtn {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 32px;
+    height: 32px;
+    border: 1px solid var(--color-border, #e2e8f0);
+    border-radius: 8px;
+    background: white;
+    cursor: pointer;
+    color: var(--color-text, #1e293b);
+    transition: all 0.15s;
+}
+
+.pageBtn:hover:not(:disabled) {
+    background: var(--color-primary, #3b82f6);
+    color: white;
+    border-color: var(--color-primary, #3b82f6);
+}
+
+.pageBtn:disabled {
+    opacity: 0.4;
+    cursor: not-allowed;
+}
+
+.pageInfo {
+    font-size: 13px;
+    font-weight: 500;
+    color: var(--color-text, #1e293b);
+    min-width: 90px;
+    text-align: center;
+}
+
+/* ── Misc ────────────────────────────────────────────────────────────── */
+
+.totalBadge {
+    margin-left: 6px;
+    padding: 2px 8px;
+    font-size: 11px;
+    font-weight: 600;
+    border-radius: 20px;
+    background: rgba(59, 130, 246, 0.1);
+    color: var(--color-primary, #3b82f6);
+}
+
+.archiveCard {
+    cursor: pointer;
+    transition: border-color 0.15s, background 0.15s;
+}
+
+.archiveCard:hover {
+    border-color: rgba(59, 130, 246, 0.3) !important;
+    background: rgba(59, 130, 246, 0.02);
+}
+
+.panelLoader {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    height: 100%;
+    gap: 12px;
+    color: var(--color-muted, #94a3b8);
+    font-size: 14px;
+}
+
+@keyframes spin {
+    from {
+        transform: rotate(0deg);
+    }
+
+    to {
+        transform: rotate(360deg);
+    }
+}
+
+.spin {
+    animation: spin 1s linear infinite;
+}

@@ -1,15 +1,10 @@
-export const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'https://api-test.gtdservice.com';
+import { API_BASE_URL } from '@/config/api';
 
-export const getApiBase = () => {
-    if (typeof window === 'undefined') return API_BASE_URL;
-    const { hostname, protocol } = window.location;
+/**
+ * Centralized API Base URL configuration.
+ * Derived from Environment Variables.
+ */
+export const API_BASE = API_BASE_URL;
 
-    // Support local development automatically
-    if (hostname === 'localhost' || hostname === '127.0.0.1') {
-        return `${protocol}//${hostname}:8000`;
-    }
-
-    return API_BASE_URL;
-};
-
-export const API_BASE = getApiBase();
+// Helper for WebSocket protocols
+export const WS_BASE = API_BASE.replace(/^http/, 'ws');

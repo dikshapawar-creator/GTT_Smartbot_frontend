@@ -14,11 +14,12 @@ export interface UserProfile {
 
 export const auth = {
     setSession(accessToken: string, refreshToken: string, user: UserProfile) {
+        const isSecure = typeof window !== 'undefined' && window.location.protocol === 'https:';
         // Access token usually expires in 1 hour
-        Cookies.set(ACCESS_TOKEN_KEY, accessToken, { expires: 1 / 24, secure: true, sameSite: 'strict' });
+        Cookies.set(ACCESS_TOKEN_KEY, accessToken, { expires: 1 / 24, secure: isSecure, sameSite: 'strict' });
         // Refresh token usually expires in 30 days
-        Cookies.set(REFRESH_TOKEN_KEY, refreshToken, { expires: 30, secure: true, sameSite: 'strict' });
-        Cookies.set(USER_KEY, JSON.stringify(user), { expires: 30, secure: true, sameSite: 'strict' });
+        Cookies.set(REFRESH_TOKEN_KEY, refreshToken, { expires: 30, secure: isSecure, sameSite: 'strict' });
+        Cookies.set(USER_KEY, JSON.stringify(user), { expires: 30, secure: isSecure, sameSite: 'strict' });
     },
 
     clearSession() {

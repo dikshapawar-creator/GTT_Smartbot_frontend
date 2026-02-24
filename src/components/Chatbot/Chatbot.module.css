@@ -464,6 +464,25 @@
     display: block;
 }
 
+.warningHint {
+    color: #b45309;
+    /* Amber-700 */
+    font-size: 11px;
+    margin-top: 4px;
+    display: block;
+}
+
+.warningInput {
+    border-color: #f59e0b;
+    /* Amber-500 */
+}
+
+.warningInput:focus {
+    border-color: #f59e0b;
+    box-shadow: 0 0 0 3px rgba(245, 158, 11, 0.1);
+}
+
+
 .formFooter {
     margin-top: 24px;
     display: flex;

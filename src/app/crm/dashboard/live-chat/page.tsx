@@ -13,25 +13,31 @@ import {
     AlertCircle,
 } from 'lucide-react';
 import styles from './LiveChat.module.css';
+import { WS_BASE } from '@/lib/config';
+import api from '@/config/api';
 import { auth } from '@/lib/auth';
-
-import { API_BASE } from '@/lib/config';
 
 
 // ── Types ────────────────────────────────────────────────────────────────
 
 interface Conversation {
     session_id: string;
-    status: 'waiting_for_agent' | 'human' | 'closed';
-    assigned_agent_id: number | null;
+    session_status: 'ACTIVE' | 'CLOSED';
+    current_mode: 'BOT' | 'HUMAN';
+    agent_name: string | null;
     is_locked: boolean;
     lead_name: string | null;
     lead_company: string | null;
     lead_email: string | null;
-    last_activity_utc: string | null;
-    total_messages: number;
-    started_at_utc: string | null;
+    last_message_at: string | null;
+    message_count: number;
+    created_at: string | null;
+    repeat_visitor: boolean;
+    previous_session_count: number;
 }
+
+
+
 
 interface ChatMessage {
     id: number;
@@ -40,6 +46,8 @@ interface ChatMessage {
     message_text: string;
     created_at_utc: string;
 }
+
+
 
 // ── Component ────────────────────────────────────────────────────────────
 
@@ -61,26 +69,17 @@ export default function LiveChatPage() {
         return auth.getAccessToken() || null;
     }, []);
 
-    // ── Fetch conversations ──────────────────────────────────────────────
-
     const fetchConversations = useCallback(async () => {
-        const token = getToken();
-        if (!token) return;
-
         try {
-            const res = await fetch(`${API_BASE}/live-chat/conversations`, {
-                headers: { Authorization: `Bearer ${token}` },
-            });
-            if (!res.ok) throw new Error('Failed to fetch');
-            const data: Conversation[] = await res.json();
-            setConversations(data);
+            const res = await api.get('/live-chat/conversations');
+            setConversations(res.data || []);
             setError(null);
         } catch {
             setError('Failed to load conversations');
         } finally {
             setLoading(false);
         }
-    }, [getToken]);
+    }, []);
 
     // ── Poll for conversations ───────────────────────────────────────────
 
@@ -100,12 +99,8 @@ export default function LiveChatPage() {
             if (!token) return;
 
             try {
-                const res = await fetch(`${API_BASE}/live-chat/messages/${sessionId}`, {
-                    headers: { Authorization: `Bearer ${token}` },
-                });
-                if (!res.ok) throw new Error('Failed to fetch messages');
-                const data: ChatMessage[] = await res.json();
-                setMessages(data);
+                const res = await api.get(`/live-chat/messages/${sessionId}?page=1&page_size=100`);
+                setMessages(res.data.items || []);
             } catch {
                 setError('Failed to load messages');
             }
@@ -115,45 +110,40 @@ export default function LiveChatPage() {
 
     // ── Connect to conversation ──────────────────────────────────────────
 
-    const connectToConversation = async (sessionId: string) => {
-        const token = getToken();
-        if (!token) return;
-
+    const interveneInConversation = async (sessionId: string) => {
         setConnecting(true);
         try {
-            const res = await fetch(`${API_BASE}/live-chat/connect/${sessionId}`, {
-                method: 'POST',
-                headers: {
-                    'Authorization': `Bearer ${token}`,
-                    'Content-Type': 'application/json'
-                },
-                body: JSON.stringify({}) // Explicit empty body for POST stability
-            });
-            if (!res.ok) {
-                const err = await res.json();
-                throw new Error(err.detail || 'Failed to connect');
-            }
-
+            await api.post(`/live-chat/intervene/${sessionId}`, {});
             setSelectedSession(sessionId);
             await fetchMessages(sessionId);
-            connectWebSocket(sessionId, token);
+            const token = getToken();
+            if (token) connectWebSocket(sessionId, token);
             fetchConversations();
         } catch (e: unknown) {
-            setError(e instanceof Error ? e.message : 'An unknown error occurred');
+            setError(e instanceof Error ? e.message : 'Takeover failed');
         } finally {
             setConnecting(false);
         }
     };
 
+
     // ── Open existing connected conversation ─────────────────────────────
 
     const openConversation = async (sessionId: string) => {
-        const token = getToken();
-        if (!token) return;
-
         setSelectedSession(sessionId);
+
+        // Fetch details to get email (now suppressed from list view)
+        try {
+            const res = await api.get(`/live-chat/detail/${sessionId}`);
+            const detail = res.data;
+            setConversations(prev => prev.map(c =>
+                c.session_id === sessionId ? { ...c, lead_email: detail.lead_email } : c
+            ));
+        } catch (e) { console.error("Detail fetch failed", e); }
+
         await fetchMessages(sessionId);
-        connectWebSocket(sessionId, token);
+        const token = getToken();
+        if (token) connectWebSocket(sessionId, token);
     };
 
     // ── WebSocket connection ─────────────────────────────────────────────
@@ -165,13 +155,13 @@ export default function LiveChatPage() {
             wsRef.current = null;
         }
 
-        const wsBase = API_BASE.replace(/^http/, 'ws');
+        // Secure per-session chat WebSocket
         const ws = new WebSocket(
-            `${wsBase}/ws/chat/${sessionId}?role=agent&token=${token}`,
+            `${WS_BASE}/ws/chat/${sessionId}?role=agent&token=${token}`,
         );
 
         ws.onopen = () => {
-            console.log('Agent WebSocket connected');
+            console.log('Agent WebSocket connected for session:', sessionId);
         };
 
         ws.onmessage = (event) => {
@@ -225,20 +215,8 @@ export default function LiveChatPage() {
     // ── Close conversation ───────────────────────────────────────────────
 
     const closeConversation = async (sessionId: string) => {
-        const token = getToken();
-        if (!token) return;
-
         try {
-            const res = await fetch(`${API_BASE}/live-chat/close/${sessionId}`, {
-                method: 'POST',
-                headers: {
-                    'Authorization': `Bearer ${token}`,
-                    'Content-Type': 'application/json'
-                },
-                body: JSON.stringify({}) // Explicit empty body
-            });
-            if (!res.ok) throw new Error('Failed to close');
-
+            await api.post(`/live-chat/close/${sessionId}`, {});
             if (wsRef.current) {
                 wsRef.current.close();
                 wsRef.current = null;
@@ -248,7 +226,7 @@ export default function LiveChatPage() {
             setMessages([]);
             fetchConversations();
         } catch (e: unknown) {
-            setError(e instanceof Error ? e.message : 'An unknown error occurred');
+            setError(e instanceof Error ? e.message : 'Close failed');
         }
     };
 
@@ -276,30 +254,33 @@ export default function LiveChatPage() {
         });
     };
 
-    const getStatusBadge = (status: string) => {
-        switch (status) {
-            case 'waiting_for_agent':
-                return (
-                    <span className={styles.badgeWaiting}>
-                        <Clock size={12} /> Waiting
-                    </span>
-                );
-            case 'human':
-                return (
-                    <span className={styles.badgeConnected}>
-                        <Headphones size={12} /> Connected
-                    </span>
-                );
-            case 'closed':
-                return (
-                    <span className={styles.badgeClosed}>
-                        <CheckCircle2 size={12} /> Closed
-                    </span>
-                );
-            default:
-                return null;
+    const getStatusBadge = (conv: Conversation) => {
+        if (!conv) return null;
+        if (conv.session_status === 'CLOSED') {
+            return (
+                <span className={styles.badgeClosed}>
+                    <CheckCircle2 size={12} /> Closed
+                </span>
+            );
         }
+
+        if (conv.current_mode === 'HUMAN') {
+            return (
+                <span className={styles.badgeConnected}>
+                    <Headphones size={12} /> {conv.agent_name || 'Connected'}
+                </span>
+            );
+        }
+
+
+        // Default: BOT mode (ACTIVE)
+        return (
+            <span className={styles.badgeBot}>
+                <MessageCircle size={12} /> Bot Replying
+            </span>
+        );
     };
+
 
     // ── Render ───────────────────────────────────────────────────────────
 
@@ -359,25 +340,36 @@ export default function LiveChatPage() {
                                             <div className={styles.cardEmail}>{conv.lead_email}</div>
                                         )}
                                     </div>
-                                    {getStatusBadge(conv.status)}
+                                    {getStatusBadge(conv)}
                                 </div>
+
+
+                                {conv.repeat_visitor && (
+                                    <div className={styles.historyIndicator} title={`${conv.previous_session_count} past sessions`}>
+                                        <Clock size={12} /> Repeat Visitor ({conv.previous_session_count})
+                                    </div>
+                                )}
+
+
 
                                 <div className={styles.cardMeta}>
-                                    <span>{conv.total_messages} messages</span>
-                                    <span>Last: {formatTime(conv.last_activity_utc)}</span>
+                                    <span>{conv.message_count} messages</span>
+                                    <span>Last: {formatTime(conv.last_message_at)}</span>
                                 </div>
 
+
                                 <div className={styles.cardActions}>
-                                    {conv.status === 'waiting_for_agent' && (
+                                    {conv.session_status === 'ACTIVE' && conv.current_mode === 'BOT' && (
                                         <button
-                                            className={styles.connectBtn}
-                                            onClick={() => connectToConversation(conv.session_id)}
+                                            className={styles.interveneBtn}
+                                            onClick={() => interveneInConversation(conv.session_id)}
                                             disabled={connecting}
                                         >
-                                            {connecting ? 'Connecting...' : 'Connect'}
+                                            {connecting ? 'Connecting...' : 'Intervene'}
                                         </button>
                                     )}
-                                    {conv.status === 'human' && (
+                                    {conv.session_status === 'ACTIVE' && conv.current_mode === 'HUMAN' && (
+
                                         <>
                                             <button
                                                 className={styles.openBtn}
@@ -394,6 +386,7 @@ export default function LiveChatPage() {
                                         </>
                                     )}
                                 </div>
+
                             </div>
                         ))}
                     </div>

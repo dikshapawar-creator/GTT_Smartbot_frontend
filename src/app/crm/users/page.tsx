@@ -46,7 +46,7 @@ function UserManagementContent() {
     const fetchUsers = async () => {
         setIsLoading(true);
         try {
-            const data = await api.get<User[]>("/users");
+            const { data } = await api.get<User[]>("/users");
             setUsers(data);
         } catch (error) {
             console.error("Failed to fetch users:", error);
@@ -66,7 +66,7 @@ function UserManagementContent() {
 
         setIsCreating(true);
         try {
-            const resp = await api.post<User>("/users", newUserData);
+            const { data: resp } = await api.post<User>("/users", newUserData);
             setUsers([resp, ...users]);
             setIsModalOpen(false);
             setNewUserData({
@@ -107,7 +107,7 @@ function UserManagementContent() {
         }
 
         try {
-            const updated = await api.put<User>(`/users/${user.id}`, { is_active: !user.is_active });
+            const { data: updated } = await api.put<User>(`/users/${user.id}`, { is_active: !user.is_active });
             setUsers(users.map(u => u.id === user.id ? updated : u));
         } catch {
             alert("Failed to update user status.");

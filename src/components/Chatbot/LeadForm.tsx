@@ -1,6 +1,7 @@
 'use client';
 import { useState, useCallback, useRef } from 'react';
 import styles from './Chatbot.module.css';
+import api from '@/config/api';
 
 // ── Top-20 international dial codes ─────────────────────────────────────────
 const DIAL_CODES = [
@@ -27,18 +28,17 @@ const DIAL_CODES = [
 ] as const;
 
 // ── Validation helpers ──────────────────────────────────────────────────────
-const NAME_REGEX = /^[A-Za-z\s\-'.]+$/;
+const NAME_REGEX = /^[A-Za-z\s]+$/;
 const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
 interface LeadFormProps {
     onClose: () => void;
     onSubmitSuccess: (message: string) => void;
-    apiBase: string;
 }
 
 type FieldName = 'full_name' | 'company_name' | 'website' | 'business_email' | 'contact_number';
 
-export default function LeadForm({ onClose, onSubmitSuccess, apiBase }: LeadFormProps) {
+export default function LeadForm({ onClose, onSubmitSuccess }: LeadFormProps) {
     const [formData, setFormData] = useState({
         full_name: '',
         company_name: '',
@@ -51,7 +51,8 @@ export default function LeadForm({ onClose, onSubmitSuccess, apiBase }: LeadForm
     const [touched, setTouched] = useState<Record<string, boolean>>({});
     const [loading, setLoading] = useState(false);
     const [success, setSuccess] = useState(false);
-    const [serverMessage, setServerMessage] = useState('');
+    const [serverError, setServerError] = useState('');
+    const [warning, setWarning] = useState('');
     const isSubmitting = useRef(false);  // Double-submit lock
 
     // ── Per-field validation (called on blur + on change after touch) ────
@@ -103,39 +104,52 @@ export default function LeadForm({ onClose, onSubmitSuccess, apiBase }: LeadForm
         return Object.keys(newErrors).length === 0;
     }, [formData, validateField]);
 
-    // ── Check if form is submittable (no errors + all required filled) ──
+    // ── Check if form is submittable (ONLY checks field errors + non-empty required) ──
     const isFormValid = (): boolean => {
         const requiredFields: FieldName[] = ['full_name', 'company_name', 'business_email', 'contact_number'];
-        for (const f of requiredFields) {
-            if (!formData[f].trim()) return false;
-        }
-        for (const key of Object.keys(errors)) {
-            if (errors[key]) return false;
-        }
-        return true;
+        const hasEmptyFields = requiredFields.some(f => !formData[f].trim());
+        const hasFieldErrors = Object.values(errors).some(err => !!err);
+
+        return !hasEmptyFields && !hasFieldErrors && !loading;
     };
 
-    // ── Handle change + live re-validation for touched fields ───────────
+    // ── Handle change + live re-validation for ALL fields ──────────────
     const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
         const { name, value } = e.target;
         if (name === 'dialCode') {
             setDialCode(value);
             return;
         }
-        setFormData(prev => ({ ...prev, [name]: value }));
-        // Re-validate on keystroke only if already touched
-        if (touched[name]) {
+
+        let newValue = value;
+        // Numeric-only enforcement for phone
+        if (name === 'contact_number') {
+            newValue = value.replace(/[^0-9]/g, '');
+        }
+
+
+        setFormData(prev => ({ ...prev, [name]: newValue }));
+
+        // Clear server-level states when user starts typing
+        setServerError('');
+        if (name === 'business_email') setWarning('');
+
+        // Perform real-time validation
+        const err = validateField(name as FieldName, newValue);
+        setErrors(prev => ({ ...prev, [name]: err }));
+
+        // Mark as touched on change for immediate feedback
+        setTouched(prev => ({ ...prev, [name]: true }));
+    };
+
+    // ── Handle blur triggers validation (if not already handled) ────────
+    const handleBlur = (e: React.FocusEvent<HTMLInputElement>) => {
+        const { name, value } = e.target;
+        if (!touched[name]) {
+            setTouched(prev => ({ ...prev, [name]: true }));
             const err = validateField(name as FieldName, value);
             setErrors(prev => ({ ...prev, [name]: err }));
         }
-    };
-
-    // ── Handle blur → first touch triggers validation ───────────────────
-    const handleBlur = (e: React.FocusEvent<HTMLInputElement>) => {
-        const { name, value } = e.target;
-        setTouched(prev => ({ ...prev, [name]: true }));
-        const err = validateField(name as FieldName, value);
-        setErrors(prev => ({ ...prev, [name]: err }));
     };
 
     // ── Submit → trim, compose E.164, send ──────────────────────────────
@@ -170,49 +184,56 @@ export default function LeadForm({ onClose, onSubmitSuccess, apiBase }: LeadForm
         };
 
         try {
-            const res = await fetch(`${apiBase}/leads/submit`, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                credentials: 'include',
-                body: JSON.stringify(payload),
-            });
-            const data = await res.json();
+            const res = await api.post('/leads/submit', payload);
+            const data = res.data;
 
-            if (res.ok && data.success) {
+            if (data.success) {
+                // Handle soft warning from backend
+                if (data.warning) {
+                    setWarning(data.warning);
+                    setLoading(false);
+                    isSubmitting.current = false;
+                    return;
+                }
+
                 setSuccess(true);
-                setServerMessage(data.message);
+                setServerError('');
                 setTimeout(() => {
                     onSubmitSuccess(data.message);
                     onClose();
                 }, 2000);
-            } else if (res.status === 409) {
-                setErrors({ server: data.detail?.message || 'This email has already been submitted.' });
-            } else if (res.status === 422) {
-                // Parse Pydantic validation errors
-                const detail = data.detail;
+            }
+        } catch (err: unknown) {
+            const axiosErr = err as { response?: { status?: number; data?: { detail?: { message?: string } | Array<{ loc?: string[]; msg?: string }> } } };
+            const status = axiosErr.response?.status;
+            const data = axiosErr.response?.data;
+
+            if (status === 409) {
+                const detail = data?.detail;
+                const detailMsg = !Array.isArray(detail) && typeof detail === 'object' && detail !== null
+                    ? (detail as { message?: string }).message
+                    : undefined;
+                setServerError(detailMsg || 'This email has already been submitted.');
+            } else if (status === 422) {
+                const detail = data?.detail;
                 if (Array.isArray(detail)) {
                     const fieldErrors: Record<string, string> = {};
-                    detail.forEach((err: { loc: string[]; msg: string }) => {
-                        const field = err.loc?.[err.loc.length - 1];
-                        if (field) fieldErrors[field] = err.msg;
+                    detail.forEach((e: { loc?: string[]; msg?: string }) => {
+                        const field = e.loc?.[e.loc.length - 1];
+                        if (field && e.msg) fieldErrors[field] = e.msg;
                     });
                     setErrors(prev => ({ ...prev, ...fieldErrors }));
                 } else {
-                    setErrors({ server: detail?.message || 'Validation failed. Please check your inputs.' });
+                    const detailObj = typeof detail === 'object' && detail !== null
+                        ? (detail as { message?: string }).message
+                        : undefined;
+                    setServerError(detailObj || 'Validation failed. Please check your inputs.');
                 }
-            } else if (res.status === 429) {
-                setErrors({ server: 'Too many requests. Please wait a moment and try again.' });
+            } else if (status === 429) {
+                setServerError('Too many requests. Please wait a moment and try again.');
             } else {
-                throw new Error(data.message || 'Submission failed');
-            }
-        } catch (err: unknown) {
-            console.error('[LeadSubmit] Submission error:', err);
-            if (!errors.server) {
-                const msg = err instanceof Error ? err.message : 'Network error. Please try again.';
-                setErrors(prev => ({
-                    ...prev,
-                    server: `${msg} (Check Console)`
-                }));
+                console.error('[LeadSubmit] Submission error:', err);
+                setServerError(err instanceof Error ? err.message : 'Submission failed');
             }
         } finally {
             setLoading(false);
@@ -227,7 +248,7 @@ export default function LeadForm({ onClose, onSubmitSuccess, apiBase }: LeadForm
                 <div className={styles.successIcon}>✓</div>
                 <h3 className={styles.successTitle}>Demo Request Submitted</h3>
                 <p className={styles.successMsg}>
-                    {serverMessage || 'Thank you. Our team will contact you soon.'}
+                    Thank you. Our team will contact you soon.
                 </p>
             </div>
         );
@@ -321,14 +342,17 @@ export default function LeadForm({ onClose, onSubmitSuccess, apiBase }: LeadForm
                         value={formData.business_email}
                         onChange={handleChange}
                         onBlur={handleBlur}
-                        className={`${styles.input} ${touched.business_email && errors.business_email ? styles.inputError : ''}`}
+                        className={`${styles.input} ${touched.business_email && errors.business_email ? styles.inputError : (warning ? styles.warningInput : '')}`}
                         placeholder="you@company.com"
                         maxLength={255}
                         aria-invalid={!!errors.business_email}
-                        aria-describedby={errors.business_email ? 'err-email' : undefined}
+                        aria-describedby={errors.business_email ? 'err-email' : (warning ? 'warn-email' : undefined)}
                     />
                     {touched.business_email && errors.business_email && (
                         <span id="err-email" className={styles.errorHint} role="alert">{errors.business_email}</span>
+                    )}
+                    {warning && !errors.business_email && (
+                        <span id="warn-email" className={styles.warningHint} role="alert">{warning}</span>
                     )}
                 </div>
 
@@ -369,8 +393,8 @@ export default function LeadForm({ onClose, onSubmitSuccess, apiBase }: LeadForm
                 </div>
 
                 {/* ── Server-level error ─────────────────────────────────── */}
-                {errors.server && (
-                    <div className={styles.serverError} role="alert">{errors.server}</div>
+                {serverError && (
+                    <div className={styles.serverError} role="alert">{serverError}</div>
                 )}
 
                 {/* ── Submit Button ──────────────────────────────────────── */}

@@ -59,10 +59,11 @@ function SignInContent() {
                 password: data.password,
             });
 
+            const loginData = response.data;
             auth.setSession(
-                response.access_token,
-                response.refresh_token,
-                response.user
+                loginData.access_token,
+                loginData.refresh_token,
+                loginData.user
             );
 
             // Force hard refresh to ensure middleware and cookies are in sync

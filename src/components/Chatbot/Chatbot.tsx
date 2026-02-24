@@ -4,7 +4,8 @@ import Image from 'next/image';
 import styles from './Chatbot.module.css';
 import LeadForm from './LeadForm';
 
-import { API_BASE } from '@/lib/config';
+import { WS_BASE } from '@/lib/config';
+import api from '@/config/api';
 
 type ConversationStatus = 'bot' | 'waiting_for_agent' | 'human' | 'closed';
 
@@ -69,60 +70,41 @@ export default function Chatbot() {
         setLoading(true);
         setError(null);
         try {
-            const res = await fetch(`${API_BASE}/chat/session/init`, {
-                method: 'POST',
-                headers: { 'accept': 'application/json' },
-                credentials: 'include',
-            });
-
-            if (!res.ok) {
-                if (res.status === 429) throw new Error('Rate limit exceeded. Please try again later.');
-                throw new Error('Failed to initialize session.');
-            }
-
-            const data = await res.json();
+            const res = await api.post('/chat/session/init');
+            const data = res.data;
             setIsInitialized(true);
 
             // Track conversation status from backend
+            if (data.session_token) setSessionToken(data.session_token);
             if (data.conversation_status) {
-                if (data.session_token) setSessionToken(data.session_token);
-                if (data.conversation_status) {
-                    setConversationStatus(data.conversation_status);
-                }
+                setConversationStatus(data.conversation_status);
                 if (data.conversation_status === 'waiting_for_agent') {
                     setStatusText('Waiting for Agent');
-                    // WS connection is now handled by reactive useEffect
                 } else if (data.conversation_status === 'human') {
                     setStatusText('Agent Connected');
-                    // WS connection is now handled by reactive useEffect
                 }
             }
 
             // ── Restore History ──────────────────────────────────────────
-            const historyRes = await fetch(`${API_BASE}/chat/history`, {
-                credentials: 'include',
-            });
-
+            const historyRes = await api.get('/chat/history');
+            const history = historyRes.data;
             let finalMessages: Message[] = [];
 
-            if (historyRes.ok) {
-                const history = await historyRes.json();
-                if (history.length > 0) {
-                    // Extract token and status from the first message
-                    if (history[0].sessionId) setSessionToken(history[0].sessionId);
-                    if (history[0].conversation_status) {
-                        setConversationStatus(history[0].conversation_status);
-                        if (history[0].conversation_status === 'waiting_for_agent') setStatusText('Waiting for Agent');
-                        else if (history[0].conversation_status === 'human') setStatusText('Agent Connected');
-                    }
-
-                    finalMessages = history.map((m: { role?: string; message: string; sessionId?: string; conversation_status?: ConversationStatus }, idx: number) => ({
-                        id: `${Date.now()}-h-${idx}`,
-                        role: (m.role || 'bot') as 'bot' | 'user' | 'agent' | 'system',
-                        type: 'text',
-                        content: m.message
-                    }));
+            if (history && history.length > 0) {
+                // Extract token and status from the first message
+                if (history[0].sessionId) setSessionToken(history[0].sessionId);
+                if (history[0].conversation_status) {
+                    setConversationStatus(history[0].conversation_status);
+                    if (history[0].conversation_status === 'waiting_for_agent') setStatusText('Waiting for Agent');
+                    else if (history[0].conversation_status === 'human') setStatusText('Agent Connected');
                 }
+
+                finalMessages = history.map((m: { role?: string; message: string }, idx: number) => ({
+                    id: `${Date.now()}-h-${idx}`,
+                    role: (m.role || 'bot') as 'bot' | 'user' | 'agent' | 'system',
+                    type: 'text',
+                    content: m.message
+                }));
             }
 
             // ── Fallback to initial message if no history ───────────────
@@ -164,9 +146,8 @@ export default function Chatbot() {
             wsRef.current = null;
         }
 
-        const wsBase = API_BASE.replace(/^http/, 'ws');
         const ws = new WebSocket(
-            `${wsBase}/ws/chat/${sessionId}?role=client&token=${sessionId}`
+            `${WS_BASE}/ws/chat/${sessionId}?role=client&token=${sessionId}`
         );
 
         ws.onopen = () => console.log('Client WebSocket connected');
@@ -174,10 +155,10 @@ export default function Chatbot() {
         ws.onmessage = (event) => {
             try {
                 const data = JSON.parse(event.data);
-                const role = data.sender === 'agent' ? 'agent' : data.sender === 'system' ? 'system' : 'bot';
+                const role = data.sender === 'agent' ? 'agent' : data.sender === 'user' ? 'user' : data.sender === 'system' ? 'system' : 'bot';
                 setMessages((prev) => [...prev, {
                     id: Date.now().toString() + '-ws',
-                    role: role as 'agent' | 'system' | 'bot',
+                    role: role as 'agent' | 'user' | 'system' | 'bot',
                     type: 'text',
                     content: data.message,
                 }]);
@@ -197,7 +178,6 @@ export default function Chatbot() {
         wsRef.current = ws;
     };
 
-    // ── Cleanup WebSocket on unmount ───────────────────────────────
     // ── WebSocket Reactive Sync ─────────────────────────────────────
     useEffect(() => {
         if (conversationStatus !== 'bot' && isInitialized && !wsRef.current && sessionToken) {
@@ -241,26 +221,8 @@ export default function Chatbot() {
         setError(null);
 
         try {
-            const res = await fetch(`${API_BASE}/chat/message`, {
-                method: 'POST',
-                headers: {
-                    'accept': 'application/json',
-                    'Content-Type': 'application/json'
-                },
-                credentials: 'include',
-                body: JSON.stringify({ message: text }),
-            });
-
-            if (!res.ok) {
-                if (res.status === 401) {
-                    setIsInitialized(false);
-                    throw new Error('Session expired. Please restart the chat.');
-                }
-                if (res.status === 429) throw new Error('Rate limit exceeded. Please slow down.');
-                throw new Error('Service unavailable. Please retry.');
-            }
-
-            const data = await res.json();
+            const res = await api.post('/chat/message', { message: text });
+            const data = res.data;
 
             // Track status changes from API response
             if (data.conversation_status && data.conversation_status !== conversationStatus) {
@@ -303,10 +265,7 @@ export default function Chatbot() {
     const handleEndChat = async () => {
         setLoading(true);
         try {
-            await fetch(`${API_BASE}/chat/session/end`, {
-                method: 'POST',
-                credentials: 'include',
-            });
+            await api.post('/chat/session/end');
         } catch (err) {
             console.error('Failed to end session cleanly:', err);
         } finally {
@@ -386,7 +345,6 @@ export default function Chatbot() {
                 return (
                     <div className={`${styles.message} ${styles.assistantMessage}`} style={{ width: '100%', maxWidth: '100%' }}>
                         <LeadForm
-                            apiBase={API_BASE}
                             onClose={() => { }} // No close needed for inline
                             onSubmitSuccess={handleFormSuccess}
                         />
