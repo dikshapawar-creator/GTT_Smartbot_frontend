@@ -5,7 +5,7 @@ import styles from './Chatbot.module.css';
 import LeadForm from './LeadForm';
 
 const getApiBase = () => {
-    if (typeof window === 'undefined') return 'http://localhost:8000';
+    if (typeof window === 'undefined') return 'https://api-test.gtdservice.com';
     const { hostname, protocol } = window.location;
     // Always use http for local development on port 8000
     const base = `${protocol}//${hostname}:8000`;

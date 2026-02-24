@@ -1,4 +1,4 @@
-const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
+const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || "https://api-test.gtdservice.com";
 
 export const api = {
     async request<T>(endpoint: string, options: RequestInit = {}): Promise<T> {
