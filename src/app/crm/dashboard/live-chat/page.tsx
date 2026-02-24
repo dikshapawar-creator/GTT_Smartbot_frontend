@@ -15,8 +15,8 @@ import {
 import styles from './LiveChat.module.css';
 import { auth } from '@/lib/auth';
 
-const API_BASE = process.env.NEXT_PUBLIC_API_URL ||
-    (typeof window !== 'undefined' ? `${window.location.protocol}//api-test.gtdservice.com` : 'https://api-test.gtdservice.com');
+import { API_BASE } from '@/lib/config';
+
 
 // ── Types ────────────────────────────────────────────────────────────────
 

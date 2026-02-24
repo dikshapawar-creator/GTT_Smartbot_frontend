@@ -4,7 +4,8 @@ import { Button } from '@/components/ui/Button';
 import { RefreshCw, ExternalLink } from 'lucide-react';
 import styles from './Dashboard.module.css';
 
-const API_BASE = process.env.NEXT_PUBLIC_API_URL || 'https://api-test.gtdservice.com';
+import { API_BASE } from '@/lib/config';
+
 
 interface Lead {
     id: string;

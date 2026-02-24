@@ -4,19 +4,7 @@ import Image from 'next/image';
 import styles from './Chatbot.module.css';
 import LeadForm from './LeadForm';
 
-const getApiBase = () => {
-    if (typeof window === 'undefined') return 'https://api-test.gtdservice.com';
-    const { hostname, protocol } = window.location;
-
-    // Only use local port 8000 if we're on localhost
-    if (hostname === 'localhost' || hostname === '127.0.0.1') {
-        return `${protocol}//${hostname}:8000`;
-    }
-
-    return 'https://api-test.gtdservice.com';
-};
-
-const API_BASE = process.env.NEXT_PUBLIC_API_URL || getApiBase();
+import { API_BASE } from '@/lib/config';
 
 type ConversationStatus = 'bot' | 'waiting_for_agent' | 'human' | 'closed';
 
