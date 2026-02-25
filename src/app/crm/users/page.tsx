@@ -46,7 +46,7 @@ function UserManagementContent() {
     const fetchUsers = async () => {
         setIsLoading(true);
         try {
-            const { data } = await api.get<User[]>("/users");
+            const { data } = await api.get<User[]>("/users/");
             setUsers(data);
         } catch (error) {
             console.error("Failed to fetch users:", error);
@@ -66,7 +66,7 @@ function UserManagementContent() {
 
         setIsCreating(true);
         try {
-            const { data: resp } = await api.post<User>("/users", newUserData);
+            const { data: resp } = await api.post<User>("/users/", newUserData);
             setUsers([resp, ...users]);
             setIsModalOpen(false);
             setNewUserData({

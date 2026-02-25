@@ -2,7 +2,12 @@
 import { useState, useEffect, useRef } from 'react';
 import Image from 'next/image';
 import styles from './Chatbot.module.css';
-import LeadForm from './LeadForm';
+import dynamic from 'next/dynamic';
+
+const LeadForm = dynamic(() => import('./LeadForm'), {
+    ssr: false,
+    loading: () => <div className={styles.formWrap}>Loading form...</div>
+});
 
 import { WS_BASE } from '@/lib/config';
 import api from '@/config/api';
@@ -31,6 +36,8 @@ type FormMessage = BaseMessage & {
 };
 
 type Message = TextMessage | CtaMessage | FormMessage;
+
+
 
 export default function Chatbot() {
     const [open, setOpen] = useState(false);
@@ -74,13 +81,13 @@ export default function Chatbot() {
             const data = res.data;
             setIsInitialized(true);
 
-            // Track conversation status from backend
             if (data.session_token) setSessionToken(data.session_token);
             if (data.conversation_status) {
-                setConversationStatus(data.conversation_status);
-                if (data.conversation_status === 'waiting_for_agent') {
+                const normalizedStatus = data.conversation_status.toLowerCase() as ConversationStatus;
+                setConversationStatus(normalizedStatus);
+                if (normalizedStatus === 'waiting_for_agent') {
                     setStatusText('Waiting for Agent');
-                } else if (data.conversation_status === 'human') {
+                } else if (normalizedStatus === 'human') {
                     setStatusText('Agent Connected');
                 }
             }
@@ -91,12 +98,12 @@ export default function Chatbot() {
             let finalMessages: Message[] = [];
 
             if (history && history.length > 0) {
-                // Extract token and status from the first message
                 if (history[0].sessionId) setSessionToken(history[0].sessionId);
                 if (history[0].conversation_status) {
-                    setConversationStatus(history[0].conversation_status);
-                    if (history[0].conversation_status === 'waiting_for_agent') setStatusText('Waiting for Agent');
-                    else if (history[0].conversation_status === 'human') setStatusText('Agent Connected');
+                    const normalizedStatus = history[0].conversation_status.toLowerCase() as ConversationStatus;
+                    setConversationStatus(normalizedStatus);
+                    if (normalizedStatus === 'waiting_for_agent') setStatusText('Waiting for Agent');
+                    else if (normalizedStatus === 'human') setStatusText('Agent Connected');
                 }
 
                 finalMessages = history.map((m: { role?: string; message: string }, idx: number) => ({
@@ -105,6 +112,11 @@ export default function Chatbot() {
                     type: 'text',
                     content: m.message
                 }));
+
+                // Extract status from backend history
+                if (finalMessages.length > 1) {
+                    // History exists
+                }
             }
 
             // ── Fallback to initial message if no history ───────────────
@@ -130,7 +142,6 @@ export default function Chatbot() {
             }
 
             setMessages(finalMessages);
-            // Auto-focus after init
             setTimeout(() => inputRef.current?.focus(), 100);
         } catch (err: unknown) {
             setError(err instanceof Error ? err.message : 'Unable to connect to support.');
@@ -224,14 +235,15 @@ export default function Chatbot() {
             const res = await api.post('/chat/message', { message: text });
             const data = res.data;
 
-            // Track status changes from API response
-            if (data.conversation_status && data.conversation_status !== conversationStatus) {
-                setConversationStatus(data.conversation_status);
+            if (data.conversation_status) {
+                const normalizedStatus = data.conversation_status.toLowerCase() as ConversationStatus;
+                if (normalizedStatus !== conversationStatus) {
+                    setConversationStatus(normalizedStatus);
+                }
             }
 
             const newBotMessages: Message[] = [];
 
-            // Push text response
             if (data.message) {
                 newBotMessages.push({
                     id: Date.now().toString() + '-reply',
@@ -241,7 +253,16 @@ export default function Chatbot() {
                 });
             }
 
-            // Push CTA if present
+            // Trigger Lead Form if backend flag is true
+            if (data.show_lead_form) {
+                newBotMessages.push({
+                    id: Date.now().toString() + '-form',
+                    role: 'bot',
+                    type: 'form',
+                    formType: 'demo'
+                });
+            }
+
             if (data.type === 'CTA' && data.cta_label && data.action) {
                 newBotMessages.push({
                     id: Date.now().toString() + '-cta-reply',
@@ -253,7 +274,6 @@ export default function Chatbot() {
             }
 
             setMessages((prev) => [...prev, ...newBotMessages]);
-            // Keep focus on input
             setTimeout(() => inputRef.current?.focus(), 50);
         } catch (err: unknown) {
             setError(err instanceof Error ? err.message : 'An unknown error occurred.');
@@ -282,7 +302,6 @@ export default function Chatbot() {
 
     const handleAction = (action: string) => {
         if (action === 'OPEN_LEAD_FORM') {
-            // Push form message to chat instead of modal
             setMessages(prev => [...prev, {
                 id: Date.now().toString(),
                 role: 'bot',
@@ -293,7 +312,6 @@ export default function Chatbot() {
     };
 
     const handleFormSuccess = (message: string) => {
-        // Add success message from bot
         setMessages(prev => [...prev, {
             id: Date.now().toString(),
             role: 'bot',
@@ -302,38 +320,41 @@ export default function Chatbot() {
         }]);
         setStatusText('Waiting for Agent');
         setConversationStatus('waiting_for_agent');
-        // WebSocket will auto-connect via reactive useEffect
     };
 
     const renderMessage = (msg: Message) => {
         switch (msg.type) {
             case 'text':
+                if (!msg.content.trim()) return null;
                 return (
-                    <div className={`${styles.message} ${msg.role === 'user'
-                        ? styles.userMessage
-                        : msg.role === 'agent'
-                            ? styles.agentMessage
-                            : msg.role === 'system'
-                                ? styles.liveSystemMessage
-                                : styles.assistantMessage
-                        }`}>
-                        {msg.role === 'agent' && (
-                            <div className={styles.agentLabel}>Sales Agent</div>
+                    <div className={`${styles.messageRow} ${msg.role === 'user' ? styles.messageRowUser : styles.messageRowBot}`}>
+                        {msg.role !== 'user' && (
+                            <div className={styles.botAvatar}>
+                                <Image src="/logo.png" alt="GTD" width={18} height={18} className="object-contain inverted-logo" />
+                            </div>
                         )}
-                        {msg.role === 'system' && (
-                            <div className={styles.systemLabel}>System</div>
-                        )}
-                        <div className={styles.msgBubble}>
+                        <div className={`${styles.bubble} ${msg.role === 'user'
+                            ? styles.bubbleUser
+                            : msg.role === 'agent'
+                                ? styles.bubbleAgent
+                                : msg.role === 'system'
+                                    ? styles.bubbleSystem
+                                    : styles.bubbleBot
+                            }`}>
+                            {msg.role === 'agent' && <div className={styles.agentLabel}>Sales Agent</div>}
                             {msg.content}
                         </div>
                     </div>
                 );
             case 'cta':
                 return (
-                    <div className={`${styles.message} ${styles.assistantMessage}`}>
-                        <div className={styles.ctaCard}>
+                    <div className={styles.messageRow}>
+                        <div className={styles.botAvatar}>
+                            <Image src="/logo.png" alt="GTD" width={18} height={18} className="object-contain inverted-logo" />
+                        </div>
+                        <div className={styles.ctaWrap}>
                             <button
-                                className={styles.ctaCardButton}
+                                className={styles.ctaBtn}
                                 onClick={() => handleAction(msg.action)}
                             >
                                 {msg.label}
@@ -343,9 +364,9 @@ export default function Chatbot() {
                 );
             case 'form':
                 return (
-                    <div className={`${styles.message} ${styles.assistantMessage}`} style={{ width: '100%', maxWidth: '100%' }}>
+                    <div className={styles.formWrap}>
                         <LeadForm
-                            onClose={() => { }} // No close needed for inline
+                            onClose={() => { }}
                             onSubmitSuccess={handleFormSuccess}
                         />
                     </div>
@@ -357,19 +378,15 @@ export default function Chatbot() {
 
     return (
         <>
-            {/* FAB */}
-            <div className={styles.fabWrapper}>
-                {!open && <div className={styles.tooltip}>Trade Support</div>}
-                <button
-                    className={`${styles.fab} ${open ? styles.fabOpen : ''}`}
-                    onClick={() => open ? handleClose() : setOpen(true)}
-                    aria-label="Open GTD Support"
-                >
-                    {open ? (
-                        <svg width="18" height="18" viewBox="0 0 24 24" fill="none">
-                            <path d="M6 18L18 6M6 6l12 12" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
-                        </svg>
-                    ) : (
+            {/* ── FAB ─────────────────────────────────────────────────── */}
+            {!open && (
+                <div className={styles.fabWrapper}>
+                    <div className={styles.fabTooltip}>Trade Support</div>
+                    <button
+                        className={styles.fab}
+                        onClick={() => setOpen(true)}
+                        aria-label="Open GTD Support"
+                    >
                         <div className="relative w-8 h-8">
                             <Image
                                 src="/logo.png"
@@ -378,32 +395,35 @@ export default function Chatbot() {
                                 className="object-contain inverted-logo"
                             />
                         </div>
-                    )}
-                </button>
-            </div>
+                    </button>
+                </div>
+            )}
 
-            {/* Chat Panel — fixed 380x520, never resizes */}
+            {/* ── Chat Panel ───────────────────────────────────────────── */}
             {open && (
                 <div className={styles.panel}>
-                    {/* Header */}
-                    <div className={styles.panelHeader}>
+
+                    {/* HEADER */}
+                    <div className={styles.header}>
                         <div className={styles.headerLeft}>
-                            <Image
-                                src="/logo.png"
-                                alt="GTD Support"
-                                width={90}
-                                height={28}
-                                className="object-contain inverted-logo"
-                            />
-                            <div>
+                            <div className={styles.headerAvatar}>
+                                <Image
+                                    src="/logo.png"
+                                    alt="GTD Support"
+                                    width={28}
+                                    height={28}
+                                    className="object-contain inverted-logo"
+                                />
+                            </div>
+                            <div className={styles.headerInfo}>
                                 <div className={styles.headerTitle}>GTD Support</div>
                                 <div className={styles.headerStatus}>
-                                    <span className={`${styles.statusDot} ${statusText === 'Demo Submitted' ? styles.statusDotGreen : ''}`}></span>
-                                    {statusText}
+                                    <span className={styles.statusDot}></span>
+                                    <span className={styles.statusLabel}>{statusText}</span>
                                 </div>
                             </div>
                         </div>
-                        <div className={styles.headerActions}>
+                        <div className={styles.headerRight}>
                             {isInitialized && (
                                 <button
                                     className={styles.endChatBtn}
@@ -413,65 +433,101 @@ export default function Chatbot() {
                                     End Chat
                                 </button>
                             )}
-                            <button className={styles.closeBtn} onClick={handleClose} aria-label="Close">
-                                <svg width="14" height="14" viewBox="0 0 24 24" fill="none">
-                                    <path d="M6 18L18 6M6 6l12 12" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
+                            <button
+                                className={styles.closeBtn}
+                                onClick={handleClose}
+                                aria-label="Close"
+                            >
+                                <svg width="16" height="16" viewBox="0 0 24 24" fill="none">
+                                    <path d="M6 18L18 6M6 6l12 12" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" />
                                 </svg>
                             </button>
                         </div>
                     </div>
 
-                    {/* Messages — scrollable only */}
-                    <div className={styles.messages}>
-                        {messages.map((msg) => (
-                            <div key={msg.id} style={{ width: '100%', display: 'flex', flexDirection: 'column' }}>
+                    {/* BODY — scrollable messages */}
+                    <div className={styles.body}>
+
+                        {/* Welcome bubble — always shown at top */}
+                        <div className={styles.welcomeRow}>
+                            <div className={styles.botAvatar}>
+                                <Image src="/logo.png" alt="GTD" width={18} height={18} className="object-contain inverted-logo" />
+                            </div>
+                            <div className={styles.welcomeBubble}>
+                                <p className={styles.welcomeLine1}>Welcome to GTD Service.</p>
+                                <p className={styles.welcomeLine2}>Please let me know how I can assist you.</p>
+                            </div>
+                        </div>
+
+                        {/* Messages */}
+                        {messages.slice(1).map((msg) => (
+                            <div key={msg.id}>
                                 {renderMessage(msg)}
                             </div>
                         ))}
+
+                        {/* Typing indicator */}
                         {loading && !error && (
-                            <div className={`${styles.message} ${styles.assistantMessage}`}>
-                                <div className={styles.msgBubble}>
+                            <div className={`${styles.messageRow} ${styles.messageRowBot}`}>
+                                <div className={styles.botAvatar}>
+                                    <Image src="/logo.png" alt="GTD" width={18} height={18} className="object-contain inverted-logo" />
+                                </div>
+                                <div className={`${styles.bubble} ${styles.bubbleBot}`}>
                                     <div className={styles.typing}>
                                         <span></span><span></span><span></span>
                                     </div>
                                 </div>
                             </div>
                         )}
+
+                        {/* Error */}
                         {error && (
                             <div className={styles.errorBanner}>
-                                <div className={styles.errorText}>{error}</div>
+                                <span>{error}</span>
                                 {!isInitialized && (
                                     <button className={styles.retryBtn} onClick={initSession}>
-                                        Retry Connection
+                                        Retry
                                     </button>
                                 )}
                             </div>
                         )}
+
                         <div ref={messagesEndRef} />
                     </div>
 
-                    {/* Input — fixed footer */}
-                    <div className={styles.inputArea}>
-                        <input
-                            ref={inputRef}
-                            className={styles.chatInput}
-                            type="text"
-                            placeholder={statusText === 'Demo Submitted' ? 'Thank you! We will contact you soon.' : (isInitialized ? 'Type your message...' : 'Initializing...')}
-                            value={input}
-                            disabled={!isInitialized || loading || statusText === 'Demo Submitted'}
-                            onChange={(e) => setInput(e.target.value)}
-                            onKeyDown={(e) => e.key === 'Enter' && sendMessage(input)}
-                        />
-                        <button
-                            className={styles.sendBtn}
-                            onClick={() => sendMessage(input)}
-                            disabled={!input.trim() || !isInitialized || loading}
-                            aria-label="Send"
-                        >
-                            <svg width="15" height="15" viewBox="0 0 24 24" fill="none">
-                                <path d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
-                            </svg>
-                        </button>
+                    {/* FOOTER */}
+                    <div className={styles.footer}>
+                        <div className={styles.inputWrap}>
+                            <input
+                                ref={inputRef}
+                                className={styles.chatInput}
+                                type="text"
+                                placeholder={
+                                    statusText === 'Demo Submitted'
+                                        ? 'Thank you! We will contact you soon.'
+                                        : isInitialized
+                                            ? 'Type your message...'
+                                            : 'Connecting...'
+                                }
+                                value={input}
+                                disabled={!isInitialized || loading || statusText === 'Demo Submitted'}
+                                onChange={(e) => setInput(e.target.value)}
+                                onKeyDown={(e) => e.key === 'Enter' && sendMessage(input)}
+                            />
+                            <button
+                                className={styles.sendBtn}
+                                onClick={() => sendMessage(input)}
+                                disabled={!input.trim() || !isInitialized || loading}
+                                aria-label="Send"
+                            >
+                                <svg width="16" height="16" viewBox="0 0 24 24" fill="none">
+                                    <path d="M22 2L11 13M22 2L15 22L11 13M22 2L2 9L11 13" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+                                </svg>
+                            </button>
+                        </div>
+                        <div className={styles.footerBrand}>
+                            Powered by <span>GTD Intelligence</span>
+                        </div>
                     </div>
                 </div>
             )}
