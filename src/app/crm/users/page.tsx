@@ -2,15 +2,11 @@
 
 import React, { useState, useEffect } from "react";
 import {
-    Users,
     UserPlus,
     Trash2,
     Search,
-    Shield,
-    UserCheck,
     Power,
-    PowerOff,
-    ShieldAlert
+    PowerOff
 } from "lucide-react";
 import { Button } from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input";
@@ -59,10 +55,12 @@ function UserManagementContent() {
         if (
             typeof role === "object" &&
             role !== null &&
-            "name" in role &&
-            typeof (role as any).name === "string"
+            "name" in role
         ) {
-            return (role as any).name;
+            const roleObj = role as { name?: unknown };
+            if (typeof roleObj.name === "string") {
+                return roleObj.name;
+            }
         }
 
         return "";
