@@ -7,4 +7,4 @@ import { API_BASE_URL } from '@/config/api';
 export const API_BASE = API_BASE_URL;
 
 // Helper for WebSocket protocols
-export const WS_BASE = API_BASE.replace(/^http/, 'ws');
+export const WS_BASE = (typeof API_BASE === 'string' ? API_BASE : '').replace(/^http/, 'ws');
