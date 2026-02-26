@@ -191,17 +191,18 @@ export default function Chatbot() {
 
     // ── WebSocket Reactive Sync ─────────────────────────────────────
     useEffect(() => {
-        if (conversationStatus !== 'bot' && isInitialized && !wsRef.current && sessionToken) {
+        // Connect to WS immediately to listen for agent joins/messages
+        if (isInitialized && !wsRef.current && sessionToken) {
             connectClientWebSocket(sessionToken);
         }
 
         return () => {
-            if (wsRef.current && (conversationStatus === 'bot' || !isInitialized)) {
+            if (wsRef.current && !isInitialized) {
                 wsRef.current.close();
                 wsRef.current = null;
             }
         };
-    }, [conversationStatus, isInitialized, sessionToken]);
+    }, [isInitialized, sessionToken]);
 
     useEffect(() => {
         return () => {

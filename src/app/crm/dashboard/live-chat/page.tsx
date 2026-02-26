@@ -34,6 +34,12 @@ interface Conversation {
     created_at: string | null;
     repeat_visitor: boolean;
     previous_session_count: number;
+    initial_ip: string | null;
+    country: string | null;
+    city: string | null;
+    browser: string | null;
+    os: string | null;
+    device_type: string | null;
 }
 
 
@@ -70,16 +76,37 @@ export default function LiveChatPage() {
     }, []);
 
     const fetchConversations = useCallback(async () => {
+        const token = getToken();
+        if (!token) {
+            console.warn('LiveChat: No token found, stopping polling.');
+            if (pollRef.current) {
+                clearInterval(pollRef.current);
+                pollRef.current = null;
+            }
+            return;
+        }
+
         try {
             const res = await api.get('/live-chat/conversations');
             setConversations(res.data || []);
             setError(null);
-        } catch {
+        } catch (err: unknown) {
+            console.error('LiveChat: Failed to fetch conversations', err);
             setError('Failed to load conversations');
+
+            const errorMessage = err instanceof Error ? err.message : String(err);
+
+            // If 401 Unauthorized, stop polling to prevent terminal spam
+            if (errorMessage === 'Could not validate credentials' || errorMessage.includes('Unauthorized')) {
+                if (pollRef.current) {
+                    clearInterval(pollRef.current);
+                    pollRef.current = null;
+                }
+            }
         } finally {
             setLoading(false);
         }
-    }, []);
+    }, [getToken]);
 
     // ── Poll for conversations ───────────────────────────────────────────
 
@@ -355,6 +382,16 @@ export default function LiveChatPage() {
                                 <div className={styles.cardMeta}>
                                     <span>{conv.message_count} messages</span>
                                     <span>Last: {formatTime(conv.last_message_at)}</span>
+                                </div>
+
+                                <div className={styles.visitorMeta}>
+                                    {conv.initial_ip && <span className={styles.metaBadge} title="IP Address">{conv.initial_ip}</span>}
+                                    {(conv.city || conv.country) && (
+                                        <span className={styles.metaBadge} title="Location">
+                                            {conv.city}{conv.city && conv.country ? ', ' : ''}{conv.country}
+                                        </span>
+                                    )}
+                                    {conv.device_type && <span className={styles.metaBadge} title="Device">{conv.device_type}</span>}
                                 </div>
 
 

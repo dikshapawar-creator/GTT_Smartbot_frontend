@@ -226,7 +226,7 @@ function UserManagementContent() {
                                                     <Shield className="h-3.5 w-3.5" />
                                                 </div>
                                                 <span className="text-xs font-black uppercase tracking-widest text-slate-700">
-                                                    {user.role.replace('_', ' ')}
+                                                    {user.role?.replace('_', ' ') || 'N/A'}
                                                 </span>
                                             </div>
                                         </TableCell>
