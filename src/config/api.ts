@@ -1,7 +1,15 @@
 import axios from 'axios';
 import Cookies from 'js-cookie';
 
-const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
+/**
+ * Centralized API Base URL configuration
+ * Works for both local development and production (Vercel)
+ */
+export const API_BASE =
+    process.env.NEXT_PUBLIC_API_BASE_URL || 'http://localhost:8000';
+
+// WebSocket base URL helper
+export const WS_BASE = API_BASE.replace(/^http/, 'ws');
 
 /**
  * Centralized Axios instance for Enterprise API communication.
@@ -10,7 +18,7 @@ const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
  * - Standardizes error handling
  */
 const api = axios.create({
-    baseURL: API_BASE_URL,
+    baseURL: API_BASE,
     withCredentials: true,
     headers: {
         'Content-Type': 'application/json',
@@ -37,4 +45,4 @@ api.interceptors.response.use(
 );
 
 export default api;
-export { API_BASE_URL };
+export { API_BASE, WS_BASE };
