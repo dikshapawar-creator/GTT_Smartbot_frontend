@@ -1,5 +1,5 @@
 import axios from 'axios';
-import Cookies from 'js-cookie';
+
 
 /**
  * Centralized API Base URL configuration
@@ -28,17 +28,56 @@ const api = axios.create({
 
 // Request interceptor for injecting JWT token (Auth Hardening)
 api.interceptors.request.use((config) => {
-    const token = Cookies.get('access_token');
-    if (token) {
-        config.headers.Authorization = `Bearer ${token}`;
+    try {
+        // eslint-disable-next-line @typescript-eslint/no-require-imports
+        const { auth } = require('@/lib/auth');
+        const token = auth.getAccessToken();
+        if (token) {
+            config.headers.Authorization = `Bearer ${token}`;
+        }
+    } catch (e) {
+        console.warn('Auth injection failed:', e);
     }
     return config;
 });
 
-// Response interceptor for consistent error handling
+// Response interceptor for consistent error handling and 401 refresh
 api.interceptors.response.use(
     (response) => response,
-    (error) => {
+    async (error) => {
+        const originalRequest = error.config;
+
+        // If 401 and not already retrying, attempt refresh
+        if (error.response?.status === 401 && !originalRequest._retry && !originalRequest.url.includes('/auth/login')) {
+            originalRequest._retry = true;
+            try {
+                // eslint-disable-next-line @typescript-eslint/no-require-imports
+                const { auth } = require('@/lib/auth');
+                const refreshToken = auth.getRefreshToken();
+
+                if (refreshToken) {
+                    const response = await axios.post(`${API_BASE}/auth/refresh`, {
+                        refresh_token: refreshToken
+                    });
+
+                    const { access_token, refresh_token } = response.data;
+                    const user = auth.getUser();
+
+                    if (user) {
+                        auth.setSession(access_token, refresh_token, user);
+                        originalRequest.headers.Authorization = `Bearer ${access_token}`;
+                        return api(originalRequest);
+                    }
+                }
+            } catch (refreshError) {
+                console.error('Refresh token failed:', refreshError);
+                // Redirect to signin if refresh fails
+                if (typeof window !== 'undefined') {
+                    window.location.href = '/signin';
+                }
+            }
+        }
+
         const message = error.response?.data?.detail || error.message || 'Network Error';
         return Promise.reject(new Error(message));
     }

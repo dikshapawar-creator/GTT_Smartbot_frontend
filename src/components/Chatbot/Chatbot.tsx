@@ -454,9 +454,23 @@ export default function Chatbot() {
                             <div className={styles.botAvatar}>
                                 <Image src="/logo.png" alt="GTD" width={18} height={18} className="object-contain inverted-logo" />
                             </div>
-                            <div className={styles.welcomeBubble}>
-                                <p className={styles.welcomeLine1}>Welcome to GTD Service.</p>
-                                <p className={styles.welcomeLine2}>Please let me know how I can assist you.</p>
+                            <div style={{ display: 'flex', flexDirection: 'column', gap: '10px', maxWidth: '80%' }}>
+                                <div className={styles.welcomeBubble} style={{ maxWidth: '100%' }}>
+                                    <p className={styles.welcomeLine1}>Welcome to GTD Service.</p>
+                                    <p className={styles.welcomeLine2}>Please let me know how I can assist you.</p>
+                                </div>
+                                {messages.length <= 1 && conversationStatus === 'bot' && (
+                                    <div className={styles.quickGrid}>
+                                        <button className={styles.quickBtn} onClick={() => handleAction('OPEN_LEAD_FORM')}>
+                                            <span className={styles.quickIcon}>🚀</span>
+                                            <span className={styles.quickLabel}>Request Demo</span>
+                                        </button>
+                                        <button className={styles.quickBtn} onClick={() => sendMessage('Talk to Sales')}>
+                                            <span className={styles.quickIcon}>💬</span>
+                                            <span className={styles.quickLabel}>Talk to Sales</span>
+                                        </button>
+                                    </div>
+                                )}
                             </div>
                         </div>
 

@@ -7,6 +7,7 @@ import { Button } from '@/components/ui/Button';
 import styles from './Dashboard.module.css';
 
 import { auth } from '@/lib/auth';
+import { api } from '@/lib/api';
 
 import {
     LayoutDashboard,
@@ -20,66 +21,84 @@ import {
     ChevronRight,
     LogOut,
     Plus,
-    Download,
-    MessageCircle
+    MessageCircle,
+    Activity,
+    UserPlus
 } from 'lucide-react';
 
 const navItems = [
-    { icon: <LayoutDashboard size={18} />, label: 'Overview', href: '/crm/dashboard' },
-    { icon: <Contact2 size={18} />, label: 'Captured Leads', href: '/crm/dashboard/leads' },
-    { icon: <Users size={18} />, label: 'User Management', href: '/crm/users', adminOnly: true },
-    { icon: <Clock size={18} />, label: 'Conversation History', href: '/crm/dashboard/history' },
-    { icon: <MessageCircle size={18} />, label: 'Live Conversations', href: '/crm/dashboard/live-chat' },
-    { icon: <Settings size={18} />, label: 'Settings', href: '/crm/dashboard/settings' },
+    { icon: <LayoutDashboard size={20} />, label: 'Overview', href: '/crm/dashboard' },
+    { icon: <Contact2 size={20} />, label: 'Captured Leads', href: '/crm/dashboard/leads' },
+    { icon: <Users size={20} />, label: 'User Management', href: '/crm/users', adminOnly: true },
+    { icon: <Clock size={20} />, label: 'Conversation History', href: '/crm/dashboard/history' },
+    { icon: <MessageCircle size={20} />, label: 'Live Conversations', href: '/crm/dashboard/live-chat' },
+    { icon: <Settings size={20} />, label: 'Settings', href: '/crm/dashboard/settings' },
 ];
 
-const kpis = [
-    { label: 'Active Shipments', value: '1,284', change: '+12%', trend: 'up', sub: 'vs last month' },
-    { label: 'Pending Documents', value: '47', change: '-8%', trend: 'down', sub: 'requires action' },
-    { label: 'Revenue This Month', value: '$4.2M', change: '+18%', trend: 'up', sub: 'vs last month' },
-    { label: 'New Leads', value: '347', change: '+23%', trend: 'up', sub: 'this month' },
-];
-
-const revenueData = [55, 70, 60, 85, 72, 90, 78, 95, 82, 100, 88, 105];
 const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
-
-const shipments = [
-    { id: 'SHP-2401', client: 'Maersk Line', origin: 'Shanghai', dest: 'Rotterdam', eta: 'Feb 28', status: 'In Transit', progress: 65 },
-    { id: 'SHP-2402', client: 'Emirates SkyCargo', origin: 'Dubai', dest: 'New York', eta: 'Feb 22', status: 'Customs Hold', progress: 80 },
-    { id: 'SHP-2403', client: 'DB Schenker', origin: 'Mumbai', dest: 'Hamburg', eta: 'Feb 18', status: 'Delivered', progress: 100 },
-    { id: 'SHP-2404', client: 'Kuehne+Nagel', origin: 'Singapore', dest: 'Los Angeles', eta: 'Mar 10', status: 'Booked', progress: 15 },
-    { id: 'SHP-2405', client: 'DHL Global', origin: 'Tokyo', dest: 'Chicago', eta: 'Mar 5', status: 'In Transit', progress: 40 },
-];
-
-const activities = [
-    { time: '2m ago', text: 'New lead added: Pacific Rim Exports Ltd.', type: 'lead' },
-    { time: '18m ago', text: 'SHP-2401 departed Port of Shanghai', type: 'shipment' },
-    { time: '1h ago', text: 'Invoice #INV-8821 approved for $128,000', type: 'finance' },
-    { time: '3h ago', text: 'Compliance check passed for SHP-2399', type: 'compliance' },
-    { time: '5h ago', text: 'Client meeting scheduled: Maersk Line', type: 'crm' },
-    { time: '6h ago', text: 'New shipment created: SHP-2405', type: 'shipment' },
-];
-
-const transactions = [
-    { inv: 'INV-8821', client: 'Maersk Line', amount: '$128,000', date: 'Feb 18', status: 'Paid' },
-    { inv: 'INV-8820', client: 'DB Schenker', amount: '$84,500', date: 'Feb 17', status: 'Pending' },
-    { inv: 'INV-8819', client: 'Emirates SkyCargo', amount: '$210,000', date: 'Feb 16', status: 'Paid' },
-    { inv: 'INV-8818', client: 'Kuehne+Nagel', amount: '$56,200', date: 'Feb 15', status: 'Overdue' },
-    { inv: 'INV-8817', client: 'DHL Global', amount: '$92,800', date: 'Feb 14', status: 'Paid' },
-];
-
+const revenueData = [55, 70, 60, 85, 72, 90, 78, 95, 82, 100, 88, 105];
 const maxVal = Math.max(...revenueData);
+
+interface DashboardStats {
+    kpis: {
+        total_leads: number;
+        new_leads: number;
+        active_chats: number;
+        total_messages: number;
+    };
+    recent_leads: Array<{
+        id: string;
+        name: string;
+        email: string;
+        company: string;
+        status: string;
+        created_at: string;
+    }>;
+    recent_sessions: Array<{
+        session_id: string;
+        client_ip: string;
+        country: string;
+        status: string;
+        last_activity: string;
+        mode: string;
+    }>;
+}
 
 export default function Dashboard({ children }: { children?: React.ReactNode }) {
     const [collapsed, setCollapsed] = useState(false);
     const [notifOpen, setNotifOpen] = useState(false);
     const [mounted, setMounted] = useState(false);
+    const [stats, setStats] = useState<DashboardStats | null>(null);
+    const [statsLoading, setStatsLoading] = useState(true);
+    const [profileOpen, setProfileOpen] = useState(false);
     const pathname = usePathname();
 
     useEffect(() => {
-        // eslint-disable-next-line react-hooks/set-state-in-effect
         setMounted(true);
+        fetchStats();
     }, []);
+
+    const fetchStats = async () => {
+        try {
+            const { data } = await api.get<DashboardStats>("/admin/stats");
+            setStats(data);
+        } catch (error) {
+            console.error("Failed to fetch dashboard stats", error);
+        } finally {
+            setStatsLoading(false);
+        }
+    };
+
+    const formatTimeAgo = (dateStr: string) => {
+        const date = new Date(dateStr);
+        const now = new Date();
+        const diff = Math.floor((now.getTime() - date.getTime()) / 60000);
+        if (diff < 1) return 'Just now';
+        if (diff < 60) return `${diff}m ago`;
+        const hours = Math.floor(diff / 60);
+        if (hours < 24) return `${hours}h ago`;
+        return date.toLocaleDateString();
+    };
 
     return (
         <div className={styles.layout}>
@@ -94,6 +113,7 @@ export default function Dashboard({ children }: { children?: React.ReactNode }) 
                             height={36}
                             className="object-contain inverted-logo"
                             priority
+                            style={{ width: "auto" }}
                         />
                     </div>
                     <button className={styles.collapseBtn} onClick={() => setCollapsed(!collapsed)}>
@@ -115,38 +135,53 @@ export default function Dashboard({ children }: { children?: React.ReactNode }) 
 
                 <div className={styles.sidebarFooter}>
                     {!collapsed && (
-                        <div className={styles.userCard}>
+                        <div className={styles.userCard} onClick={() => setProfileOpen(!profileOpen)}>
                             <div className={styles.userAvatar}>HK</div>
                             <div className={styles.userInfo}>
-                                <span className={styles.userName}>Harsh Kumar</span>
-                                <span className={styles.userRole}>Admin</span>
+                                <span className={styles.userName}>
+                                    {mounted ? (auth.getUser()?.email || 'Harsh Kumar') : 'Harsh Kumar'}
+                                </span>
+                                <span className={styles.userRole}>
+                                    {mounted ? (auth.getUser()?.role || 'Admin') : 'Admin'}
+                                </span>
                             </div>
-                            <button className="ml-auto text-slate-400 hover:text-red-500 transition-colors">
-                                <LogOut size={16} />
-                            </button>
+                            <ChevronDown size={14} className={`ml-auto text-slate-400 transition-transform ${profileOpen ? 'rotate-180' : ''}`} />
+
+                            {profileOpen && (
+                                <div className={styles.profileDropdown}>
+                                    <button onClick={() => { auth.clearSession(); window.location.reload(); }} className={styles.dropdownOption}>
+                                        <LogOut size={14} />
+                                        <span>Logout</span>
+                                    </button>
+                                    <button onClick={() => { auth.clearSession(); window.location.href = '/signin'; }} className={styles.dropdownOption}>
+                                        <UserPlus size={14} />
+                                        <span>Sign in to another account</span>
+                                    </button>
+                                </div>
+                            )}
                         </div>
                     )}
                     {collapsed && (
                         <div className="flex flex-col items-center gap-4">
                             <div className={styles.userAvatarSm}>HK</div>
-                            <button className="text-slate-400 hover:text-red-500 transition-colors">
+                            <button onClick={() => { auth.clearSession(); window.location.reload(); }} className="text-slate-400 hover:text-red-500 transition-colors">
                                 <LogOut size={16} />
                             </button>
                         </div>
                     )}
                 </div>
-            </aside>
+            </aside >
 
             {/* Main Content */}
-            <div className={styles.main}>
+            < div className={styles.main} >
                 {/* Top Header */}
-                <header className={styles.header}>
+                < header className={styles.header} >
                     <div className={styles.headerLeft}>
                         <div className={styles.searchWrap}>
                             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" className={styles.searchIcon}>
                                 <path d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
                             </svg>
-                            <input className={styles.searchInput} type="text" placeholder="Search shipments, clients, documents..." />
+                            <input className={styles.searchInput} type="text" placeholder="Search leads, sessions, history..." />
                         </div>
                     </div>
                     <div className={styles.headerRight}>
@@ -160,70 +195,103 @@ export default function Dashboard({ children }: { children?: React.ReactNode }) 
                                 <span className={styles.notifBadge}>3</span>
                             </button>
                         </div>
-                        <div className={styles.userProfile}>
+                        <div className={styles.userProfile} onClick={() => setProfileOpen(!profileOpen)}>
                             <div className={styles.profileAvatar}>HK</div>
                             <div className={styles.profileInfo}>
-                                <span className={styles.profileName}>Harsh Kumar</span>
-                                <span className={styles.profileRole}>Administrator</span>
+                                <span className={styles.profileName}>
+                                    {mounted ? (auth.getUser()?.email || 'Harsh Kumar') : 'Harsh Kumar'}
+                                </span>
+                                <span className={styles.profileRole}>
+                                    {mounted ? (auth.getUser()?.role || 'Administrator') : 'Administrator'}
+                                </span>
                             </div>
-                            <ChevronDown size={14} className="text-slate-400 ml-1" />
+                            <ChevronDown size={14} className={`text-slate-400 ml-1 transition-transform ${profileOpen ? 'rotate-180' : ''}`} />
+
+                            {profileOpen && (
+                                <div className={styles.headerProfileDropdown}>
+                                    <button onClick={() => { auth.clearSession(); window.location.reload(); }} className={styles.dropdownOption}>
+                                        <LogOut size={14} />
+                                        <span>Logout</span>
+                                    </button>
+                                    <button onClick={() => { auth.clearSession(); window.location.href = '/signin'; }} className={styles.dropdownOption}>
+                                        <UserPlus size={14} />
+                                        <span>Sign in to another account</span>
+                                    </button>
+                                </div>
+                            )}
                         </div>
                     </div>
-                </header>
+                </header >
 
                 {/* Page Content */}
-                <div className={styles.content}>
+                < div className={styles.content} >
                     {pathname === '/crm/dashboard' ? (
                         <>
                             {/* Page Title */}
                             <div className={styles.pageTitle}>
                                 <div>
                                     <h1 className={styles.pageTitleText}>Dashboard</h1>
-                                    <p className={styles.pageTitleSub}>Welcome back, Harsh. Here is your trade operations overview.</p>
+                                    <p className={styles.pageTitleSub}>Welcome back, {auth.getUser()?.email?.split('@')[0] || 'Harsh'}. Here is your real-time analytics.</p>
                                 </div>
                                 <div className={styles.pageTitleActions}>
-                                    <Button variant="outline" size="sm" className="gap-2">
-                                        <Download size={14} />
-                                        Export Report
+                                    <Button onClick={fetchStats} variant="outline" size="sm" className="gap-2">
+                                        <Activity size={14} />
+                                        Refresh Data
                                     </Button>
-                                    <Button size="sm" className="gap-2 shadow-md shadow-primary/20">
+                                    <Button onClick={() => window.location.href = '/crm/dashboard/leads'} size="sm" className="gap-2 shadow-md shadow-primary/20">
                                         <Plus size={14} />
-                                        New Shipment
+                                        View All Leads
                                     </Button>
                                 </div>
                             </div>
 
                             {/* KPI Cards */}
                             <div className={styles.kpiGrid}>
-                                {kpis.map((kpi, i) => (
-                                    <div key={i} className={styles.kpiCard}>
-                                        <div className={styles.kpiTop}>
-                                            <span className={styles.kpiLabel}>{kpi.label}</span>
-                                            <span className={`${styles.kpiChange} ${kpi.trend === 'up' ? styles.changeUp : styles.changeDown}`}>
-                                                {kpi.trend === 'up' ? '↑' : '↓'} {kpi.change}
-                                            </span>
-                                        </div>
-                                        <div className={styles.kpiValue}>{kpi.value}</div>
-                                        <div className={styles.kpiSub}>{kpi.sub}</div>
+                                <div className={styles.kpiCard}>
+                                    <div className={styles.kpiTop}>
+                                        <span className={styles.kpiLabel}>Total Leads</span>
+                                        <span className={`${styles.kpiChange} ${styles.changeUp}`}>Real-time</span>
                                     </div>
-                                ))}
+                                    <div className={styles.kpiValue}>{statsLoading ? "..." : stats?.kpis.total_leads || 0}</div>
+                                    <div className={styles.kpiSub}>Non-deleted leads in DB</div>
+                                </div>
+                                <div className={styles.kpiCard}>
+                                    <div className={styles.kpiTop}>
+                                        <span className={styles.kpiLabel}>New Leads</span>
+                                        <span className={`${styles.kpiChange} ${styles.changeUp}`}>Active</span>
+                                    </div>
+                                    <div className={styles.kpiValue}>{statsLoading ? "..." : stats?.kpis.new_leads || 0}</div>
+                                    <div className={styles.kpiSub}>Awaiting follow-up</div>
+                                </div>
+                                <div className={styles.kpiCard}>
+                                    <div className={styles.kpiTop}>
+                                        <span className={styles.kpiLabel}>Active Chats</span>
+                                        <span className={`${styles.kpiChange} ${styles.changeUp}`}>Live</span>
+                                    </div>
+                                    <div className={styles.kpiValue}>{statsLoading ? "..." : stats?.kpis.active_chats || 0}</div>
+                                    <div className={styles.kpiSub}>Current live sessions</div>
+                                </div>
+                                <div className={styles.kpiCard}>
+                                    <div className={styles.kpiTop}>
+                                        <span className={styles.kpiLabel}>Msg Volume</span>
+                                        <span className={`${styles.kpiChange} ${styles.changeUp}`}>Total</span>
+                                    </div>
+                                    <div className={styles.kpiValue}>{statsLoading ? "..." : stats?.kpis.total_messages || 0}</div>
+                                    <div className={styles.kpiSub}>Total messages processed</div>
+                                </div>
                             </div>
 
                             {/* Charts Row */}
                             <div className={styles.chartsRow}>
-                                {/* Revenue Chart */}
-                                <div className={styles.chartCard}>
+                                {/* Messages Chart (Simulated Revenue Chart placeholder) */}
+                                <div className={styles.chartCard} style={{ flex: 1.5 }}>
                                     <div className={styles.cardHeader}>
                                         <div>
-                                            <h3 className={styles.cardTitle}>Revenue Overview</h3>
-                                            <p className={styles.cardSubtitle}>Monthly revenue in USD (millions)</p>
+                                            <h3 className={styles.cardTitle}>Platform Activity</h3>
+                                            <p className={styles.cardSubtitle}>Usage trends over time</p>
                                         </div>
                                         <div className={styles.cardActions}>
-                                            <span className="badge badge-success">+18% YoY</span>
-                                            <select className={styles.periodSelect}>
-                                                <option>2025</option>
-                                                <option>2024</option>
-                                            </select>
+                                            <span className="badge badge-success">Growth: +24%</span>
                                         </div>
                                     </div>
                                     <div className={styles.lineChart}>
@@ -259,87 +327,91 @@ export default function Dashboard({ children }: { children?: React.ReactNode }) 
                                     </div>
                                 </div>
 
-                                {/* Shipment Overview */}
+                                {/* Active Sessions Feed */}
                                 <div className={styles.shipCard}>
                                     <div className={styles.cardHeader}>
-                                        <h3 className={styles.cardTitle}>Shipment Progress</h3>
-                                        <span className="badge badge-accent">Live</span>
+                                        <h3 className={styles.cardTitle}>Live Sessions</h3>
+                                        <span className="badge badge-accent">Auto-sync</span>
                                     </div>
                                     <div className={styles.shipList}>
-                                        {shipments.map((s) => (
-                                            <div key={s.id} className={styles.shipItem}>
+                                        {!statsLoading && stats?.recent_sessions.map((s) => (
+                                            <div key={s.session_id} className={styles.shipItem}>
                                                 <div className={styles.shipTop}>
-                                                    <span className={styles.shipId}>{s.id}</span>
-                                                    <span className={`${styles.shipStatus} ${s.status === 'Delivered' ? styles.statusDelivered :
-                                                        s.status === 'Customs Hold' ? styles.statusHold :
-                                                            s.status === 'Booked' ? styles.statusBooked : styles.statusTransit
-                                                        }`}>{s.status}</span>
+                                                    <span className={styles.shipId}>{s.session_id.slice(0, 8)}...</span>
+                                                    <span className={`${styles.shipStatus} ${s.status === 'ACTIVE' ? styles.statusTransit : styles.statusDelivered}`}>{s.status}</span>
                                                 </div>
                                                 <div className={styles.shipMeta}>
-                                                    <span>{s.origin} → {s.dest}</span>
-                                                    <span>ETA: {s.eta}</span>
+                                                    <span>{s.client_ip || 'Anonymous'} | {s.country || 'Unknown'}</span>
+                                                    <span>{formatTimeAgo(s.last_activity)}</span>
                                                 </div>
                                                 <div className={styles.progressBar}>
                                                     <div className={styles.progressFill} style={{
-                                                        width: `${s.progress}%`,
-                                                        background: s.status === 'Customs Hold' ? '#F59E0B' : s.status === 'Delivered' ? '#10B981' : '#2563EB'
+                                                        width: s.mode === 'HUMAN' ? '100%' : '30%',
+                                                        background: s.mode === 'HUMAN' ? '#F59E0B' : '#2563EB'
                                                     }}></div>
                                                 </div>
                                             </div>
                                         ))}
+                                        {!statsLoading && stats?.recent_sessions.length === 0 && (
+                                            <div className="text-center py-8 text-slate-400 text-xs italic">No active sessions</div>
+                                        )}
+                                        {statsLoading && <div className="text-center py-8 text-slate-400 animate-pulse">Loading sessions...</div>}
                                     </div>
                                 </div>
                             </div>
 
                             {/* Bottom Row */}
                             <div className={styles.bottomRow}>
-                                {/* Activity Feed */}
+                                {/* Activity Feed (Recent Leads) */}
                                 <div className={styles.activityCard}>
                                     <div className={styles.cardHeader}>
                                         <h3 className={styles.cardTitle}>Activity Feed</h3>
-                                        <button className="btn btn-ghost btn-sm">View All</button>
+                                        <Link href="/crm/dashboard/leads" className="btn btn-ghost btn-sm text-[10px]">View All</Link>
                                     </div>
                                     <div className={styles.activityList}>
-                                        {activities.map((a, i) => (
-                                            <div key={i} className={styles.activityItem}>
-                                                <div className={`${styles.activityDot} ${styles[`dot_${a.type}`]}`}></div>
+                                        {!statsLoading && stats?.recent_leads.map((l) => (
+                                            <div key={l.id} className={styles.activityItem}>
+                                                <div className={`${styles.activityDot} ${styles.dot_lead}`}></div>
                                                 <div className={styles.activityContent}>
-                                                    <span className={styles.activityText}>{a.text}</span>
-                                                    <span className={styles.activityTime}>{a.time}</span>
+                                                    <span className={styles.activityText}>New lead {l.name} from {l.company || 'Direct'}</span>
+                                                    <span className={styles.activityTime}>{formatTimeAgo(l.created_at)}</span>
                                                 </div>
                                             </div>
                                         ))}
+                                        {!statsLoading && stats?.recent_leads.length === 0 && (
+                                            <div className="text-center py-4 text-slate-400 text-sm">No recent activity</div>
+                                        )}
                                     </div>
                                 </div>
 
-                                {/* Transactions */}
+                                {/* Recent Leads Table */}
                                 <div className={styles.transCard}>
                                     <div className={styles.cardHeader}>
-                                        <h3 className={styles.cardTitle}>Recent Transactions</h3>
-                                        <button className="btn btn-ghost btn-sm">View All</button>
+                                        <h3 className={styles.cardTitle}>Recent Prospects</h3>
+                                        <Link href="/crm/dashboard/leads" className="btn btn-ghost btn-sm text-[10px]">Manage Leads</Link>
                                     </div>
                                     <table className={styles.table}>
                                         <thead>
                                             <tr>
-                                                <th>Invoice</th>
-                                                <th>Client</th>
-                                                <th>Amount</th>
-                                                <th>Date</th>
+                                                <th>Name</th>
+                                                <th>Company</th>
+                                                <th>Email</th>
                                                 <th>Status</th>
+                                                <th>Created</th>
                                             </tr>
                                         </thead>
                                         <tbody>
-                                            {transactions.map((t, i) => (
-                                                <tr key={i}>
-                                                    <td className={styles.tdMono}>{t.inv}</td>
-                                                    <td>{t.client}</td>
-                                                    <td className={styles.tdAmount}>{t.amount}</td>
-                                                    <td className={styles.tdMuted}>{t.date}</td>
+                                            {!statsLoading && stats?.recent_leads.map((l) => (
+                                                <tr key={l.id}>
+                                                    <td className={styles.tdStrong}>{l.name}</td>
+                                                    <td className={styles.tdText}>{l.company || '-'}</td>
+                                                    <td className={styles.tdMuted}>{l.email}</td>
                                                     <td>
-                                                        <span className={`badge ${t.status === 'Paid' ? 'badge-success' : t.status === 'Overdue' ? 'badge-danger' : 'badge-warning'}`}>
-                                                            {t.status}
+                                                        <span className={`badge ${l.status === 'NEW' ? 'badge-warning' : l.status === 'CONTACTED' ? 'badge-success' : 'badge-warning'}`}>
+                                                            {l.status}
                                                         </span>
                                                     </td>
+                                                    <td className={styles.tdTiny}>{new Date(l.created_at).toLocaleDateString()}</td>
                                                 </tr>
                                             ))}
                                         </tbody>
@@ -349,9 +421,11 @@ export default function Dashboard({ children }: { children?: React.ReactNode }) 
                         </>
                     ) : (
                         children
-                    )}
-                </div>
-            </div>
-        </div>
+                    )
+                    }
+                </div >
+            </div >
+        </div >
     );
 }
+

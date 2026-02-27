@@ -65,9 +65,10 @@ export default function LiveChatPage() {
     const [loading, setLoading] = useState(true);
     const [connecting, setConnecting] = useState(false);
     const [error, setError] = useState<string | null>(null);
-    const wsRef = useRef<WebSocket | null>(null);
-    const messagesEndRef = useRef<HTMLDivElement>(null);
     const pollRef = useRef<NodeJS.Timeout | null>(null);
+    const wsRef = useRef<WebSocket | null>(null);
+    const dashboardWsRef = useRef<WebSocket | null>(null);
+    const messagesEndRef = useRef<HTMLDivElement>(null);
 
     // ── Get auth token ────────────────────────────────────────────────────
 
@@ -175,7 +176,72 @@ export default function LiveChatPage() {
 
     // ── WebSocket connection ─────────────────────────────────────────────
 
-    const connectWebSocket = (sessionId: string, token: string) => {
+    // ── Dashboard WebSocket: Real-time List Updates ──────────────────────
+    const connectDashboardWebSocket = useCallback((token: string) => {
+        if (dashboardWsRef.current) return;
+
+        const ws = new WebSocket(`${WS_BASE}/ws/dashboard?token=${token}`);
+
+        ws.onopen = () => console.log('Dashboard WS Connected');
+        ws.onmessage = (event) => {
+            try {
+                const { type, data } = JSON.parse(event.data);
+                console.log('Dashboard WS Event:', type, data);
+
+                if (type === 'NEW_CONVERSATION') {
+                    setConversations(prev => {
+                        const exists = prev.find(c => c.session_id === data.session_id);
+                        if (exists) return prev;
+                        return [data, ...prev];
+                    });
+                } else if (type === 'SESSION_UPDATED') {
+                    setConversations(prev => prev.map(c =>
+                        c.session_id === data.session_id ? { ...c, ...data } : c
+                    ));
+                    // If the selected session was updated, we might want more logic here
+                } else if (type === 'NEW_MESSAGE') {
+                    setConversations(prev => prev.map(c => {
+                        if (c.session_id === data.session_id) {
+                            return {
+                                ...c,
+                                message_count: c.message_count + 1,
+                                last_message_at: data.timestamp
+                            };
+                        }
+                        return c;
+                    }).sort((a, b) => {
+                        const timeA = new Date(a.last_message_at || 0).getTime();
+                        const timeB = new Date(b.last_message_at || 0).getTime();
+                        return timeB - timeA;
+                    }));
+                }
+            } catch (err) {
+                console.error('Failed to parse dashboard message', err);
+            }
+        };
+
+        ws.onclose = () => {
+            console.log('Dashboard WS Closed');
+            dashboardWsRef.current = null;
+        };
+
+        dashboardWsRef.current = ws;
+    }, []);
+
+    useEffect(() => {
+        const token = getToken();
+        if (token && !dashboardWsRef.current) {
+            connectDashboardWebSocket(token);
+        }
+        return () => {
+            if (dashboardWsRef.current) {
+                dashboardWsRef.current.close();
+                dashboardWsRef.current = null;
+            }
+        };
+    }, [getToken, connectDashboardWebSocket]);
+
+    const connectWebSocket = useCallback((sessionId: string, token: string) => {
         // Close existing connection
         if (wsRef.current) {
             wsRef.current.close();
@@ -216,7 +282,7 @@ export default function LiveChatPage() {
         };
 
         wsRef.current = ws;
-    };
+    }, []);
 
     // ── Send message ────────────────────────────────────────────────────
 
