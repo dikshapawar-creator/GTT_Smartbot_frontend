@@ -12,6 +12,7 @@
     flex-direction: column;
     align-items: flex-end;
     gap: 10px;
+    pointer-events: auto;
 }
 
 .fabTooltip {
@@ -66,6 +67,7 @@
     flex-direction: column;
     overflow: hidden;
     animation: panelIn 0.35s cubic-bezier(0.16, 1, 0.3, 1);
+    pointer-events: auto;
 }
 
 @keyframes panelIn {

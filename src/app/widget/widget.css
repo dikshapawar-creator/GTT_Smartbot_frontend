@@ -5,6 +5,7 @@ body {
     padding: 0;
     background: transparent !important;
     overflow: hidden;
+    pointer-events: none;
 }
 
 /* Root container matching iframe dimensions */
@@ -15,6 +16,7 @@ body {
     width: 420px;
     height: 620px;
     overflow: hidden;
+    pointer-events: none;
 }
 
 /* Mobile Responsiveness */
