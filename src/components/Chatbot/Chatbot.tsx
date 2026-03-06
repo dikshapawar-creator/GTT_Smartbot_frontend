@@ -294,11 +294,13 @@ export default function Chatbot() {
             setIsInitialized(false);
             setOpen(false);
             setLoading(false);
+            window.parent.postMessage({ type: 'gtt-widget-resize', open: false }, '*');
         }
     };
 
     const handleClose = () => {
         setOpen(false);
+        window.parent.postMessage({ type: 'gtt-widget-resize', open: false }, '*');
     };
 
     const handleAction = (action: string) => {
@@ -385,7 +387,10 @@ export default function Chatbot() {
                     <div className={styles.fabTooltip}>Trade Support</div>
                     <button
                         className={styles.fab}
-                        onClick={() => setOpen(true)}
+                        onClick={() => {
+                            setOpen(true);
+                            window.parent.postMessage({ type: 'gtt-widget-resize', open: true }, '*');
+                        }}
                         aria-label="Open GTD Support"
                     >
                         <div className="relative w-8 h-8">

@@ -1,6 +1,10 @@
-/* Reset */
+add these url in the plavec
+
+/* Reset — make entire iframe pass-through by default */
 html,
-body {
+body,
+body>*,
+body>*>* {
     margin: 0;
     padding: 0;
     background: transparent !important;
@@ -15,7 +19,7 @@ body {
     right: 0;
     width: 420px;
     height: 620px;
-    overflow: hidden;
+    overflow: visible;
     pointer-events: none;
 }
 
