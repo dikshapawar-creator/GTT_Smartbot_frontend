@@ -10,7 +10,8 @@ const LeadForm = dynamic(() => import('./LeadForm'), {
 });
 
 import { WS_BASE } from '@/lib/config';
-import api from '@/config/api';
+import api, { API_BASE } from '@/config/api';
+import axios from 'axios';
 
 type ConversationStatus = 'bot' | 'waiting_for_agent' | 'human' | 'closed';
 
@@ -73,6 +74,18 @@ export default function Chatbot() {
         }
     }, [isInitialized, statusText]);
 
+    // ── Chat-specific API helper: sends session UUID as Bearer token ──
+    const chatApi = (sessionUUID: string) => ({
+        get: (url: string) => axios.get(`${API_BASE}${url}`, {
+            withCredentials: true,
+            headers: { 'Authorization': `Bearer ${sessionUUID}`, 'Content-Type': 'application/json' }
+        }),
+        post: (url: string, data?: unknown) => axios.post(`${API_BASE}${url}`, data, {
+            withCredentials: true,
+            headers: { 'Authorization': `Bearer ${sessionUUID}`, 'Content-Type': 'application/json' }
+        }),
+    });
+
     const initSession = async () => {
         setLoading(true);
         setError(null);
@@ -92,8 +105,9 @@ export default function Chatbot() {
                 }
             }
 
-            // ── Restore History ──────────────────────────────────────────
-            const historyRes = await api.get('/chat/history');
+            // ── Restore History using session UUID as auth ────────────────
+            const sessionUUID = data.session_token;
+            const historyRes = await chatApi(sessionUUID).get('/chat/history');
             const history = historyRes.data;
             let finalMessages: Message[] = [];
 
@@ -233,7 +247,7 @@ export default function Chatbot() {
         setError(null);
 
         try {
-            const res = await api.post('/chat/message', { message: text });
+            const res = await chatApi(sessionToken!).post('/chat/message', { message: text });
             const data = res.data;
 
             if (data.conversation_status) {

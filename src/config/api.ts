@@ -27,13 +27,20 @@ const api = axios.create({
 });
 
 // Request interceptor for injecting JWT token (Auth Hardening)
+// NOTE: Chat and public lead endpoints use session UUID auth — never inject Admin JWT
 api.interceptors.request.use((config) => {
     try {
-        // eslint-disable-next-line @typescript-eslint/no-require-imports
-        const { auth } = require('@/lib/auth');
-        const token = auth.getAccessToken();
-        if (token) {
-            config.headers.Authorization = `Bearer ${token}`;
+        const isChatOrPublic =
+            config.url?.includes('/chat/') ||
+            config.url?.includes('/leads/submit');
+
+        if (!isChatOrPublic) {
+            // eslint-disable-next-line @typescript-eslint/no-require-imports
+            const { auth } = require('@/lib/auth');
+            const token = auth.getAccessToken();
+            if (token) {
+                config.headers.Authorization = `Bearer ${token}`;
+            }
         }
     } catch (e) {
         console.warn('Auth injection failed:', e);
@@ -48,7 +55,12 @@ api.interceptors.response.use(
         const originalRequest = error.config;
 
         // If 401 and not already retrying, attempt refresh
-        if (error.response?.status === 401 && !originalRequest._retry && !originalRequest.url.includes('/auth/login')) {
+        // Skip auto-refresh for chat/public endpoints — they use session UUID, not JWT
+        const isChatOrPublic =
+            originalRequest.url?.includes('/chat/') ||
+            originalRequest.url?.includes('/leads/submit');
+
+        if (error.response?.status === 401 && !originalRequest._retry && !originalRequest.url.includes('/auth/login') && !isChatOrPublic) {
             originalRequest._retry = true;
             try {
                 // eslint-disable-next-line @typescript-eslint/no-require-imports
