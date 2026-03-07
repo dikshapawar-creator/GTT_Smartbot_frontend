@@ -297,6 +297,38 @@ export default function Chatbot() {
         }
     };
 
+    // ── Talk to Sales: dedicated handler to avoid confusing bot API response ──
+    const handleTalkToSales = async () => {
+        if (!isInitialized) return;
+
+        // 1. Show the user's message in chat
+        const userMsg: Message = {
+            id: Date.now().toString() + '-u',
+            role: 'user',
+            type: 'text',
+            content: 'Talk to Sales'
+        };
+        setMessages((prev) => [...prev, userMsg]);
+
+        // 2. Immediately show a friendly connecting message — no waiting for API
+        const botMsg: Message = {
+            id: Date.now().toString() + '-b',
+            role: 'bot',
+            type: 'text',
+            content: "Great! I'm connecting you with our sales team right away. Please hold on a moment — an agent will be with you shortly."
+        };
+        setMessages((prev) => [...prev, botMsg]);
+        setConversationStatus('waiting_for_agent');
+        setStatusText('Waiting for Agent');
+
+        // 3. Notify backend silently (ignore its response text to avoid duplicate/confusing messages)
+        try {
+            await chatApi(sessionToken!).post('/chat/message', { message: 'Talk to Sales' });
+        } catch (err) {
+            console.error('Failed to register talk-to-sales with backend:', err);
+        }
+    };
+
     const handleEndChat = async () => {
         setLoading(true);
         try {
@@ -484,7 +516,7 @@ export default function Chatbot() {
                                             <span className={styles.quickIcon}>🚀</span>
                                             <span className={styles.quickLabel}>Request Demo</span>
                                         </button>
-                                        <button className={styles.quickBtn} onClick={() => sendMessage('Talk to Sales')}>
+                                        <button className={styles.quickBtn} onClick={() => handleTalkToSales()}>
                                             <span className={styles.quickIcon}>💬</span>
                                             <span className={styles.quickLabel}>Talk to Sales</span>
                                         </button>
