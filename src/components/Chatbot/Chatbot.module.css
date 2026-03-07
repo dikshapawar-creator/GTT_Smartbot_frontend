@@ -5,8 +5,8 @@
 /* ── FAB ──────────────────────────────────────────────────────────────────── */
 .fabWrapper {
     position: fixed;
-    bottom: 28px;
-    right: 28px;
+    bottom: 24px;
+    right: 20px;
     z-index: 9999;
     display: flex;
     flex-direction: column;
@@ -38,13 +38,13 @@
     display: flex;
     align-items: center;
     justify-content: center;
-    box-shadow: 0 8px 24px rgba(15, 23, 42, 0.45);
+    box-shadow: none;
     transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
 }
 
 .fab:hover {
     transform: translateY(-3px) scale(1.06);
-    box-shadow: 0 12px 32px rgba(15, 23, 42, 0.55);
+    box-shadow: none;
 }
 
 /* ── Panel ────────────────────────────────────────────────────────────────── */
