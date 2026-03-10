@@ -13,6 +13,24 @@ import { WS_BASE } from '@/lib/config';
 import api, { API_BASE } from '@/config/api';
 import axios from 'axios';
 
+// ── Enterprise Error Helper ───────────────────────────────────────────────
+// NEVER expose raw server errors (SQL, stack traces) to the user.
+// Always return a short, friendly message regardless of what the server sent.
+function toFriendlyError(err: unknown): string {
+    if (axios.isAxiosError(err)) {
+        // Use the backend's own friendly message if it set one (our new format)
+        const serverMsg = err.response?.data?.message;
+        if (serverMsg && typeof serverMsg === 'string' && serverMsg.length < 120) {
+            return serverMsg;
+        }
+        // Network-level error (no response received)
+        if (!err.response) return 'Unable to connect. Please check your connection.';
+        // HTTP error without a clean message — generic
+        return 'Something went wrong. Please try again.';
+    }
+    return 'Unable to connect to support.';
+}
+
 type ConversationStatus = 'bot' | 'waiting_for_agent' | 'human' | 'closed';
 
 type BaseMessage = {
@@ -158,7 +176,7 @@ export default function Chatbot() {
             setMessages(finalMessages);
             setTimeout(() => inputRef.current?.focus(), 100);
         } catch (err: unknown) {
-            setError(err instanceof Error ? err.message : 'Unable to connect to support.');
+            setError(toFriendlyError(err));
         } finally {
             setLoading(false);
         }
@@ -291,7 +309,7 @@ export default function Chatbot() {
             setMessages((prev) => [...prev, ...newBotMessages]);
             setTimeout(() => inputRef.current?.focus(), 50);
         } catch (err: unknown) {
-            setError(err instanceof Error ? err.message : 'An unknown error occurred.');
+            setError(toFriendlyError(err));
         } finally {
             setLoading(false);
         }
@@ -546,13 +564,13 @@ export default function Chatbot() {
                             </div>
                         )}
 
-                        {/* Error */}
+                        {/* Error — always show a safe, generic message, never raw server errors */}
                         {error && (
                             <div className={styles.errorBanner}>
                                 <span>{error}</span>
                                 {!isInitialized && (
-                                    <button className={styles.retryBtn} onClick={initSession}>
-                                        Retry
+                                    <button className={styles.retryBtn} onClick={() => { setError(null); initSession(); }}>
+                                        Try Again
                                     </button>
                                 )}
                             </div>
