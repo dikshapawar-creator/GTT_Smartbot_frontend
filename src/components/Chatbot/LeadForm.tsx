@@ -5,31 +5,42 @@ import api from '@/config/api';
 
 // ── Top-20 international dial codes ─────────────────────────────────────────
 const DIAL_CODES = [
-    { code: '+91', country: 'IN', label: '🇮🇳 +91' },
-    { code: '+1', country: 'US', label: '🇺🇸 +1' },
-    { code: '+44', country: 'GB', label: '🇬🇧 +44' },
-    { code: '+971', country: 'AE', label: '🇦🇪 +971' },
-    { code: '+65', country: 'SG', label: '🇸🇬 +65' },
-    { code: '+852', country: 'HK', label: '🇭🇰 +852' },
-    { code: '+86', country: 'CN', label: '🇨🇳 +86' },
-    { code: '+81', country: 'JP', label: '🇯🇵 +81' },
-    { code: '+49', country: 'DE', label: '🇩🇪 +49' },
-    { code: '+33', country: 'FR', label: '🇫🇷 +33' },
-    { code: '+61', country: 'AU', label: '🇦🇺 +61' },
-    { code: '+55', country: 'BR', label: '🇧🇷 +55' },
-    { code: '+27', country: 'ZA', label: '🇿🇦 +27' },
-    { code: '+82', country: 'KR', label: '🇰🇷 +82' },
-    { code: '+7', country: 'RU', label: '🇷🇺 +7' },
-    { code: '+966', country: 'SA', label: '🇸🇦 +966' },
-    { code: '+234', country: 'NG', label: '🇳🇬 +234' },
-    { code: '+62', country: 'ID', label: '🇮🇩 +62' },
-    { code: '+60', country: 'MY', label: '🇲🇾 +60' },
-    { code: '+39', country: 'IT', label: '🇮🇹 +39' },
+    { code: '+91', country: 'IN', label: '🇮🇳 +91', expectedLength: 10 },
+    { code: '+1', country: 'US', label: '🇺🇸 +1', expectedLength: 10 },
+    { code: '+44', country: 'GB', label: '🇬🇧 +44', expectedLength: 10 },
+    { code: '+971', country: 'AE', label: '🇦🇪 +971', expectedLength: 9 },
+    { code: '+65', country: 'SG', label: '🇸🇬 +65', expectedLength: 8 },
+    { code: '+852', country: 'HK', label: '🇭🇰 +852', expectedLength: 8 },
+    { code: '+86', country: 'CN', label: '🇨🇳 +86', expectedLength: 11 },
+    { code: '+81', country: 'JP', label: '🇯🇵 +81', expectedLength: 10 },
+    { code: '+49', country: 'DE', label: '🇩🇪 +49', expectedLength: 11 },
+    { code: '+33', country: 'FR', label: '🇫🇷 +33', expectedLength: 9 },
+    { code: '+61', country: 'AU', label: '🇦🇺 +61', expectedLength: 9 },
+    { code: '+55', country: 'BR', label: '🇧🇷 +55', expectedLength: 11 },
+    { code: '+27', country: 'ZA', label: '🇿🇦 +27', expectedLength: 9 },
+    { code: '+82', country: 'KR', label: '🇰🇷 +82', expectedLength: 10 },
+    { code: '+7', country: 'RU', label: '🇷🇺 +7', expectedLength: 10 },
+    { code: '+966', country: 'SA', label: '🇸🇦 +966', expectedLength: 9 },
+    { code: '+234', country: 'NG', label: '🇳🇬 +234', expectedLength: 10 },
+    { code: '+62', country: 'ID', label: '🇮🇩 + Indonesian', expectedLength: 11 },
+    { code: '+60', country: 'MY', label: '🇲🇾 +60', expectedLength: 9 },
+    { code: '+39', country: 'IT', label: '🇮🇹 +39', expectedLength: 10 },
 ] as const;
 
-// ── Validation helpers ──────────────────────────────────────────────────────
-const NAME_REGEX = /^[A-Za-z\s]+$/;
+const NAME_REGEX = /^[A-Za-z\s\-'\.\u00C0-\u017F]+$/;
 const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+const PERSONAL_DOMAINS = [
+    'gmail.com', 'yahoo.com', 'hotmail.com', 'outlook.com',
+    'icloud.com', 'protonmail.com', 'aol.com', 'zoho.com', 'mail.com'
+];
+const WEBSITE_REGEX = /^([a-zA-Z0-9-]+\.)+[a-zA-Z]{2,}(\/.*)?$/;
+
+// ── Pure Logic Helpers ──
+const isPersonalEmail = (email: string) => {
+    if (!email) return false;
+    const domain = email.split('@')[1]?.toLowerCase();
+    return PERSONAL_DOMAINS.includes(domain || '');
+};
 
 interface LeadFormProps {
     onClose: () => void;
@@ -55,6 +66,7 @@ export default function LeadForm({ onClose, onSubmitSuccess }: LeadFormProps) {
     const [warning, setWarning] = useState('');
     const isSubmitting = useRef(false);  // Double-submit lock
 
+
     // ── Per-field validation (called on blur + on change after touch) ────
     const validateField = useCallback((name: FieldName, value: string): string => {
         const v = value.trim();
@@ -70,24 +82,37 @@ export default function LeadForm({ onClose, onSubmitSuccess }: LeadFormProps) {
                 if (v.length < 2) return 'Minimum 2 characters';
                 if (v.length > 150) return 'Maximum 150 characters';
                 return '';
-            case 'website':
-                // Optional field
-                return '';
             case 'business_email':
                 if (!v) return 'Business Email is required';
                 if (!EMAIL_REGEX.test(v)) return 'Enter a valid email address';
                 return '';
+            case 'website':
+                if (isPersonalEmail(formData.business_email) && !v) {
+                    return 'Website is required for verification when using personal email';
+                }
+                if (v && !WEBSITE_REGEX.test(v.replace(/^https?:\/\//, '').replace(/^www\./, ''))) {
+                    return 'Please enter a valid domain (e.g. company.com)';
+                }
+                return '';
             case 'contact_number': {
                 if (!v) return 'Phone number is required';
                 const digitsOnly = v.replace(/[\s\-()]/g, '');
-                if (digitsOnly.length < 6 || digitsOnly.length > 15)
-                    return 'Please enter 6–15 digits';
+
+                const currentDialCodeObj = DIAL_CODES.find(d => d.code === dialCode);
+                if (currentDialCodeObj) {
+                    if (digitsOnly.length !== currentDialCodeObj.expectedLength) {
+                        return `${currentDialCodeObj.country} phone number must be exactly ${currentDialCodeObj.expectedLength} digits`;
+                    }
+                } else {
+                    if (digitsOnly.length < 6 || digitsOnly.length > 15)
+                        return 'Please enter 6–15 digits';
+                }
                 return '';
             }
             default:
                 return '';
         }
-    }, []);
+    }, [dialCode, formData.business_email]);
 
     // ── Validate all fields at once (for submit) ────────────────────────
     const validateAll = useCallback((): boolean => {
@@ -104,11 +129,33 @@ export default function LeadForm({ onClose, onSubmitSuccess }: LeadFormProps) {
         return Object.keys(newErrors).length === 0;
     }, [formData, validateField]);
 
-    // ── Check if form is submittable (ONLY checks field errors + non-empty required) ──
+    // ── Re-validate phone when country changes ──
+    const handleDialCodeChange = (newCode: string) => {
+        setDialCode(newCode);
+        if (touched.contact_number || formData.contact_number) {
+            // Use the new code immediately since state update is async
+            const v = formData.contact_number.trim();
+            const digitsOnly = v.replace(/[\s\-()]/g, '');
+            const obj = DIAL_CODES.find(d => d.code === newCode);
+            let err = '';
+            if (!v) err = 'Phone number is required';
+            else if (obj && digitsOnly.length !== obj.expectedLength) {
+                err = `${obj.country} phone number must be exactly ${obj.expectedLength} digits`;
+            }
+            setErrors(prev => ({ ...prev, contact_number: err }));
+        }
+    };
+
+    // ── Check if form is submittable ──
     const isFormValid = (): boolean => {
         const requiredFields: FieldName[] = ['full_name', 'company_name', 'business_email', 'contact_number'];
         const hasEmptyFields = requiredFields.some(f => !formData[f].trim());
         const hasFieldErrors = Object.values(errors).some(err => !!err);
+
+        // Conditional Website requirement
+        if (isPersonalEmail(formData.business_email) && !formData.website.trim()) {
+            return false;
+        }
 
         return !hasEmptyFields && !hasFieldErrors && !loading;
     };
@@ -117,7 +164,7 @@ export default function LeadForm({ onClose, onSubmitSuccess }: LeadFormProps) {
     const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
         const { name, value } = e.target;
         if (name === 'dialCode') {
-            setDialCode(value);
+            handleDialCodeChange(value);
             return;
         }
 
@@ -132,13 +179,26 @@ export default function LeadForm({ onClose, onSubmitSuccess }: LeadFormProps) {
 
         // Clear server-level states when user starts typing
         setServerError('');
-        if (name === 'business_email') setWarning('');
+
+        if (name === 'business_email') {
+            const isPersonal = isPersonalEmail(newValue);
+            if (isPersonal) {
+                setWarning('Please use your company email for faster verification.');
+            } else {
+                setWarning('');
+            }
+        }
 
         // Perform real-time validation
         const err = validateField(name as FieldName, newValue);
         setErrors(prev => ({ ...prev, [name]: err }));
 
-        // Mark as touched on change for immediate feedback
+        // If email changed, re-validate website because of conditional requirement
+        if (name === 'business_email') {
+            const webErr = validateField('website', formData.website);
+            setErrors(prev => ({ ...prev, website: webErr }));
+        }
+
         setTouched(prev => ({ ...prev, [name]: true }));
     };
 
@@ -180,7 +240,7 @@ export default function LeadForm({ onClose, onSubmitSuccess }: LeadFormProps) {
             website: formData.website.trim() || null,
             business_email: formData.business_email.trim().toLowerCase(),
             contact_number: e164Phone.trim(),
-            hp_field: '',  // Honeypot — always empty from real users
+            hp_field: ((e.target as HTMLFormElement).elements.namedItem('hp_field') as HTMLInputElement)?.value || '',
         };
 
         try {
@@ -316,18 +376,26 @@ export default function LeadForm({ onClose, onSubmitSuccess }: LeadFormProps) {
                     )}
                 </div>
 
-                {/* ── Business Website (optional) ───────────────────────── */}
+                {/* ── Business Website ───────────────────────────────────────── */}
                 <div className={styles.formGroup}>
-                    <label htmlFor="lead-website" className={styles.label}>Business Website</label>
+                    <label htmlFor="lead-website" className={styles.label}>
+                        Business Website {isPersonalEmail(formData.business_email) && <span className={styles.required}>*</span>}
+                    </label>
                     <input
                         id="lead-website"
                         name="website"
                         value={formData.website}
                         onChange={handleChange}
-                        className={styles.input}
-                        placeholder="example.com"
+                        onBlur={handleBlur}
+                        className={`${styles.input} ${touched.website && errors.website ? styles.inputError : ''}`}
+                        placeholder="e.g. company.com"
                         maxLength={255}
+                        aria-invalid={!!errors.website}
+                        aria-describedby={errors.website ? 'err-website' : undefined}
                     />
+                    {touched.website && errors.website && (
+                        <span id="err-website" className={styles.errorHint} role="alert">{errors.website}</span>
+                    )}
                 </div>
 
                 {/* ── Business Email ─────────────────────────────────────── */}
@@ -381,8 +449,8 @@ export default function LeadForm({ onClose, onSubmitSuccess }: LeadFormProps) {
                             onChange={handleChange}
                             onBlur={handleBlur}
                             className={`${styles.input} ${styles.phoneInput} ${touched.contact_number && errors.contact_number ? styles.inputError : ''}`}
-                            placeholder="9876543210"
-                            maxLength={15}
+                            placeholder={dialCode === '+91' ? '9876543210' : 'Phone Number'}
+                            maxLength={DIAL_CODES.find(d => d.code === dialCode)?.expectedLength || 15}
                             aria-invalid={!!errors.contact_number}
                             aria-describedby={errors.contact_number ? 'err-phone' : undefined}
                         />

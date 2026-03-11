@@ -1,5 +1,5 @@
 'use client';
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useCallback } from 'react';
 import Image from 'next/image';
 import styles from './Chatbot.module.css';
 import dynamic from 'next/dynamic';
@@ -70,30 +70,15 @@ export default function Chatbot() {
     const [sessionToken, setSessionToken] = useState<string | null>(null);
     const wsRef = useRef<WebSocket | null>(null);
 
+    const [isAgentTyping, setIsAgentTyping] = useState(false);
+    const typingTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+    const agentTypingTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+
     const messagesEndRef = useRef<HTMLDivElement>(null);
     const inputRef = useRef<HTMLInputElement>(null);
 
-    useEffect(() => {
-        messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
-    }, [messages, loading, open]);
-
-    useEffect(() => {
-        if (open && !isInitialized) {
-            initSession();
-        }
-    }, [open, isInitialized]);
-
-    // Update status based on initialization
-    useEffect(() => {
-        if (isInitialized && statusText !== 'Demo Submitted') {
-            setStatusText('Online');
-        } else if (!isInitialized) {
-            setStatusText('Connecting...');
-        }
-    }, [isInitialized, statusText]);
-
     // ── Chat-specific API helper: sends session UUID as Bearer token ──
-    const chatApi = (sessionUUID: string) => ({
+    const chatApi = useCallback((sessionUUID: string) => ({
         get: (url: string) => axios.get(`${API_BASE}${url}`, {
             withCredentials: true,
             headers: { 'Authorization': `Bearer ${sessionUUID}`, 'Content-Type': 'application/json' }
@@ -102,9 +87,9 @@ export default function Chatbot() {
             withCredentials: true,
             headers: { 'Authorization': `Bearer ${sessionUUID}`, 'Content-Type': 'application/json' }
         }),
-    });
+    }), []);
 
-    const initSession = async () => {
+    const initSession = useCallback(async () => {
         setLoading(true);
         setError(null);
         try {
@@ -180,7 +165,26 @@ export default function Chatbot() {
         } finally {
             setLoading(false);
         }
-    };
+    }, [chatApi]);
+
+    // Update status based on initialization
+    useEffect(() => {
+        if (isInitialized && statusText !== 'Demo Submitted') {
+            setStatusText('Online');
+        } else if (!isInitialized) {
+            setStatusText('Connecting...');
+        }
+    }, [isInitialized, statusText]);
+
+    useEffect(() => {
+        messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+    }, [messages, loading, open]);
+
+    useEffect(() => {
+        if (open && !isInitialized) {
+            initSession();
+        }
+    }, [open, isInitialized, initSession]);
 
     // ── WebSocket connect for live agent chat ────────────────────────
     const connectClientWebSocket = (sessionId: string) => {
@@ -198,6 +202,15 @@ export default function Chatbot() {
         ws.onmessage = (event) => {
             try {
                 const data = JSON.parse(event.data);
+                if (data.type === 'typing') {
+                    setIsAgentTyping(data.is_typing);
+                    if (agentTypingTimeoutRef.current) clearTimeout(agentTypingTimeoutRef.current);
+                    if (data.is_typing) {
+                        agentTypingTimeoutRef.current = setTimeout(() => setIsAgentTyping(false), 3000);
+                    }
+                    return;
+                }
+
                 const role = data.sender === 'agent' ? 'agent' : data.sender === 'user' ? 'user' : data.sender === 'system' ? 'system' : 'bot';
                 setMessages((prev) => [...prev, {
                     id: Date.now().toString() + '-ws',
@@ -239,12 +252,31 @@ export default function Chatbot() {
     useEffect(() => {
         return () => {
             if (wsRef.current) wsRef.current.close();
+            if (typingTimeoutRef.current) clearTimeout(typingTimeoutRef.current);
+            if (agentTypingTimeoutRef.current) clearTimeout(agentTypingTimeoutRef.current);
         };
     }, []);
+
+    const sendTypingStatus = (isTyping: boolean) => {
+        if (isInitialized && wsRef.current?.readyState === WebSocket.OPEN) {
+            wsRef.current.send(JSON.stringify({
+                type: 'typing',
+                is_typing: isTyping
+            }));
+        }
+    };
+
+    const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+        setInput(e.target.value);
+        sendTypingStatus(true);
+        if (typingTimeoutRef.current) clearTimeout(typingTimeoutRef.current);
+        typingTimeoutRef.current = setTimeout(() => sendTypingStatus(false), 2000);
+    };
 
     const sendMessage = async (text: string) => {
         if (!text.trim() || !isInitialized) return;
 
+        sendTypingStatus(false);
         const userMsg: Message = {
             id: Date.now().toString(),
             role: 'user',
@@ -550,7 +582,21 @@ export default function Chatbot() {
                             </div>
                         ))}
 
-                        {/* Typing indicator */}
+                        {/* Agent Typing indicator */}
+                        {isAgentTyping && (
+                            <div className={`${styles.messageRow} ${styles.messageRowBot}`}>
+                                <div className={styles.botAvatar}>
+                                    <Image src="/logo.png" alt="GTD" width={18} height={18} className="object-contain inverted-logo" />
+                                </div>
+                                <div className={`${styles.bubble} ${styles.bubbleBot}`}>
+                                    <div className={styles.typing}>
+                                        <span></span><span></span><span></span>
+                                    </div>
+                                </div>
+                            </div>
+                        )}
+
+                        {/* Typing indicator (General fallback) */}
                         {loading && !error && (
                             <div className={`${styles.messageRow} ${styles.messageRowBot}`}>
                                 <div className={styles.botAvatar}>
@@ -595,7 +641,7 @@ export default function Chatbot() {
                                 }
                                 value={input}
                                 disabled={!isInitialized || loading || statusText === 'Demo Submitted'}
-                                onChange={(e) => setInput(e.target.value)}
+                                onChange={handleInputChange}
                                 onKeyDown={(e) => e.key === 'Enter' && sendMessage(input)}
                             />
                             <button

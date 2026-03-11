@@ -23,8 +23,8 @@ export default function Navbar() {
           <Image
             src="/logo.png"
             alt="GTD Service"
-            width={160}
-            height={48}
+            width={32}
+            height={32}
             className="object-contain"
             priority
           />

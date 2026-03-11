@@ -170,6 +170,98 @@
     animation: dropdownFade 0.2s ease forwards;
 }
 
+.notifDropdown {
+    position: absolute;
+    top: 100%;
+    right: -10px;
+    margin-top: var(--space-2);
+    width: 300px;
+    background: var(--color-surface);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-md);
+    padding: var(--space-2);
+    box-shadow: var(--shadow-lg);
+    z-index: 101;
+    animation: dropdownFade 0.2s ease forwards;
+    cursor: default;
+}
+
+.notifHeader {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: var(--space-2) var(--space-3);
+    border-bottom: 1px solid var(--color-border-light);
+    margin-bottom: var(--space-2);
+}
+
+.notifTitle {
+    font-size: var(--font-size-sm);
+    font-weight: 600;
+    color: var(--color-text-primary);
+}
+
+.notifItem {
+    padding: var(--space-3);
+    border-radius: var(--radius-sm);
+    transition: background var(--transition-fast);
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+}
+
+.notifItem:hover {
+    background: var(--color-bg);
+}
+
+.notifItemText {
+    font-size: var(--font-size-xs);
+    color: var(--color-text-primary);
+    line-height: 1.4;
+}
+
+.notifTime {
+    font-size: 10px;
+    color: var(--color-text-muted);
+}
+
+.orgDropdown {
+    position: absolute;
+    top: 100%;
+    left: 0;
+    margin-top: var(--space-2);
+    width: 200px;
+    background: var(--color-surface);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-md);
+    padding: var(--space-1);
+    box-shadow: var(--shadow-lg);
+    z-index: 101;
+    animation: dropdownFade 0.2s ease forwards;
+}
+
+.orgOption {
+    display: flex;
+    align-items: center;
+    gap: var(--space-2);
+    width: 100%;
+    padding: var(--space-2) var(--space-3);
+    font-size: var(--font-size-xs);
+    font-weight: 500;
+    color: var(--color-text-primary);
+    border-radius: var(--radius-sm);
+    transition: all var(--transition-fast);
+    text-align: left;
+    border: none;
+    background: none;
+    cursor: pointer;
+}
+
+.orgOption:hover {
+    background: var(--color-bg);
+    color: var(--color-accent);
+}
+
 .dropdownOption {
     display: flex;
     align-items: center;
@@ -1008,4 +1100,156 @@
 .historyMeta {
     font-size: 0.8rem;
     color: var(--color-text-muted);
+}
+
+/* ── CRM CRM Layout Improvements ─────────────────────────── */
+.filterBar {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--space-4);
+    padding: var(--space-4);
+    background: var(--color-surface);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-lg);
+    margin-bottom: var(--space-4);
+    align-items: flex-end;
+}
+
+.filterGroup {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    flex: 1;
+    min-width: 150px;
+}
+
+.filterLabel {
+    font-size: 11px;
+    font-weight: 700;
+    color: var(--color-text-muted);
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+}
+
+.filterInput,
+.filterSelect {
+    width: 100%;
+    padding: 0.5rem 0.75rem;
+    font-size: var(--font-size-sm);
+    background: var(--color-bg);
+    border: 1.5px solid var(--color-border);
+    border-radius: var(--radius-md);
+    color: var(--color-text-primary);
+    outline: none;
+    transition: all 0.2s;
+}
+
+.filterInput:focus,
+.filterSelect:focus {
+    border-color: var(--color-accent);
+    box-shadow: 0 0 0 2px var(--color-accent-light);
+}
+
+.searchBar {
+    flex: 2;
+    min-width: 250px;
+}
+
+.pagination {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: var(--space-4) var(--space-6);
+    background: var(--color-surface);
+    border-top: 1px solid var(--color-border-light);
+}
+
+.paginationInfo {
+    font-size: var(--font-size-sm);
+    color: var(--color-text-muted);
+}
+
+.paginationActions {
+    display: flex;
+    align-items: center;
+    gap: var(--space-2);
+}
+
+.pageBtn {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 32px;
+    height: 32px;
+    border-radius: var(--radius-md);
+    border: 1px solid var(--color-border);
+    background: var(--color-surface);
+    color: var(--color-text-primary);
+    cursor: pointer;
+    transition: all 0.2s;
+}
+
+.pageBtn:hover:not(:disabled) {
+    border-color: var(--color-accent);
+    color: var(--color-accent);
+}
+
+.pageBtn:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+}
+
+.pageBtnActive {
+    background: var(--color-accent);
+    color: #fff;
+    border-color: var(--color-accent);
+}
+
+.sortableHeader {
+    cursor: pointer;
+    user-select: none;
+    transition: color 0.2s;
+}
+
+.sortableHeader:hover {
+    color: var(--color-accent);
+}
+
+.sortIcon {
+    display: inline-flex;
+    margin-left: 4px;
+    vertical-align: middle;
+}
+
+.statusBadge {
+    display: inline-flex;
+    padding: 2px 8px;
+    border-radius: 9999px;
+    font-size: 11px;
+    font-weight: 700;
+}
+
+.badge_NEW {
+    background: rgba(59, 130, 246, 0.12);
+    color: #3b82f6;
+}
+
+.badge_IN_PROGRESS {
+    background: rgba(245, 158, 11, 0.12);
+    color: #f59e0b;
+}
+
+.badge_QUALIFIED {
+    background: rgba(16, 185, 129, 0.12);
+    color: #10b981;
+}
+
+.badge_CLOSED {
+    background: rgba(107, 114, 128, 0.12);
+    color: #6b7280;
+}
+
+.badge_COMPLETE {
+    background: rgba(139, 92, 246, 0.12);
+    color: #8b5cf6;
 }

@@ -1,8 +1,12 @@
 'use client';
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { Button } from '@/components/ui/Button';
 import { Modal } from '@/components/ui/Modal';
-import { RefreshCw, History, Trash2, CheckCircle2, Clock, MapPin, Package, Building2 } from 'lucide-react';
+import {
+    RefreshCw, History, Trash2, CheckCircle2, Clock, MapPin,
+    Package, Building2, Search, ChevronLeft, ChevronRight,
+    ArrowUpDown, ArrowUp, ArrowDown, Phone, Mail
+} from 'lucide-react';
 import styles from './Dashboard.module.css';
 
 import api from '@/config/api';
@@ -22,7 +26,15 @@ interface Lead {
     country_interested?: string;
     product?: string;
     requirement_type?: string;
-    version: number; // For Optimistic Locking
+    source: string;
+    version: number;
+}
+
+interface PaginatedResponse {
+    total: number;
+    page: number;
+    limit: number;
+    data: Lead[];
 }
 
 interface StatusHistory {
@@ -39,66 +51,89 @@ const ALLOWED_TRANSITIONS: Record<string, string[]> = {
     'IN_PROGRESS': ['QUALIFIED', 'CLOSED'],
     'QUALIFIED': ['CLOSED'],
     'CLOSED': ['IN_PROGRESS'],
-    'COMPLETE': ['IN_PROGRESS', 'CLOSED'] // Handling legacy
+    'COMPLETE': ['IN_PROGRESS', 'CLOSED']
 };
-
-// ── Component ────────────────────────────────────────────────────────────
 
 export default function LeadsList() {
     const [leads, setLeads] = useState<Lead[]>([]);
+    const [totalLeads, setTotalLeads] = useState(0);
     const [loading, setLoading] = useState(true);
-    const [filter, setFilter] = useState('ALL');
 
-    // UI State
+    // CRM Filter State
+    const [search, setSearch] = useState('');
+    const [status, setStatus] = useState('ALL');
+    const [country] = useState('');
+    const [tradeType, setTradeType] = useState('ALL');
+    const [product] = useState('');
+    const [source, setSource] = useState('ALL');
+    const [startDate, setStartDate] = useState('');
+    const [endDate, setEndDate] = useState('');
+
+    // Pagination & Sorting State
+    const [page, setPage] = useState(1);
+    const [limit, setLimit] = useState(20);
+    const [sortBy, setSortBy] = useState('created_at');
+    const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('desc');
+
+    // UI Overlay State
     const [historyLead, setHistoryLead] = useState<Lead | null>(null);
     const [historyData, setHistoryData] = useState<StatusHistory[]>([]);
     const [historyLoading, setHistoryLoading] = useState(false);
-    const [isDeleting, setIsDeleting] = useState<string | null>(null);
 
-    useEffect(() => {
-        fetchLeads();
-    }, []);
-
-    const fetchLeads = async () => {
+    const fetchLeads = useCallback(async () => {
         setLoading(true);
         try {
-            const response = await api.get<Lead[]>('/leads/');
-            const sortedLeads = [...response.data].sort((a, b) =>
-                new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
-            );
-            setLeads(sortedLeads);
+            const params: Record<string, string | number> = {
+                page,
+                limit,
+                sort_by: sortBy,
+                sort_order: sortOrder
+            };
+
+            if (search) params.search = search;
+            if (status !== 'ALL') params.status = status;
+            if (country) params.country = country;
+            if (tradeType !== 'ALL') params.trade_type = tradeType;
+            if (product) params.product = product;
+            if (source !== 'ALL') params.source = source;
+            if (startDate) params.start_date = startDate;
+            if (endDate) params.end_date = endDate;
+
+            const response = await api.get<PaginatedResponse>('/leads/', { params });
+            setLeads(response.data.data);
+            setTotalLeads(response.data.total);
         } catch (error) {
-            console.error('Failed to fetch leads:', error);
+            console.error('CRM Fetch Failed:', error);
         } finally {
             setLoading(false);
         }
-    };
+    }, [page, limit, sortBy, sortOrder, search, status, country, tradeType, product, source, startDate, endDate]);
+
+    useEffect(() => {
+        const timer = setTimeout(() => {
+            fetchLeads();
+        }, 300); // Debounce search/filters
+        return () => clearTimeout(timer);
+    }, [fetchLeads]);
 
     const handleStatusUpdate = async (lead: Lead, newStatus: string) => {
         if (lead.status === newStatus) return;
-
         try {
             await api.patch(`/leads/${lead.id}/status`, {
                 status: newStatus,
                 changed_by: 'crm_user',
                 source: 'crm',
-                version: lead.version // Optimistic locking
+                version: lead.version
             });
-            await fetchLeads(); // Refresh to get new version and status
+            fetchLeads();
         } catch (error: unknown) {
             alert(error instanceof Error ? error.message : 'Status update failed');
-            fetchLeads(); // Refresh on conflict
+            fetchLeads();
         }
     };
 
-    const handleDelete = async (id: string) => {
-        try {
-            await api.delete(`/leads/${id}`);
-            setLeads(prev => prev.filter(l => l.id !== id));
-            setIsDeleting(null);
-        } catch (error: unknown) {
-            alert(error instanceof Error ? error.message : 'Delete failed');
-        }
+    const handleDelete = (id: string) => {
+        setLeads(prev => prev.filter(l => l.id !== id));
     };
 
     const fetchHistory = async (lead: Lead) => {
@@ -115,31 +150,53 @@ export default function LeadsList() {
         }
     };
 
-    const filteredLeads = leads.filter(lead =>
-        filter === 'ALL' ? true : lead.status === filter
-    );
-
-    const formatDate = (dateStr: string) => {
-        return new Date(dateStr).toLocaleString();
+    const toggleSort = (field: string) => {
+        if (sortBy === field) {
+            setSortOrder(sortOrder === 'asc' ? 'desc' : 'asc');
+        } else {
+            setSortBy(field);
+            setSortOrder('asc');
+        }
+        setPage(1); // Reset to first page on sort
     };
+
+    const formatDate = (dateStr: string) => new Date(dateStr).toLocaleString();
+    const today = new Date().toISOString().split('T')[0];
 
     return (
         <div className={styles.leadsContainer}>
             <div className={styles.pageTitle}>
                 <div>
-                    <h1 className={styles.pageTitleText}>Leads Management</h1>
-                    <p className={styles.pageTitleSub}>Review and manage enterprise leads captured via SmartBot.</p>
+                    <h1 className={styles.pageTitleText}>Enterprise Leads Management</h1>
+                    <p className={styles.pageTitleSub}>Scalable CRM module for managing trade data and customer inquiries.</p>
                 </div>
                 <div className={styles.pageTitleActions}>
                     <Button variant="outline" size="sm" onClick={fetchLeads} className="gap-2">
                         <RefreshCw className={loading ? "animate-spin w-4 h-4" : "w-4 h-4"} />
-                        Refresh
+                        Sync Data
                     </Button>
-                    <select
-                        className={styles.filterSelect}
-                        value={filter}
-                        onChange={(e) => setFilter(e.target.value)}
-                    >
+                </div>
+            </div>
+
+            {/* ── Advanced Filter Bar ───────────────────────────────────── */}
+            <div className={styles.filterBar}>
+                <div className={`${styles.filterGroup} ${styles.searchBar}`}>
+                    <label className={styles.filterLabel}>Global Search</label>
+                    <div className="relative">
+                        <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={14} />
+                        <input
+                            type="text"
+                            className={`${styles.filterInput} pl-9`}
+                            placeholder="Name, email, company, phone..."
+                            value={search}
+                            onChange={(e) => { setSearch(e.target.value); setPage(1); }}
+                        />
+                    </div>
+                </div>
+
+                <div className={styles.filterGroup}>
+                    <label className={styles.filterLabel}>Lead Status</label>
+                    <select className={styles.filterSelect} value={status} onChange={(e) => { setStatus(e.target.value); setPage(1); }}>
                         <option value="ALL">All Status</option>
                         <option value="NEW">New</option>
                         <option value="IN_PROGRESS">In Progress</option>
@@ -148,58 +205,90 @@ export default function LeadsList() {
                         <option value="CLOSED">Closed</option>
                     </select>
                 </div>
+
+                <div className={styles.filterGroup}>
+                    <label className={styles.filterLabel}>Trade Type</label>
+                    <select className={styles.filterSelect} value={tradeType} onChange={(e) => { setTradeType(e.target.value); setPage(1); }}>
+                        <option value="ALL">All Types</option>
+                        <option value="IMPORT">Import</option>
+                        <option value="EXPORT">Export</option>
+                    </select>
+                </div>
+
+                <div className={styles.filterGroup}>
+                    <label className={styles.filterLabel}>Source</label>
+                    <select className={styles.filterSelect} value={source} onChange={(e) => { setSource(e.target.value); setPage(1); }}>
+                        <option value="ALL">All Sources</option>
+                        <option value="chatbot">Chatbot</option>
+                        <option value="website">Website</option>
+                        <option value="api">API</option>
+                    </select>
+                </div>
+
+                <div className={styles.filterGroup}>
+                    <label className={styles.filterLabel}>From Date</label>
+                    <input type="date" className={styles.filterInput} value={startDate} max={today} onChange={(e) => { setStartDate(e.target.value); setPage(1); }} />
+                </div>
+
+                <div className={styles.filterGroup}>
+                    <label className={styles.filterLabel}>To Date</label>
+                    <input type="date" className={styles.filterInput} value={endDate} max={today} onChange={(e) => { setEndDate(e.target.value); setPage(1); }} />
+                </div>
             </div>
 
+            {/* ── Leads Table ─────────────────────────────────────────── */}
             <div className={styles.leadsCard}>
-                {loading ? (
-                    <div className={styles.loader}>Loading leads...</div>
-                ) : (
+                <div className="overflow-x-auto">
                     <table className={styles.table}>
                         <thead>
                             <tr>
-                                <th>Full Name</th>
-                                <th>Company</th>
-                                <th>Email/Contact</th>
+                                <th onClick={() => toggleSort('name')} className={styles.sortableHeader}>
+                                    Name/Company {sortBy === 'name' ? (sortOrder === 'asc' ? <ArrowUp size={12} className={styles.sortIcon} /> : <ArrowDown size={12} className={styles.sortIcon} />) : <ArrowUpDown size={12} className={styles.sortIcon} />}
+                                </th>
+                                <th>Contact Details</th>
                                 <th>Trade Info</th>
+                                <th>Source</th>
                                 <th>Status</th>
-                                <th>Created</th>
+                                <th onClick={() => toggleSort('created_at')} className={styles.sortableHeader}>
+                                    Created {sortBy === 'created_at' ? (sortOrder === 'asc' ? <ArrowUp size={12} className={styles.sortIcon} /> : <ArrowDown size={12} className={styles.sortIcon} />) : <ArrowUpDown size={12} className={styles.sortIcon} />}
+                                </th>
                                 <th>Actions</th>
                             </tr>
                         </thead>
                         <tbody>
-                            {filteredLeads.map((lead) => (
+                            {loading ? (
+                                <tr><td colSpan={7} className="text-center py-20 text-slate-400">Loading enterprise data...</td></tr>
+                            ) : leads.length === 0 ? (
+                                <tr><td colSpan={7} className="text-center py-20 text-slate-400">No leads found matching your filters.</td></tr>
+                            ) : leads.map((lead) => (
                                 <tr key={lead.id}>
-                                    <td className={styles.tdStrong}>{lead.name || 'Anonymous'}</td>
                                     <td>
-                                        <div className={styles.tdText}><Building2 size={12} className="inline mr-1" /> {lead.company || '--'}</div>
-                                        {lead.website && (
-                                            <a href={lead.website.startsWith('http') ? lead.website : `https://${lead.website}`}
-                                                target="_blank" rel="noopener noreferrer"
-                                                className={styles.tdLink}>
-                                                {lead.website}
-                                            </a>
-                                        )}
+                                        <div className={styles.tdStrong}>{lead.name || 'Anonymous'}</div>
+                                        <div className={styles.tdSmall}><Building2 size={10} className="inline mr-1" /> {lead.company || '--'}</div>
                                     </td>
                                     <td>
-                                        <div className={styles.tdMuted}>{lead.email || 'No Email'}</div>
-                                        <div className={styles.tdMuted}>{lead.phone || 'No Phone'}</div>
+                                        <div className="flex flex-col gap-1">
+                                            <div className={styles.tdSmall}><Mail size={10} className="inline mr-1" /> {lead.email || 'N/A'}</div>
+                                            <div className={styles.tdSmall}><Phone size={10} className="inline mr-1" /> {lead.phone || 'N/A'}</div>
+                                        </div>
                                     </td>
                                     <td>
-                                        <div className={styles.tdTagGroup}>
-                                            {lead.trade_type && <span className={styles.tdTag}>{lead.trade_type}</span>}
-                                            {lead.country_interested && <span className={styles.tdTag}><MapPin size={10} className="inline" /> {lead.country_interested}</span>}
+                                        <div className="flex flex-col gap-1">
+                                            <div className={styles.tdTagGroup}>
+                                                {lead.trade_type && <span className={styles.tdTag}>{lead.trade_type}</span>}
+                                                {lead.country_interested && <span className={styles.tdTag}><MapPin size={10} className="inline" /> {lead.country_interested}</span>}
+                                            </div>
+                                            <div className={styles.tdSmall}>{lead.product && <span><Package size={10} className="inline mr-1" /> {lead.product}</span>}</div>
                                         </div>
-                                        <div className={styles.tdSmall}>
-                                            {lead.product && <span><Package size={12} className="inline" /> {lead.product}</span>}
-                                        </div>
+                                    </td>
+                                    <td>
+                                        <span className="text-[10px] uppercase font-bold text-slate-400 px-2 py-1 bg-slate-100 rounded-md">
+                                            {lead.source}
+                                        </span>
                                     </td>
                                     <td>
                                         <select
-                                            className={`${styles.statusDropdown} ${lead.status === 'NEW' ? styles.statusNew :
-                                                lead.status === 'QUALIFIED' ? styles.statusQualified :
-                                                    lead.status === 'CLOSED' ? styles.statusClosed :
-                                                        styles.statusProgress
-                                                }`}
+                                            className={`${styles.statusDropdown} ${styles[`status${lead.status}`] || styles.statusProgress}`}
                                             value={lead.status}
                                             onChange={(e) => handleStatusUpdate(lead, e.target.value)}
                                         >
@@ -213,12 +302,12 @@ export default function LeadsList() {
                                         <div className={styles.tdSmall}>{formatDate(lead.created_at)}</div>
                                     </td>
                                     <td>
-                                        <div className="flex gap-2">
-                                            <Button variant="ghost" size="sm" onClick={() => fetchHistory(lead)} title="View History">
-                                                <History size={16} />
+                                        <div className="flex gap-1">
+                                            <Button variant="ghost" size="sm" onClick={() => fetchHistory(lead)} title="View Audit Trail">
+                                                <History size={15} />
                                             </Button>
-                                            <Button variant="ghost" size="sm" onClick={() => setIsDeleting(lead.id)} className="text-red-500 hover:text-red-700" title="Delete">
-                                                <Trash2 size={16} />
+                                            <Button variant="ghost" size="sm" onClick={() => handleDelete(lead.id)} className="text-red-500 hover:bg-red-50" title="Delete">
+                                                <Trash2 size={15} />
                                             </Button>
                                         </div>
                                     </td>
@@ -226,7 +315,54 @@ export default function LeadsList() {
                             ))}
                         </tbody>
                     </table>
-                )}
+                </div>
+
+                {/* ── Pagination Footer ────────────────────────────────────── */}
+                <div className={styles.pagination}>
+                    <div className={styles.paginationInfo}>
+                        Showing <b>{(page - 1) * limit + 1}</b> to <b>{Math.min(page * limit, totalLeads)}</b> of <b>{totalLeads}</b> leads
+                    </div>
+                    <div className={styles.paginationActions}>
+                        <div className="flex items-center gap-2 mr-6">
+                            <span className="text-xs text-slate-500">Rows per page:</span>
+                            <select
+                                className="text-xs border rounded p-1 bg-white"
+                                value={limit}
+                                onChange={(e) => { setLimit(Number(e.target.value)); setPage(1); }}
+                            >
+                                <option value={10}>10</option>
+                                <option value={20}>20</option>
+                                <option value={50}>50</option>
+                            </select>
+                        </div>
+                        <button
+                            className={styles.pageBtn}
+                            disabled={page === 1}
+                            onClick={() => setPage(page - 1)}
+                        >
+                            <ChevronLeft size={16} />
+                        </button>
+                        <div className="flex gap-1">
+                            {[...Array(Math.ceil(totalLeads / limit))].slice(0, 5).map((_, i) => (
+                                <button
+                                    key={i}
+                                    className={`${styles.pageBtn} ${page === i + 1 ? styles.pageBtnActive : ''}`}
+                                    onClick={() => setPage(i + 1)}
+                                >
+                                    {i + 1}
+                                </button>
+                            ))}
+                            {Math.ceil(totalLeads / limit) > 5 && <span className="px-2">...</span>}
+                        </div>
+                        <button
+                            className={styles.pageBtn}
+                            disabled={page >= Math.ceil(totalLeads / limit)}
+                            onClick={() => setPage(page + 1)}
+                        >
+                            <ChevronRight size={16} />
+                        </button>
+                    </div>
+                </div>
             </div>
 
             {/* ── Status History Modal ────────────────────────────────────── */}
@@ -260,22 +396,6 @@ export default function LeadsList() {
                         ))}
                     </div>
                 )}
-            </Modal>
-
-            {/* ── Delete Confirmation ─────────────────────────────────────── */}
-            <Modal
-                isOpen={!!isDeleting}
-                onClose={() => setIsDeleting(null)}
-                title="Confirm Deletion"
-            >
-                <div className="p-4 text-center">
-                    <Trash2 size={48} className="text-red-500 mx-auto mb-4" />
-                    <p className="text-lg mb-6 text-text-primary">Are you sure you want to delete this lead? This action is reversible by administrators but will hide the lead from the dashboard.</p>
-                    <div className="flex justify-center gap-4">
-                        <Button variant="outline" onClick={() => setIsDeleting(null)}>Cancel</Button>
-                        <Button variant="outline" className="bg-red-500 text-white border-red-500 hover:bg-red-600" onClick={() => isDeleting && handleDelete(isDeleting)}>Delete Lead</Button>
-                    </div>
-                </div>
             </Modal>
         </div>
     );

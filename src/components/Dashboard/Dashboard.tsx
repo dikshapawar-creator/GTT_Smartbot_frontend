@@ -23,7 +23,9 @@ import {
     Plus,
     MessageCircle,
     Activity,
-    UserPlus
+    UserPlus,
+    Moon,
+    Sun
 } from 'lucide-react';
 
 const navItems = [
@@ -62,6 +64,12 @@ interface DashboardStats {
         last_activity: string;
         mode: string;
     }>;
+    tenant_name: string;
+    notifications: Array<{
+        id: string;
+        message: string;
+        time: string;
+    }>;
 }
 
 export default function Dashboard({ children }: { children?: React.ReactNode }) {
@@ -71,12 +79,42 @@ export default function Dashboard({ children }: { children?: React.ReactNode }) 
     const [stats, setStats] = useState<DashboardStats | null>(null);
     const [statsLoading, setStatsLoading] = useState(true);
     const [profileOpen, setProfileOpen] = useState(false);
+    const [orgOpen, setOrgOpen] = useState(false);
+    const [searchQuery, setSearchQuery] = useState('');
+    const [isDarkMode, setIsDarkMode] = useState(false);
+    const [lastReadTime, setLastReadTime] = useState<string | null>(null);
     const pathname = usePathname();
 
     useEffect(() => {
         setMounted(true);
         fetchStats();
+
+        // Load theme and last read time from local storage
+        const savedTheme = localStorage.getItem('theme');
+        if (savedTheme === 'dark') {
+            setIsDarkMode(true);
+            document.documentElement.setAttribute('data-theme', 'dark');
+        }
+
+        const savedReadTime = localStorage.getItem('notificationsLastRead');
+        if (savedReadTime) {
+            setLastReadTime(savedReadTime);
+        }
     }, []);
+
+    const toggleTheme = () => {
+        setIsDarkMode(!isDarkMode);
+        const newTheme = !isDarkMode ? 'dark' : 'light';
+        document.documentElement.setAttribute('data-theme', newTheme);
+        localStorage.setItem('theme', newTheme);
+    };
+
+    const markAllRead = () => {
+        const now = new Date().toISOString();
+        setLastReadTime(now);
+        localStorage.setItem('notificationsLastRead', now);
+        setNotifOpen(false);
+    };
 
     const fetchStats = async () => {
         try {
@@ -99,6 +137,28 @@ export default function Dashboard({ children }: { children?: React.ReactNode }) 
         if (hours < 24) return `${hours}h ago`;
         return date.toLocaleDateString();
     };
+
+    const getInitials = () => {
+        if (!mounted) return '...';
+        const user = auth.getUser();
+        if (user && user.email) {
+            return user.email.substring(0, 2).toUpperCase();
+        }
+        return 'US';
+    };
+
+    const displayLeads = stats?.recent_leads?.filter(l =>
+        (l.name + l.email + l.company + l.status).toLowerCase().includes(searchQuery.toLowerCase())
+    ) || [];
+
+    const displaySessions = stats?.recent_sessions?.filter(s =>
+        (s.session_id + s.client_ip + s.country + s.status).toLowerCase().includes(searchQuery.toLowerCase())
+    ) || [];
+
+    const unreadNotifications = stats?.notifications?.filter(n => {
+        if (!lastReadTime) return true;
+        return new Date(n.time) > new Date(lastReadTime);
+    }) || [];
 
     return (
         <div className={styles.layout}>
@@ -136,11 +196,9 @@ export default function Dashboard({ children }: { children?: React.ReactNode }) 
                 <div className={styles.sidebarFooter}>
                     {!collapsed && (
                         <div className={styles.userCard} onClick={() => setProfileOpen(!profileOpen)}>
-                            <div className={styles.userAvatar}>HK</div>
+                            <div className={styles.userAvatar}>{getInitials()}</div>
                             <div className={styles.userInfo}>
-                                <span className={styles.userName}>
-                                    {mounted ? (auth.getUser()?.email || 'Harsh Kumar') : 'Harsh Kumar'}
-                                </span>
+                                {mounted ? (auth.getUser()?.email?.split('@')[0] || 'User') : '...'}
                                 <span className={styles.userRole}>
                                     {mounted ? (auth.getUser()?.role || 'Admin') : 'Admin'}
                                 </span>
@@ -163,7 +221,7 @@ export default function Dashboard({ children }: { children?: React.ReactNode }) 
                     )}
                     {collapsed && (
                         <div className="flex flex-col items-center gap-4">
-                            <div className={styles.userAvatarSm}>HK</div>
+                            <div className={styles.userAvatarSm}>{getInitials()}</div>
                             <button onClick={() => { auth.clearSession(); window.location.reload(); }} className="text-slate-400 hover:text-red-500 transition-colors">
                                 <LogOut size={16} />
                             </button>
@@ -181,26 +239,65 @@ export default function Dashboard({ children }: { children?: React.ReactNode }) 
                             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" className={styles.searchIcon}>
                                 <path d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
                             </svg>
-                            <input className={styles.searchInput} type="text" placeholder="Search leads, sessions, history..." />
+                            <input
+                                className={styles.searchInput}
+                                type="text"
+                                placeholder="Search leads, sessions, history..."
+                                value={searchQuery}
+                                onChange={(e) => setSearchQuery(e.target.value)}
+                            />
                         </div>
                     </div>
                     <div className={styles.headerRight}>
-                        <div className={styles.orgSwitcher}>
-                            <span>GTD Service</span>
-                            <ChevronDown size={14} className="text-slate-400" />
+                        <div className={styles.orgSwitcher} onClick={() => setOrgOpen(!orgOpen)} style={{ position: 'relative' }}>
+                            <span>{statsLoading ? 'Loading...' : 'GTD Service'}</span>
+                            <ChevronDown size={14} className={`text-slate-400 transition-transform ${orgOpen ? 'rotate-180' : ''}`} />
+                            {orgOpen && (
+                                <div className={styles.orgDropdown}>
+                                    <button className={styles.orgOption}>{statsLoading ? 'Loading...' : 'GTD Service'}</button>
+                                    <button className={styles.orgOption} style={{ color: "var(--color-text-muted)" }}>+ Add Workspace</button>
+                                </div>
+                            )}
                         </div>
                         <div className={styles.notifWrap}>
-                            <button className={styles.iconBtn} onClick={() => setNotifOpen(!notifOpen)}>
-                                <Bell size={18} />
-                                <span className={styles.notifBadge}>3</span>
-                            </button>
+                            <div style={{ display: 'flex', gap: '8px' }}>
+                                <button className={styles.iconBtn} onClick={toggleTheme} title="Toggle Dark Mode">
+                                    {isDarkMode ? <Sun size={18} /> : <Moon size={18} />}
+                                </button>
+                                <button className={styles.iconBtn} onClick={() => setNotifOpen(!notifOpen)}>
+                                    <Bell size={18} />
+                                    {unreadNotifications.length > 0 && (
+                                        <span className={styles.notifBadge}>{unreadNotifications.length}</span>
+                                    )}
+                                </button>
+                            </div>
+                            {notifOpen && (
+                                <div className={styles.notifDropdown}>
+                                    <div className={styles.notifHeader}>
+                                        <span className={styles.notifTitle}>Notifications</span>
+                                        <button onClick={markAllRead} className="text-xs text-primary font-medium hover:underline">Mark all read</button>
+                                    </div>
+                                    <div className="flex flex-col gap-1 max-h-[300px] overflow-y-auto">
+                                        {statsLoading ? (
+                                            <div className="p-4 text-center text-xs text-slate-400">Loading notifications...</div>
+                                        ) : unreadNotifications.length > 0 ? (
+                                            unreadNotifications.map((notif) => (
+                                                <div key={notif.id} className={styles.notifItem}>
+                                                    <span className={styles.notifItemText}>{notif.message}</span>
+                                                    <span className={styles.notifTime}>{formatTimeAgo(notif.time)}</span>
+                                                </div>
+                                            ))
+                                        ) : (
+                                            <div className="p-4 text-center text-xs text-slate-400">No new notifications</div>
+                                        )}
+                                    </div>
+                                </div>
+                            )}
                         </div>
                         <div className={styles.userProfile} onClick={() => setProfileOpen(!profileOpen)}>
-                            <div className={styles.profileAvatar}>HK</div>
+                            <div className={styles.profileAvatar}>{getInitials()}</div>
                             <div className={styles.profileInfo}>
-                                <span className={styles.profileName}>
-                                    {mounted ? (auth.getUser()?.email || 'Harsh Kumar') : 'Harsh Kumar'}
-                                </span>
+                                {mounted ? (auth.getUser()?.email?.split('@')[0] || 'User') : '...'}
                                 <span className={styles.profileRole}>
                                     {mounted ? (auth.getUser()?.role || 'Administrator') : 'Administrator'}
                                 </span>
@@ -231,7 +328,7 @@ export default function Dashboard({ children }: { children?: React.ReactNode }) 
                             <div className={styles.pageTitle}>
                                 <div>
                                     <h1 className={styles.pageTitleText}>Dashboard</h1>
-                                    <p className={styles.pageTitleSub}>Welcome back, {auth.getUser()?.email?.split('@')[0] || 'Harsh'}. Here is your real-time analytics.</p>
+                                    <p className={styles.pageTitleSub}>Welcome back, {auth.getUser()?.email?.split('@')[0] || 'User'}. Here is your real-time analytics.</p>
                                 </div>
                                 <div className={styles.pageTitleActions}>
                                     <Button onClick={fetchStats} variant="outline" size="sm" className="gap-2">
@@ -334,7 +431,7 @@ export default function Dashboard({ children }: { children?: React.ReactNode }) 
                                         <span className="badge badge-accent">Auto-sync</span>
                                     </div>
                                     <div className={styles.shipList}>
-                                        {!statsLoading && stats?.recent_sessions.map((s) => (
+                                        {!statsLoading && displaySessions.map((s) => (
                                             <div key={s.session_id} className={styles.shipItem}>
                                                 <div className={styles.shipTop}>
                                                     <span className={styles.shipId}>{s.session_id.slice(0, 8)}...</span>
@@ -352,8 +449,8 @@ export default function Dashboard({ children }: { children?: React.ReactNode }) 
                                                 </div>
                                             </div>
                                         ))}
-                                        {!statsLoading && stats?.recent_sessions.length === 0 && (
-                                            <div className="text-center py-8 text-slate-400 text-xs italic">No active sessions</div>
+                                        {!statsLoading && displaySessions.length === 0 && (
+                                            <div className="text-center py-8 text-slate-400 text-xs italic">No matching sessions</div>
                                         )}
                                         {statsLoading && <div className="text-center py-8 text-slate-400 animate-pulse">Loading sessions...</div>}
                                     </div>
@@ -369,7 +466,7 @@ export default function Dashboard({ children }: { children?: React.ReactNode }) 
                                         <Link href="/crm/dashboard/leads" className="btn btn-ghost btn-sm text-[10px]">View All</Link>
                                     </div>
                                     <div className={styles.activityList}>
-                                        {!statsLoading && stats?.recent_leads.map((l) => (
+                                        {!statsLoading && displayLeads.slice(0, 5).map((l) => (
                                             <div key={l.id} className={styles.activityItem}>
                                                 <div className={`${styles.activityDot} ${styles.dot_lead}`}></div>
                                                 <div className={styles.activityContent}>
@@ -378,7 +475,7 @@ export default function Dashboard({ children }: { children?: React.ReactNode }) 
                                                 </div>
                                             </div>
                                         ))}
-                                        {!statsLoading && stats?.recent_leads.length === 0 && (
+                                        {!statsLoading && displayLeads.length === 0 && (
                                             <div className="text-center py-4 text-slate-400 text-sm">No recent activity</div>
                                         )}
                                     </div>
@@ -401,7 +498,7 @@ export default function Dashboard({ children }: { children?: React.ReactNode }) 
                                             </tr>
                                         </thead>
                                         <tbody>
-                                            {!statsLoading && stats?.recent_leads.map((l) => (
+                                            {!statsLoading && displayLeads.map((l) => (
                                                 <tr key={l.id}>
                                                     <td className={styles.tdStrong}>{l.name}</td>
                                                     <td className={styles.tdText}>{l.company || '-'}</td>
