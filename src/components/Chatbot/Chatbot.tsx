@@ -3,6 +3,12 @@ import { useState, useEffect, useRef, useCallback } from 'react';
 import Image from 'next/image';
 import styles from './Chatbot.module.css';
 import dynamic from 'next/dynamic';
+import {
+    Maximize,
+    X,
+    Send,
+    LogOut
+} from 'lucide-react';
 
 const LeadForm = dynamic(() => import('./LeadForm'), {
     ssr: false,
@@ -219,9 +225,14 @@ export default function Chatbot() {
                     content: data.message,
                 }]);
 
-                if (data.type === 'system' && data.message.includes('agent has joined')) {
+                if (data.type === 'system' && (data.message.includes('agent has joined') || (data.sender === 'system' && data.message.includes('joined')))) {
                     setConversationStatus('human');
                     setStatusText('Agent Connected');
+                }
+
+                if (data.type === 'system' && (data.mode === 'BOT' || data.message.includes('agent has left') || data.message.includes('assistant has resumed'))) {
+                    setConversationStatus('bot');
+                    setStatusText('Online');
                 }
             } catch {
                 console.error('Failed to parse WS message');
@@ -512,9 +523,9 @@ export default function Chatbot() {
                                 <Image
                                     src="/logo.png"
                                     alt="GTD Support"
-                                    width={28}
-                                    height={28}
-                                    className="object-contain inverted-logo"
+                                    width={36}
+                                    height={36}
+                                    className="object-contain"
                                 />
                             </div>
                             <div className={styles.headerInfo}>
@@ -526,23 +537,20 @@ export default function Chatbot() {
                             </div>
                         </div>
                         <div className={styles.headerRight}>
-                            {isInitialized && (
-                                <button
-                                    className={styles.endChatBtn}
-                                    onClick={handleEndChat}
-                                    title="End Conversation"
-                                >
-                                    End Chat
-                                </button>
-                            )}
+                            <button
+                                className={styles.headerIconBtn}
+                                onClick={handleEndChat}
+                                title="End Chat"
+                                aria-label="End Chat"
+                            >
+                                <LogOut size={16} />
+                            </button>
                             <button
                                 className={styles.closeBtn}
                                 onClick={handleClose}
                                 aria-label="Close"
                             >
-                                <svg width="16" height="16" viewBox="0 0 24 24" fill="none">
-                                    <path d="M6 18L18 6M6 6l12 12" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" />
-                                </svg>
+                                <X size={18} />
                             </button>
                         </div>
                     </div>
@@ -634,10 +642,8 @@ export default function Chatbot() {
                                 type="text"
                                 placeholder={
                                     statusText === 'Demo Submitted'
-                                        ? 'Thank you! We will contact you soon.'
-                                        : isInitialized
-                                            ? 'Type your message...'
-                                            : 'Connecting...'
+                                        ? 'Thank you!'
+                                        : 'Type your message...'
                                 }
                                 value={input}
                                 disabled={!isInitialized || loading || statusText === 'Demo Submitted'}
@@ -650,13 +656,8 @@ export default function Chatbot() {
                                 disabled={!input.trim() || !isInitialized || loading}
                                 aria-label="Send"
                             >
-                                <svg width="16" height="16" viewBox="0 0 24 24" fill="none">
-                                    <path d="M22 2L11 13M22 2L15 22L11 13M22 2L2 9L11 13" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
-                                </svg>
+                                <Send size={20} />
                             </button>
-                        </div>
-                        <div className={styles.footerBrand}>
-                            Powered by <span>GTD Intelligence</span>
                         </div>
                     </div>
                 </div>

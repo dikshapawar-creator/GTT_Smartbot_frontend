@@ -61,8 +61,9 @@
     max-height: 520px;
 
     background: #ffffff;
-    border-radius: 16px;
-    box-shadow: 0 20px 40px rgba(0, 0, 0, 0.15);
+    border-radius: 28px;
+    /* More rounded as per image */
+    box-shadow: 0 12px 48px rgba(0, 0, 0, 0.12);
     display: flex;
     flex-direction: column;
     overflow: hidden;
@@ -96,13 +97,16 @@
 
 /* ── Header ───────────────────────────────────────────────────────────────── */
 .header {
+    background: linear-gradient(135deg, #0b1f3a, #1e3a8a);
+    /* Vibrant Blue from image */
+    padding: 24px 20px 40px 20px;
+    /* Taller header with bottom padding for curve */
+    position: relative;
+    border-bottom-left-radius: 50% 15%;
+    border-bottom-right-radius: 50% 15%;
     display: flex;
     align-items: center;
     justify-content: space-between;
-    padding: 0 16px;
-    height: 64px;
-    /* Exact Enterprise Height */
-    background: linear-gradient(135deg, #0f172a 0%, #1e3a8a 100%);
     flex-shrink: 0;
 }
 
@@ -113,16 +117,15 @@
 }
 
 .headerAvatar {
-    width: 42px;
-    height: 42px;
+    width: 54px;
+    height: 54px;
     border-radius: 50%;
-    background: rgba(255, 255, 255, 0.18);
-    border: 2px solid rgba(255, 255, 255, 0.3);
+    background: #ffffff;
     display: flex;
     align-items: center;
     justify-content: center;
     flex-shrink: 0;
-    overflow: hidden;
+    box-shadow: 0 4px 10px rgba(0, 0, 0, 0.1);
 }
 
 .headerInfo {
@@ -132,11 +135,10 @@
 }
 
 .headerTitle {
-    font-size: 15px;
+    font-size: 18px;
     font-weight: 700;
     color: #ffffff;
-    letter-spacing: 0.01em;
-    line-height: 1;
+    line-height: 1.2;
 }
 
 .headerStatus {
@@ -167,9 +169,10 @@
 }
 
 .statusLabel {
-    font-size: 12px;
-    color: rgba(255, 255, 255, 0.75);
+    font-size: 13px;
+    color: #ffffff;
     font-weight: 500;
+    opacity: 0.9;
 }
 
 .headerRight {
@@ -198,23 +201,35 @@
 }
 
 .closeBtn {
-    width: 32px;
-    height: 32px;
-    border-radius: 50%;
-    background: rgba(255, 255, 255, 0.12);
-    border: 1px solid rgba(255, 255, 255, 0.22);
-    color: rgba(255, 255, 255, 0.8);
+    width: 36px;
+    height: 36px;
+    border-radius: 8px;
+    background: rgba(255, 255, 255, 0.2);
+    border: 1px solid rgba(255, 255, 255, 0.3);
+    color: #ffffff;
     display: flex;
     align-items: center;
     justify-content: center;
     cursor: pointer;
     transition: all 0.2s ease;
-    flex-shrink: 0;
 }
 
-.closeBtn:hover {
-    background: rgba(255, 255, 255, 0.22);
+.headerIconBtn {
+    width: 36px;
+    height: 36px;
+    border-radius: 8px;
+    background: rgba(255, 255, 255, 0.2);
+    border: 1px solid rgba(255, 255, 255, 0.3);
     color: #ffffff;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    transition: all 0.2s ease;
+}
+
+.headerIconBtn:hover {
+    background: rgba(255, 255, 255, 0.3);
 }
 
 /* ── Body ─────────────────────────────────────────────────────────────────── */
@@ -516,32 +531,39 @@
 
 /* ── Footer ───────────────────────────────────────────────────────────────── */
 .footer {
-    height: 60px;
-    /* Exact Enterprise Height */
-    flex-shrink: 0;
-    padding: 0 16px;
+    padding: 20px 16px;
     background: #ffffff;
-    border-top: 1px solid #f1f5f9;
+    border-top: none;
     display: flex;
     flex-direction: column;
-    justify-content: center;
+    gap: 12px;
 }
 
 .inputWrap {
     display: flex;
     align-items: center;
-    gap: 10px;
-    background: #f8fafc;
-    border: 1.5px solid #e2e8f0;
-    border-radius: 26px;
-    padding: 4px 4px 4px 16px;
-    transition: border-color 0.2s ease;
+    gap: 8px;
+    background: #f1f5f9;
+    border: 1px solid #e2e8f0;
+    border-radius: 30px;
+    padding: 8px 16px;
+    transition: all 0.2s ease;
 }
 
-.inputWrap:focus-within {
-    border-color: #2563eb;
-    box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.1);
-    background: #ffffff;
+.inputIcons {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    color: #64748b;
+}
+
+.inputIcon {
+    cursor: pointer;
+    transition: color 0.2s ease;
+}
+
+.inputIcon:hover {
+    color: #0084ff;
 }
 
 .chatInput {
@@ -565,10 +587,10 @@
 }
 
 .sendBtn {
-    width: 40px;
-    height: 40px;
+    width: 48px;
+    height: 48px;
     border-radius: 50%;
-    background: linear-gradient(135deg, #2563eb, #1d4ed8);
+    background: #0084ff;
     color: #ffffff;
     border: none;
     cursor: pointer;
@@ -577,12 +599,13 @@
     justify-content: center;
     flex-shrink: 0;
     transition: all 0.2s ease;
+    box-shadow: 0 4px 12px rgba(0, 132, 255, 0.3);
 }
 
 .sendBtn:hover:not(:disabled) {
-    background: linear-gradient(135deg, #1d4ed8, #1e40af);
-    transform: scale(1.06);
-    box-shadow: 0 4px 14px rgba(37, 99, 235, 0.35);
+    background: #0073e6;
+    transform: scale(1.05);
+    box-shadow: 0 6px 16px rgba(0, 132, 255, 0.4);
 }
 
 .sendBtn:active:not(:disabled) {
@@ -595,17 +618,25 @@
     box-shadow: none;
 }
 
-.footerBrand {
-    text-align: center;
-    font-size: 11px;
-    color: #000000;
-    margin-top: 8px;
-    letter-spacing: 0.01em;
+.footerLinks {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 16px;
+    font-size: 13px;
+    color: #64748b;
 }
 
-.footerBrand span {
-    color: #2563eb;
-    font-weight: 600;
+.footerLink {
+    color: #0084ff;
+    text-decoration: none;
+    font-weight: 500;
+}
+
+.footerDivider {
+    width: 1px;
+    height: 12px;
+    background: #e2e8f0;
 }
 
 /* ── Form sub-styles (LeadForm lives inside chatbot) ─────────────────────── */
