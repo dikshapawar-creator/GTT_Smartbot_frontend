@@ -99,7 +99,13 @@ export default function Chatbot() {
         setLoading(true);
         setError(null);
         try {
-            const res = await api.post('/chat/session/init');
+            let visitor_uuid = localStorage.getItem("visitor_uuid");
+            if (!visitor_uuid) {
+                visitor_uuid = crypto.randomUUID();
+                localStorage.setItem("visitor_uuid", visitor_uuid);
+            }
+
+            const res = await api.post('/chat/session/init', { visitor_uuid });
             const data = res.data;
             setIsInitialized(true);
 
@@ -136,14 +142,19 @@ export default function Chatbot() {
                     content: m.message
                 }));
 
-                // Extract status from backend history
-                if (finalMessages.length > 1) {
-                    // History exists
+                // Visual separator for returning visitor history
+                if (data.message === "Welcome back 👋 How can I help today?") {
+                    finalMessages.push({
+                        id: Date.now().toString() + '-sep',
+                        role: 'system',
+                        type: 'text',
+                        content: '----- Previous Conversation -----'
+                    });
                 }
             }
 
-            // ── Fallback to initial message if no history ───────────────
-            if (finalMessages.length === 0) {
+            // Always push the init message if it's a brand new session or a returning visitor
+            if (finalMessages.length === 0 || data.message === "Welcome back 👋 How can I help today?") {
                 if (data.message) {
                     finalMessages.push({
                         id: Date.now().toString() + '-text',

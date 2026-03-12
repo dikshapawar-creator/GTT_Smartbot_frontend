@@ -38,8 +38,8 @@
             position: fixed;
             bottom: 0;
             right: 0;
-            width: 110px;
-            height: 110px;
+            width: 120px;
+            height: 120px;
             border: none;
             background: transparent;
             z-index: 2147483647;
@@ -54,11 +54,11 @@
             if (!iframe) return;
             if (e.data && e.data.type === 'gtt-widget-resize') {
                 if (e.data.open) {
-                    iframe.style.width = '420px';
-                    iframe.style.height = '620px';
+                    iframe.style.width = '480px';
+                    iframe.style.height = '780px';
                 } else {
-                    iframe.style.width = '110px';
-                    iframe.style.height = '110px';
+                    iframe.style.width = '120px';
+                    iframe.style.height = '120px';
                 }
             }
         });

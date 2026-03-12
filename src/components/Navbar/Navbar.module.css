@@ -37,7 +37,8 @@
     align-items: center;
     justify-content: center;
     width: auto;
-    height: 40px;
+    height: 60px;
+    /* Increased from 40px */
 }
 
 .logoText {

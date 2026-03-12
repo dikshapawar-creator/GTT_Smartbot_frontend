@@ -1,5 +1,3 @@
-add these url in the plavec
-
 /* Reset — make entire iframe pass-through by default */
 html,
 body,
@@ -17,8 +15,8 @@ body>*>* {
     position: fixed;
     bottom: 0;
     right: 0;
-    width: 420px;
-    height: 620px;
+    width: 100vw;
+    height: 100vh;
     overflow: visible;
     pointer-events: none;
 }

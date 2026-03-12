@@ -8,7 +8,7 @@
     padding-top: var(--header-height);
 }
 
-/* Subtle dot-grid background — no animations, no particles */
+/* Subtle dot-grid background */
 .gridBg {
     position: absolute;
     inset: 0;
@@ -16,7 +16,7 @@
     z-index: 0;
     background-image: radial-gradient(circle, #cbd5e1 1px, transparent 1px);
     background-size: 28px 28px;
-    opacity: 0.5;
+    opacity: 0.3;
 }
 
 .inner {
@@ -52,11 +52,11 @@
 }
 
 .headline {
-    font-size: clamp(2rem, 3.5vw, 3rem);
-    font-weight: 700;
-    line-height: 1.2;
+    font-size: clamp(2rem, 3.5vw, 3.5rem);
+    font-weight: 800;
+    line-height: 1.15;
     color: var(--color-primary);
-    letter-spacing: -0.02em;
+    letter-spacing: -0.03em;
 }
 
 .subheading {
@@ -114,7 +114,7 @@
 
 .previewCard {
     background: var(--color-surface);
-    border: 1px solid var(--color-border);
+    border: 1px solid rgba(0, 0, 0, 0.05);
     border-radius: var(--radius-xl);
     box-shadow: var(--shadow-xl);
     overflow: hidden;
@@ -123,29 +123,43 @@
 .previewHeader {
     display: flex;
     align-items: center;
-    gap: var(--space-3);
+    justify-content: center;
+    position: relative;
     padding: var(--space-3) var(--space-4);
-    background: var(--color-primary);
-    border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+    background: #f8fafc;
+    border-bottom: 1px solid rgba(0, 0, 0, 0.05);
 }
 
 .previewDots {
     display: flex;
-    gap: 6px;
+    gap: 8px;
+    position: absolute;
+    left: var(--space-4);
 }
 
 .previewDots span {
     display: block;
-    width: 10px;
-    height: 10px;
+    width: 12px;
+    height: 12px;
     border-radius: 50%;
-    background: rgba(255, 255, 255, 0.2);
+}
+
+.previewDots span:nth-child(1) {
+    background: #ff5f56;
+}
+
+.previewDots span:nth-child(2) {
+    background: #ffbd2e;
+}
+
+.previewDots span:nth-child(3) {
+    background: #27c93f;
 }
 
 .previewTitle {
-    font-size: var(--font-size-xs);
-    color: rgba(255, 255, 255, 0.6);
-    font-weight: 500;
+    font-size: 13px;
+    color: #64748b;
+    font-weight: 600;
 }
 
 .previewBody {

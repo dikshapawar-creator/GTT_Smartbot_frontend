@@ -24,10 +24,14 @@ import {
     Zap,
     Mail,
     Phone,
+    Send,
+    CheckCircle2
 } from 'lucide-react';
 import styles from '../live-chat/LiveChat.module.css';
 import histStyles from './History.module.css';
 import api from '@/config/api';
+import { WS_BASE } from '@/config/api';
+import { auth } from '@/lib/auth';
 
 // ── Types ────────────────────────────────────────────────────────────────
 
@@ -110,7 +114,12 @@ export default function HistoryPage() {
     const [minScore, setMinScore] = useState<number | ''>('');
     const [spamFilter, setSpamFilter] = useState<'ALL' | 'SPAM' | 'CLEAN'>('ALL');
 
+    // Real-Time Chat Overrides
+    const [newMessage, setNewMessage] = useState('');
+    const wsRef = useRef<WebSocket | null>(null);
     const messagesEndRef = useRef<HTMLDivElement>(null);
+
+    const [sessionLiveMode, setSessionLiveMode] = useState(false);
 
     const fetchAnalytics = async () => {
         try {
@@ -182,6 +191,90 @@ export default function HistoryPage() {
             setMessagesLoading(false);
         }
     };
+
+    // ── Real-Time Logic (Resume from History) ────────────────────────────
+
+    const connectWebSocket = useCallback(async (sessionId: string) => {
+        const token = auth.getAccessToken();
+        if (!token) return;
+
+        if (wsRef.current) {
+            wsRef.current.close();
+        }
+
+        const ws = new WebSocket(`${WS_BASE}/ws/chat/${sessionId}?role=agent&token=${token}`);
+
+        ws.onmessage = (event) => {
+            try {
+                const data = JSON.parse(event.data);
+                // Simple append for History page takeover
+                if (data.type !== 'TYPING_EVENT') {
+                    const newMsg: ChatMessage = {
+                        id: Date.now(),
+                        session_id: sessionId,
+                        message_type: data.sender === 'user' ? 'user' : data.sender === 'system' ? 'system' : 'bot',
+                        message_text: data.message,
+                        created_at_utc: new Date().toISOString(),
+                    };
+                    setMessages((prev) => [...prev, newMsg]);
+                }
+            } catch (e) {
+                console.error('Failed parsing WS message');
+            }
+        };
+
+        wsRef.current = ws;
+    }, []);
+
+    const resumeChat = async (sessionId: string) => {
+        try {
+            await api.post(`/live-chat/intervene/${sessionId}`);
+            setSessionLiveMode(true);
+            connectWebSocket(sessionId);
+
+            // Mark visually active
+            if (selectedSession) {
+                setSelectedSession({ ...selectedSession, current_mode: 'HUMAN', session_status: 'ACTIVE' });
+            }
+        } catch (err) {
+            console.error('Failed to resume chat:', err);
+        }
+    };
+
+    const sendMessage = () => {
+        if (!wsRef.current || !newMessage.trim() || !selectedSession) return;
+
+        wsRef.current.send(JSON.stringify({ message: newMessage.trim() }));
+        setMessages(prev => [...prev, {
+            id: Date.now(),
+            session_id: selectedSession.session_uuid,
+            message_type: 'agent',
+            message_text: newMessage.trim(),
+            created_at_utc: new Date().toISOString(),
+        }]);
+        setNewMessage('');
+    };
+
+    const closeChat = async (sessionId: string) => {
+        try {
+            await api.post(`/live-chat/close/${sessionId}`);
+            setSessionLiveMode(false);
+            if (wsRef.current) wsRef.current.close();
+            if (selectedSession) {
+                setSelectedSession({ ...selectedSession, current_mode: 'BOT', session_status: 'CLOSED' });
+            }
+        } catch (err) {
+            console.error('Failed closing chat', err);
+        }
+    };
+
+    // Cleanup WS on unmount or session change
+    useEffect(() => {
+        return () => {
+            if (wsRef.current) wsRef.current.close();
+        };
+    }, [selectedSession?.session_uuid]);
+
 
     useEffect(() => {
         messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
@@ -505,33 +598,69 @@ export default function HistoryPage() {
                                         <MessageSquare size={28} />
                                         <p>No messages recorded.</p>
                                     </div>
-                                ) : messages.map(msg => (
-                                    <div
-                                        key={msg.id}
-                                        className={`${styles.message} ${msg.message_type === 'agent' ? styles.messageAgent
-                                            : msg.message_type === 'system' ? styles.messageSystem
-                                                : msg.message_type === 'bot' ? styles.messageBot
-                                                    : styles.messageUser
-                                            }`}
-                                    >
-                                        <div className={styles.msgLabel}>
-                                            {msg.message_type === 'agent' ? 'Agent'
-                                                : msg.message_type === 'bot' ? 'Bot Assistant'
-                                                    : 'Visitor'}
+                                ) : (
+                                    messages.map((msg) => (
+                                        <div
+                                            key={msg.id}
+                                            className={`${styles.message} ${msg.message_type === 'agent' ? styles.messageAgent
+                                                : msg.message_type === 'system' ? styles.messageSystem
+                                                    : msg.message_type === 'bot' ? styles.messageBot
+                                                        : styles.messageUser
+                                                }`}
+                                        >
+                                            <div className={styles.msgLabel}>
+                                                {msg.message_type === 'agent' ? 'Agent'
+                                                    : msg.message_type === 'bot' ? 'Bot Assistant'
+                                                        : 'Visitor'}
+                                            </div>
+                                            <div className={styles.msgText}>{msg.message_text}</div>
+                                            <div className={styles.msgTime}>
+                                                {new Intl.DateTimeFormat('en-IN', {
+                                                    timeZone: 'Asia/Kolkata',
+                                                    hour: '2-digit',
+                                                    minute: '2-digit',
+                                                    hour12: true
+                                                }).format(new Date(msg.created_at_utc))}
+                                            </div>
                                         </div>
-                                        <div className={styles.msgText}>{msg.message_text}</div>
-                                        <div className={styles.msgTime}>
-                                            {new Intl.DateTimeFormat('en-IN', {
-                                                timeZone: 'Asia/Kolkata',
-                                                hour: '2-digit',
-                                                minute: '2-digit',
-                                                hour12: true
-                                            }).format(new Date(msg.created_at_utc))}
-                                        </div>
-                                    </div>
-                                ))}
+                                    ))
+                                )}
                                 <div ref={messagesEndRef} />
                             </div>
+
+                            {/* ── Chat Input / Intervention Area ── */}
+                            {sessionLiveMode ? (
+                                <div className={styles.chatInputArea} style={{ borderTop: '1px solid var(--color-border)', padding: '16px', background: 'var(--color-bg-elevated)', borderRadius: '0 0 12px 12px' }}>
+                                    <div className={styles.inputWrapper}>
+                                        <input
+                                            type="text"
+                                            className={styles.chatInput}
+                                            value={newMessage}
+                                            onChange={(e) => setNewMessage(e.target.value)}
+                                            onKeyDown={(e) => e.key === 'Enter' && sendMessage()}
+                                            placeholder="Type a message to resume conversation..."
+                                        />
+                                        <button
+                                            className={styles.sendBtn}
+                                            onClick={sendMessage}
+                                            disabled={!newMessage.trim()}
+                                            style={{ background: 'var(--color-primary)', color: 'white', border: 'none', borderRadius: '8px', padding: '8px 16px', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '8px' }}
+                                        >
+                                            <Send size={16} /> Send
+                                        </button>
+                                    </div>
+                                </div>
+                            ) : (
+                                <div style={{ padding: '16px', borderTop: '1px solid var(--color-border)', background: 'var(--color-bg-elevated)', borderBottomLeftRadius: '12px', borderBottomRightRadius: '12px', display: 'flex', justifyContent: 'center' }}>
+                                    <button
+                                        onClick={() => resumeChat(selectedSession.session_uuid)}
+                                        style={{ background: 'linear-gradient(135deg, var(--color-primary), #0056b3)', color: 'white', border: 'none', padding: '10px 24px', borderRadius: '8px', fontWeight: 600, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '8px', boxShadow: '0 4px 12px rgba(0,0,0,0.1)' }}
+                                    >
+                                        <MessageSquare size={16} />
+                                        Resume Chat
+                                    </button>
+                                </div>
+                            )}
                         </>
                     ) : (
                         <div className={styles.chatEmpty}>

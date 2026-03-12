@@ -1,5 +1,5 @@
 /* ═══════════════════════════════════════════════════════════════════════════
-   GTD Enterprise Chatbot — Aureus-style Production Styles
+   GTD Enterprise Chatbot 
    ═══════════════════════════════════════════════════════════════════════════ */
 
 /* ── FAB ──────────────────────────────────────────────────────────────────── */
@@ -54,16 +54,14 @@
     right: 24px;
     z-index: 9998;
 
-    /* EXACT ENTERPRISE STANDARD SIZE */
-    width: 360px;
-    height: 520px;
-    min-height: 520px;
-    max-height: 520px;
+    width: 400px;
+    height: 700px;
+    min-height: 700px;
+    max-height: 700px;
 
     background: #ffffff;
     border-radius: 28px;
-    /* More rounded as per image */
-    box-shadow: 0 12px 48px rgba(0, 0, 0, 0.12);
+    box-shadow: 0 8px 32px rgba(0, 0, 0, 0.12);
     display: flex;
     flex-direction: column;
     overflow: hidden;
