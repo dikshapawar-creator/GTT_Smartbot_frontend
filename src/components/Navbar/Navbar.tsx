@@ -2,7 +2,6 @@
 import { useState, useEffect } from 'react';
 import Link from 'next/link';
 import Image from 'next/image';
-import { Button } from '@/components/ui/Button';
 import styles from './Navbar.module.css';
 
 export default function Navbar() {
@@ -41,12 +40,12 @@ export default function Navbar() {
         {/* CTA Buttons */}
         <div className={styles.navActions}>
           <Link href="/signin">
-            <button style={{ height: '38px', padding: '0 20px', fontSize: '14px', fontWeight: 600, color: '#1f2937', background: '#ffffff', border: '1.5px solid #d1d5db', borderRadius: '8px', cursor: 'pointer', boxShadow: '0 1px 3px rgba(0,0,0,0.1)', whiteSpace: 'nowrap' }}>
+            <button className={styles.loginButton}>
               Client Login
             </button>
           </Link>
           <Link href="#contact">
-            <button style={{ height: '38px', padding: '0 20px', fontSize: '14px', fontWeight: 600, color: '#ffffff', background: '#1d4ed8', border: '1.5px solid #1d4ed8', borderRadius: '8px', cursor: 'pointer', boxShadow: '0 2px 8px rgba(29,78,216,0.35)', whiteSpace: 'nowrap' }}>
+            <button className={styles.demoButton}>
               Request Demo
             </button>
           </Link>
@@ -67,10 +66,10 @@ export default function Navbar() {
           <a href="#about" className={styles.mobileLink} onClick={() => setMobileOpen(false)}>About</a>
           <div className={styles.mobileCtas}>
             <Link href="/signin" onClick={() => setMobileOpen(false)}>
-              <Button variant="outline" className="w-full">Client Login</Button>
+              <button className={styles.mobileLoginButton}>Client Login</button>
             </Link>
             <Link href="#contact" onClick={() => setMobileOpen(false)}>
-              <Button className="w-full">Request Demo</Button>
+              <button className={styles.mobileDemoButton}>Request Demo</button>
             </Link>
           </div>
         </div>
