@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { X, Plus, Shield, Layers, Info, Sparkles, ChevronDown } from "lucide-react";
+import { X, Plus, Shield, Layers, Info, ChevronDown } from "lucide-react";
 import { api } from "@/lib/api";
 
 type Role = {

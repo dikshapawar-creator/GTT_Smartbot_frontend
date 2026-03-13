@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect, useCallback } from "react";
-import { Users, Shield, Plus, Download, Search, LayoutGrid, List } from "lucide-react";
+import { Users, Shield, Plus, Download } from "lucide-react";
 import { api } from "@/lib/api";
 import { auth } from "@/lib/auth";
 import { UsersTable } from "@/components/users/UsersTable";
@@ -59,7 +59,7 @@ export default function UserManagementPage() {
             await api.post(`/users/${deactivatingUser.id}/deactivate`);
             setUsers(users.map(u => u.id === deactivatingUser.id ? { ...u, is_active: false } : u));
             setDeactivatingUser(null);
-        } catch (err) {
+        } catch {
             alert("Failed to deactivate user");
         } finally {
             setDeactivateLoading(false);
@@ -72,7 +72,7 @@ export default function UserManagementPage() {
             await api.delete(`/roles/${roleId}`);
             setRoles(roles.filter(r => r.id !== roleId));
             setConfirmDeleteRole(null);
-        } catch (err) {
+        } catch {
             alert("Failed to delete role. Ensure no users are assigned to it.");
         } finally {
             setIsDeletingRole(false);

@@ -96,6 +96,7 @@ export default function LiveChatPage() {
     const [liveDurations, setLiveDurations] = useState<Record<string, number>>({});
     const durationIntervalRef = useRef<NodeJS.Timeout | null>(null);
     const typingTimeoutRef = useRef<Record<string, NodeJS.Timeout>>({});
+    const messagesEndRef = useRef<HTMLDivElement>(null);
 
     const selectedSession = useMemo(() =>
         conversations.find(c => c.session_uuid === selectedSessionId) || null
@@ -162,7 +163,6 @@ export default function LiveChatPage() {
 
             const errorMessage = err instanceof Error ? err.message : String(err);
 
-            // If 401 Unauthorized, stop polling to prevent terminal spam
             if (errorMessage === 'Could not validate credentials' || errorMessage.includes('Unauthorized')) {
                 if (pollRef.current) {
                     clearInterval(pollRef.current);
@@ -174,62 +174,30 @@ export default function LiveChatPage() {
         }
     }, [getToken, fetchAnalytics]);
 
-    // ── Poll for conversations ───────────────────────────────────────────
-
-    // ── Live Session Duration Counter ──────────────────────────────
-    useEffect(() => {
-        if (durationIntervalRef.current) clearInterval(durationIntervalRef.current);
-
-        durationIntervalRef.current = setInterval(() => {
-            setLiveDurations(prev => {
-                const next = { ...prev };
-                conversations.forEach(conv => { // Changed from data?.items to conversations
-                    if (conv.session_status === 'ACTIVE') {
-                        // Calculate duration from created_at if not already tracked
-                        if (!next[conv.session_uuid] && conv.created_at) {
-                            const startTime = new Date(conv.created_at).getTime();
-                            next[conv.session_uuid] = Math.floor((Date.now() - startTime) / 1000);
-                        } else if (next[conv.session_uuid]) {
-                            next[conv.session_uuid]++;
-                        }
-                    }
-                });
-                return next;
-            });
-        }, 1000);
-
-        return () => {
-            if (durationIntervalRef.current) clearInterval(durationIntervalRef.current);
-        };
-    }, [conversations]); // Dependency changed to conversations
-
-    useEffect(() => {
-        fetchConversations();
-        pollRef.current = setInterval(fetchConversations, 10000);
-
-        // Restore last selected session from localStorage
-        const savedSessionId = localStorage.getItem('gtt_last_selected_session');
-        if (savedSessionId) {
-            setSelectedSessionId(savedSessionId);
-            // We delay openChat slightly to ensure fetchConversations might have finished or is in flight
-            setTimeout(() => {
-                openChat(savedSessionId);
-            }, 500);
-        }
-
-        return () => {
-            if (pollRef.current) clearInterval(pollRef.current);
-        };
-    }, [fetchConversations]); // openChat is not in deps to avoid infinite loop on mount
-
-    // ── Fetch message history ────────────────────────────────────────────
-
-    // ── WebSocket Typing Listener ──────────────────────────────────
     const handleTypingEvent = useCallback((sessionId: string, isTyping: boolean) => {
         setTypingSessions(prev => ({ ...prev, [sessionId]: isTyping }));
     }, []);
 
-    // ── Lazy load messages when a session is clicked ────────────────
+    const extractContactInfo = useCallback(async (text: string, sessionId: string) => {
+        const emailRegex = /([a-zA-Z0-9._-]+@[a-zA-Z0-9._-]+\.[a-zA-Z0-9_-]+)/gi;
+        const phoneRegex = /(\+?\d{1,4}?[-.\s]?\(?\d{1,3}?\)?[-.\s]?\d{1,4}[-.\s]?\d{1,4}[-.\s]?\d{1,9})/g;
+
+        const emailMatch = text.match(emailRegex);
+        const phoneMatch = text.match(phoneRegex);
+
+        if (emailMatch || phoneMatch) {
+            const updateData: Record<string, string> = {};
+            if (emailMatch) updateData.email = emailMatch[0];
+            if (phoneMatch) updateData.phone = phoneMatch[0];
+
+            try {
+                await api.post(`/live-chat/update-lead/${sessionId}`, updateData);
+            } catch (err) {
+                console.error("Failed to auto-update lead info", err);
+            }
+        }
+    }, []);
+
     const fetchMessages = useCallback(
         async (sessionId: string) => {
             const token = getToken();
@@ -238,7 +206,7 @@ export default function LiveChatPage() {
             try {
                 const res = await api.get(`/live-chat/messages/${sessionId}?page=1&page_size=100`);
                 setMessages(res.data.items || []);
-                setError(null); // Clear previous errors on success
+                setError(null);
             } catch {
                 setError('Failed to load messages');
             }
@@ -246,30 +214,73 @@ export default function LiveChatPage() {
         [getToken],
     );
 
-    // ── Sales Actions ────────────────────────────────────────────────────
+    const connectWebSocket = useCallback((sessionId: string, token: string) => {
+        if (wsRef.current && wsRef.current.url.includes(sessionId) && wsRef.current.readyState === WebSocket.OPEN) {
+            console.log('Already connected to session:', sessionId);
+            return;
+        }
 
-    const togglePriority = async (sessionId: string) => {
-        try {
-            await api.post(`/live-chat/toggle-priority/${sessionId}`);
-            // WebSocket will update the UI
-        } catch (err) { console.error("Toggle priority failed", err); }
-    };
+        if (wsRef.current) {
+            wsRef.current.close();
+            wsRef.current = null;
+        }
 
-    const toggleSpam = async (sessionId: string) => {
-        try {
-            await api.post(`/live-chat/toggle-spam/${sessionId}`);
-        } catch (err) { console.error("Toggle spam failed", err); }
-    };
+        const ws = new WebSocket(
+            `${WS_BASE}/live-chat/ws/chat/${sessionId}?role=agent&token=${token}`,
+        );
 
-    const blockVisitor = async (sessionId: string) => {
-        if (!confirm("Are you sure you want to block this visitor? This will close their session immediately.")) return;
-        try {
-            await api.post(`/live-chat/block-visitor/${sessionId}`);
-            setSelectedSessionId(null);
-        } catch (err) { console.error("Block failed", err); }
-    };
+        ws.onopen = () => {
+            console.log('Agent WebSocket connected for session:', sessionId);
+        };
 
-    // ── Conversation Life Cycle ───────────────────────────────────────────
+        ws.onmessage = (event) => {
+            try {
+                const data = JSON.parse(event.data);
+                if (data.type === 'TYPING_EVENT') {
+                    handleTypingEvent(data.session_id, data.is_typing);
+                    if (typingTimeoutRef.current[data.session_id]) {
+                        clearTimeout(typingTimeoutRef.current[data.session_id]);
+                    }
+                    if (data.is_typing) {
+                        typingTimeoutRef.current[data.session_id] = setTimeout(() => {
+                            handleTypingEvent(data.session_id, false);
+                        }, 3000);
+                    }
+                    return;
+                }
+
+                if (!data.message || !data.message.trim()) {
+                    console.log('Skipping empty/non-text message:', data);
+                    return;
+                }
+
+                const newMsg: ChatMessage = {
+                    id: Date.now(),
+                    session_id: sessionId,
+                    message_type: data.sender === 'user' ? 'user' : data.sender === 'system' ? 'system' : 'bot',
+                    message_text: data.message,
+                    created_at_utc: new Date().toISOString(),
+                };
+                setMessages((prev) => [...prev, newMsg]);
+
+                if (data.sender === 'user') {
+                    extractContactInfo(data.message, sessionId);
+                }
+            } catch {
+                console.error('Failed to parse WS message');
+            }
+        };
+
+        ws.onclose = () => {
+            console.log('Agent WebSocket disconnected');
+        };
+
+        ws.onerror = (err) => {
+            console.error('Agent WebSocket error:', err);
+        };
+
+        wsRef.current = ws;
+    }, [handleTypingEvent, extractContactInfo]);
 
     const intervene = async (sessionId: string) => {
         try {
@@ -278,43 +289,25 @@ export default function LiveChatPage() {
             await fetchMessages(sessionId);
             const token = getToken();
             if (token) connectWebSocket(sessionId, token);
-            fetchConversations(); // Refresh list to show agent name
+            fetchConversations();
         } catch (e: unknown) {
             const errorMsg = (e as { response?: { data?: { detail?: string } } })?.response?.data?.detail || 'Intervene failed';
             setError(errorMsg);
         }
     };
 
-    const closeConversation = async (sessionId: string) => {
-        try {
-            await api.post(`/live-chat/close/${sessionId}`);
-            setSelectedSessionId(null);
-            setMessages([]);
-            fetchConversations();
-        } catch (err) {
-            console.error("Close failed", err);
-            setError("Failed to close conversation");
-        }
-    };
-
-    // ── Open existing connected conversation ─────────────────────────────
-
-    const openChat = async (sessionId: string) => {
+    const openChat = useCallback(async (sessionId: string) => {
         setSelectedSessionId(sessionId);
         localStorage.setItem('gtt_last_selected_session', sessionId);
         await fetchMessages(sessionId);
         const token = getToken();
         if (token) connectWebSocket(sessionId, token);
-    };
+    }, [fetchMessages, connectWebSocket, getToken]);
 
-    // ── WebSocket connection ─────────────────────────────────────────────
-
-
-    // ── Dashboard WebSocket: Real-time List Updates ──────────────────────
     const connectDashboardWS = useCallback((token: string) => {
         if (dashboardWsRef.current) return;
 
-        const ws = new WebSocket(`${WS_BASE}/ws/dashboard?token=${token}`);
+        const ws = new WebSocket(`${WS_BASE}/live-chat/ws/dashboard?token=${token}`);
 
         ws.onopen = () => console.log('Dashboard WS Connected');
         ws.onmessage = (event) => {
@@ -332,7 +325,6 @@ export default function LiveChatPage() {
                     setConversations(prev => prev.map(c =>
                         c.session_uuid === data.session_uuid ? { ...c, ...data } : c
                     ));
-                    // If the selected session was updated, we might want more logic here
                 } else if (type === 'NEW_MESSAGE') {
                     setConversations(prev => prev.map(c => {
                         if (c.session_uuid === data.session_id) {
@@ -362,110 +354,37 @@ export default function LiveChatPage() {
         dashboardWsRef.current = ws;
     }, []);
 
-    useEffect(() => {
-        const token = getToken();
-        if (token && !dashboardWsRef.current) {
-            connectDashboardWS(token);
+    const togglePriority = async (sessionId: string) => {
+        try {
+            await api.post(`/live-chat/toggle-priority/${sessionId}`);
+        } catch (err) { console.error("Toggle priority failed", err); }
+    };
+
+    const toggleSpam = async (sessionId: string) => {
+        try {
+            await api.post(`/live-chat/toggle-spam/${sessionId}`);
+        } catch (err) { console.error("Toggle spam failed", err); }
+    };
+
+    const blockVisitor = async (sessionId: string) => {
+        if (!confirm("Are you sure you want to block this visitor? This will close their session immediately.")) return;
+        try {
+            await api.post(`/live-chat/block-visitor/${sessionId}`);
+            setSelectedSessionId(null);
+        } catch (err) { console.error("Block failed", err); }
+    };
+
+    const closeConversation = async (sessionId: string) => {
+        try {
+            await api.post(`/live-chat/close/${sessionId}`);
+            setSelectedSessionId(null);
+            setMessages([]);
+            fetchConversations();
+        } catch (err) {
+            console.error("Close failed", err);
+            setError("Failed to close conversation");
         }
-        return () => {
-            if (dashboardWsRef.current) {
-                dashboardWsRef.current.close();
-                dashboardWsRef.current = null;
-            }
-        };
-    }, [getToken, connectDashboardWS]);
-
-    const extractContactInfo = useCallback(async (text: string, sessionId: string) => {
-        const emailRegex = /([a-zA-Z0-9._-]+@[a-zA-Z0-9._-]+\.[a-zA-Z0-9_-]+)/gi;
-        const phoneRegex = /(\+?\d{1,4}?[-.\s]?\(?\d{1,3}?\)?[-.\s]?\d{1,4}[-.\s]?\d{1,4}[-.\s]?\d{1,9})/g;
-
-        const emailMatch = text.match(emailRegex);
-        const phoneMatch = text.match(phoneRegex);
-
-        if (emailMatch || phoneMatch) {
-            const updateData: Record<string, string> = {};
-            if (emailMatch) updateData.email = emailMatch[0];
-            if (phoneMatch) updateData.phone = phoneMatch[0];
-
-            try {
-                await api.post(`/live-chat/update-lead/${sessionId}`, updateData);
-                // The SESSION_UPDATED broadcast will handle updating the UI for everyone
-            } catch (err) {
-                console.error("Failed to auto-update lead info", err);
-            }
-        }
-    }, []);
-
-    const connectWebSocket = useCallback((sessionId: string, token: string) => {
-        // Close existing connection
-        if (wsRef.current) {
-            wsRef.current.close();
-            wsRef.current = null;
-        }
-
-        // Secure per-session chat WebSocket
-        const ws = new WebSocket(
-            `${WS_BASE}/ws/chat/${sessionId}?role=agent&token=${token}`,
-        );
-
-        ws.onopen = () => {
-            console.log('Agent WebSocket connected for session:', sessionId);
-        };
-
-        ws.onmessage = (event) => {
-            try {
-                const data = JSON.parse(event.data);
-                if (data.type === 'TYPING_EVENT') {
-                    handleTypingEvent(data.session_id, data.is_typing);
-                    // Clear any existing timeout for this session
-                    if (typingTimeoutRef.current[data.session_id]) {
-                        clearTimeout(typingTimeoutRef.current[data.session_id]);
-                    }
-                    // Set a timeout to clear typing status after a short period
-                    if (data.is_typing) {
-                        typingTimeoutRef.current[data.session_id] = setTimeout(() => {
-                            handleTypingEvent(data.session_id, false);
-                        }, 3000); // Clear typing status after 3 seconds
-                    }
-                    return;
-                }
-
-                // 🚨 FILTER EMPTY MESSAGES: Avoid "USER" label spam
-                if (!data.message || !data.message.trim()) {
-                    console.log('Skipping empty/non-text message:', data);
-                    return;
-                }
-
-                const newMsg: ChatMessage = {
-                    id: Date.now(),
-                    session_id: sessionId,
-                    message_type: data.sender === 'user' ? 'user' : data.sender === 'system' ? 'system' : 'bot',
-                    message_text: data.message,
-                    created_at_utc: new Date().toISOString(),
-                };
-                setMessages((prev) => [...prev, newMsg]);
-
-                // Auto-extract contact info from user messages
-                if (data.sender === 'user') {
-                    extractContactInfo(data.message, sessionId);
-                }
-            } catch {
-                console.error('Failed to parse WS message');
-            }
-        };
-
-        ws.onclose = () => {
-            console.log('Agent WebSocket disconnected');
-        };
-
-        ws.onerror = (err) => {
-            console.error('Agent WebSocket error:', err);
-        };
-
-        wsRef.current = ws;
-    }, [handleTypingEvent, extractContactInfo]);
-
-    // ── Send message ────────────────────────────────────────────────────
+    };
 
     const sendTypingStatus = (isTyping: boolean) => {
         if (wsRef.current?.readyState === WebSocket.OPEN) {
@@ -491,7 +410,6 @@ export default function LiveChatPage() {
         sendTypingStatus(false);
         wsRef.current.send(JSON.stringify({ message: newMessage.trim() }));
 
-        // Optimistic local append
         setMessages((prev) => [
             ...prev,
             {
@@ -505,14 +423,64 @@ export default function LiveChatPage() {
         setNewMessage('');
     };
 
-    // ── Auto-scroll ──────────────────────────────────────────────────────
-
-    const messagesEndRef = useRef<HTMLDivElement>(null);
     useEffect(() => {
         messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
     }, [messages]);
 
-    // ── Cleanup ──────────────────────────────────────────────────────────
+    useEffect(() => {
+        if (durationIntervalRef.current) clearInterval(durationIntervalRef.current);
+
+        durationIntervalRef.current = setInterval(() => {
+            setLiveDurations(prev => {
+                const next = { ...prev };
+                conversations.forEach(conv => {
+                    if (conv.session_status === 'ACTIVE') {
+                        if (!next[conv.session_uuid] && conv.created_at) {
+                            const startTime = new Date(conv.created_at).getTime();
+                            next[conv.session_uuid] = Math.floor((Date.now() - startTime) / 1000);
+                        } else if (next[conv.session_uuid]) {
+                            next[conv.session_uuid]++;
+                        }
+                    }
+                });
+                return next;
+            });
+        }, 1000);
+
+        return () => {
+            if (durationIntervalRef.current) clearInterval(durationIntervalRef.current);
+        };
+    }, [conversations]);
+
+    useEffect(() => {
+        fetchConversations();
+        pollRef.current = setInterval(fetchConversations, 10000);
+
+        const savedSessionId = localStorage.getItem('gtt_last_selected_session');
+        if (savedSessionId) {
+            setSelectedSessionId(savedSessionId);
+            setTimeout(() => {
+                openChat(savedSessionId);
+            }, 500);
+        }
+
+        return () => {
+            if (pollRef.current) clearInterval(pollRef.current);
+        };
+    }, [fetchConversations, openChat]);
+
+    useEffect(() => {
+        const token = getToken();
+        if (token && !dashboardWsRef.current) {
+            connectDashboardWS(token);
+        }
+        return () => {
+            if (dashboardWsRef.current) {
+                dashboardWsRef.current.close();
+                dashboardWsRef.current = null;
+            }
+        };
+    }, [getToken, connectDashboardWS]);
 
     useEffect(() => {
         const currentTypingTimeouts = typingTimeoutRef.current;

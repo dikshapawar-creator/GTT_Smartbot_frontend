@@ -1,6 +1,6 @@
 "use client";
 
-import { AlertTriangle, Info, X } from "lucide-react";
+import { AlertTriangle, Info } from "lucide-react";
 
 interface ConfirmationModalProps {
     isOpen: boolean;

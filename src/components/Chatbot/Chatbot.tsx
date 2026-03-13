@@ -4,7 +4,6 @@ import Image from 'next/image';
 import styles from './Chatbot.module.css';
 import dynamic from 'next/dynamic';
 import {
-    Maximize,
     X,
     Send,
     LogOut
@@ -204,7 +203,7 @@ export default function Chatbot() {
     }, [open, isInitialized, initSession]);
 
     // ── WebSocket connect for live agent chat ────────────────────────
-    const connectClientWebSocket = (sessionId: string) => {
+    const connectClientWebSocket = useCallback((sessionId: string) => {
         if (wsRef.current) {
             wsRef.current.close();
             wsRef.current = null;
@@ -270,7 +269,7 @@ export default function Chatbot() {
         };
 
         wsRef.current = ws;
-    };
+    }, [isInitialized, open, sessionToken]);
 
     // ── WebSocket Reactive Sync ─────────────────────────────────────
     useEffect(() => {
@@ -285,7 +284,7 @@ export default function Chatbot() {
                 wsRef.current = null;
             }
         };
-    }, [isInitialized, sessionToken]);
+    }, [isInitialized, sessionToken, connectClientWebSocket]);
 
     useEffect(() => {
         return () => {

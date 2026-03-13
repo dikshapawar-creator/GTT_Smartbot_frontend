@@ -1,6 +1,6 @@
 import React, { useState } from "react";
 import { Search, ChevronUp, ChevronDown, MoreVertical, Pencil, KeyRound, Power, UserX, Users, CheckCheck } from "lucide-react";
-import { User, UserRole, SortKey, SortDir, getRoleName, getInitials, avatarBg, formatDate, ROLE_BADGE, STATUS_BADGE } from "./types";
+import { User, UserRole, SortKey, SortDir, getRoleName, getInitials, avatarBg, formatDate, ROLE_BADGE } from "./types";
 
 const ROWS_PER_PAGE = 10;
 

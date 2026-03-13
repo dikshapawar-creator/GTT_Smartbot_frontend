@@ -24,8 +24,7 @@ import {
     Zap,
     Mail,
     Phone,
-    Send,
-    CheckCircle2
+    Send
 } from 'lucide-react';
 import styles from '../live-chat/LiveChat.module.css';
 import histStyles from './History.module.css';
@@ -191,8 +190,8 @@ export default function HistoryPage() {
             } else {
                 setSessionLiveMode(false);
             }
-        } catch (err: any) {
-            const errorMsg = err.response?.status === 409
+        } catch (err: unknown) {
+            const errorMsg = (err as { response?: { status?: number } })?.response?.status === 409
                 ? 'Session is already being handled by another agent.'
                 : err instanceof Error ? err.message : 'Failed to load session details';
             console.error("Open session failed:", err);
@@ -212,7 +211,7 @@ export default function HistoryPage() {
             wsRef.current.close();
         }
 
-        const ws = new WebSocket(`${WS_BASE}/ws/chat/${sessionId}?role=agent&token=${token}`);
+        const ws = new WebSocket(`${WS_BASE}/live-chat/ws/chat/${sessionId}?role=agent&token=${token}`);
 
         ws.onmessage = (event) => {
             try {
@@ -228,7 +227,7 @@ export default function HistoryPage() {
                     };
                     setMessages((prev) => [...prev, newMsg]);
                 }
-            } catch (e) {
+            } catch {
                 console.error('Failed parsing WS message');
             }
         };
@@ -247,8 +246,8 @@ export default function HistoryPage() {
                 setSelectedSession({ ...selectedSession, current_mode: 'HUMAN', session_status: 'ACTIVE' });
             }
             setError(null);
-        } catch (err: any) {
-            const errorMsg = err.response?.status === 409
+        } catch (err: unknown) {
+            const errorMsg = (err as { response?: { status?: number } })?.response?.status === 409
                 ? 'Conflict: This chat is already active with another agent.'
                 : 'Failed to resume chat';
             console.error('Failed to resume chat:', err);
@@ -270,25 +269,17 @@ export default function HistoryPage() {
         setNewMessage('');
     };
 
-    const closeChat = async (sessionId: string) => {
-        try {
-            await api.post(`/live-chat/close/${sessionId}`);
-            setSessionLiveMode(false);
-            if (wsRef.current) wsRef.current.close();
-            if (selectedSession) {
-                setSelectedSession({ ...selectedSession, current_mode: 'BOT', session_status: 'CLOSED' });
-            }
-        } catch (err) {
-            console.error('Failed closing chat', err);
-        }
-    };
 
-    // Cleanup WS on unmount or session change
+    // Cleanup WS ONLY on unmount to prevent race conditions during session switches
+    // connectWebSocket already handles closing previous sockets before opening new ones
     useEffect(() => {
         return () => {
-            if (wsRef.current) wsRef.current.close();
+            if (wsRef.current) {
+                wsRef.current.close();
+                wsRef.current = null;
+            }
         };
-    }, [selectedSession?.session_uuid]);
+    }, []);
 
 
     useEffect(() => {

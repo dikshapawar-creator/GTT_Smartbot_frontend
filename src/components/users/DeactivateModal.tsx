@@ -1,5 +1,5 @@
 import React, { useState } from "react";
-import { AlertTriangle, Power, X } from "lucide-react";
+import { AlertTriangle, Power } from "lucide-react";
 
 interface DeactivateModalProps {
     userEmail: string;

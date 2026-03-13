@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from "react";
-import { X, Send, ChevronDown, UserPlus, Mail, Lock, Shield, Eye, EyeOff, Sparkles, CheckCheck } from "lucide-react";
+import { X, ChevronDown, UserPlus, Mail, Lock, Shield, Eye, EyeOff, CheckCheck } from "lucide-react";
 import { api } from "@/lib/api";
 import { User } from "./types";
 
