@@ -183,8 +183,18 @@ export default function HistoryPage() {
 
             const res = await api.get(`/live-chat/messages/${conv.session_uuid}?page=1&page_size=100`);
             setMessages(res.data.items || []);
-        } catch (err: unknown) {
-            const errorMsg = err instanceof Error ? err.message : 'Failed to load session details';
+
+            // AUTO-RESUME IF ALREADY HUMAN
+            if (detailRes.data.current_mode === 'HUMAN') {
+                setSessionLiveMode(true);
+                connectWebSocket(conv.session_uuid);
+            } else {
+                setSessionLiveMode(false);
+            }
+        } catch (err: any) {
+            const errorMsg = err.response?.status === 409
+                ? 'Session is already being handled by another agent.'
+                : err instanceof Error ? err.message : 'Failed to load session details';
             console.error("Open session failed:", err);
             setError(errorMsg);
         } finally {
@@ -212,7 +222,7 @@ export default function HistoryPage() {
                     const newMsg: ChatMessage = {
                         id: Date.now(),
                         session_id: sessionId,
-                        message_type: data.sender === 'user' ? 'user' : data.sender === 'system' ? 'system' : 'bot',
+                        message_type: data.sender === 'user' ? 'user' : data.sender === 'system' ? 'system' : data.sender === 'agent' ? 'agent' : 'bot',
                         message_text: data.message,
                         created_at_utc: new Date().toISOString(),
                     };
@@ -236,8 +246,13 @@ export default function HistoryPage() {
             if (selectedSession) {
                 setSelectedSession({ ...selectedSession, current_mode: 'HUMAN', session_status: 'ACTIVE' });
             }
-        } catch (err) {
+            setError(null);
+        } catch (err: any) {
+            const errorMsg = err.response?.status === 409
+                ? 'Conflict: This chat is already active with another agent.'
+                : 'Failed to resume chat';
             console.error('Failed to resume chat:', err);
+            setError(errorMsg);
         }
     };
 
