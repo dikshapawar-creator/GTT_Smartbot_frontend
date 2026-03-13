@@ -30,13 +30,13 @@ export function RolesTable({ roles, isLoading, onEdit, onDelete }: RolesTablePro
         <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden animate-fade-in">
             <div className="overflow-x-auto">
                 <table className="w-full text-left text-sm border-collapse">
-                    <thead className="bg-[#F9FAFB] border-b border-gray-200 text-xs font-semibold text-gray-500 uppercase tracking-wider">
+                    <thead className="bg-[#F9FAFB] border-b border-gray-200 text-[10px] font-black uppercase tracking-widest text-slate-400">
                         <tr>
-                            <th className="px-6 py-4">Role Name</th>
+                            <th className="px-6 py-4">Name</th>
                             <th className="px-6 py-4">Level</th>
                             <th className="px-6 py-4">Description</th>
-                            <th className="px-6 py-4">System Tag</th>
-                            <th className="px-6 py-4 text-right">Actions</th>
+                            <th className="px-6 py-4">Role Type</th>
+                            <th className="px-6 py-4 text-right">Settings</th>
                         </tr>
                     </thead>
                     <tbody className="divide-y divide-gray-100">
@@ -81,10 +81,10 @@ export function RolesTable({ roles, isLoading, onEdit, onDelete }: RolesTablePro
                                             )}
                                         </td>
                                         <td className="px-6 py-4 text-right">
-                                            <div className="flex justify-end gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
+                                            <div className="flex justify-end gap-3 opacity-40 group-hover:opacity-100 transition-all duration-200 scale-95 group-hover:scale-100">
                                                 <button
                                                     onClick={() => onEdit(role)}
-                                                    className="p-1.5 text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-colors border border-transparent hover:border-blue-100"
+                                                    className="p-2 text-slate-400 hover:text-blue-600 hover:bg-blue-50 hover:border-blue-100 rounded-xl transition-all border border-slate-100"
                                                     title="Edit Role"
                                                 >
                                                     <Edit2 className="h-4 w-4" />
@@ -92,7 +92,7 @@ export function RolesTable({ roles, isLoading, onEdit, onDelete }: RolesTablePro
                                                 {!isSystem && (
                                                     <button
                                                         onClick={() => onDelete(role.id)}
-                                                        className="p-1.5 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors border border-transparent hover:border-red-100"
+                                                        className="p-2 text-slate-400 hover:text-red-600 hover:bg-red-50 hover:border-red-100 rounded-xl transition-all border border-slate-100"
                                                         title="Delete Role"
                                                     >
                                                         <Trash2 className="h-4 w-4" />

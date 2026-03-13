@@ -214,7 +214,10 @@ export default function Chatbot() {
             `${WS_BASE}/ws/chat/${sessionId}?role=client&token=${sessionId}`
         );
 
-        ws.onopen = () => console.log('Client WebSocket connected');
+        ws.onopen = () => {
+            console.log('Client WebSocket connected');
+            setError(null);
+        };
 
         ws.onmessage = (event) => {
             try {
@@ -250,8 +253,21 @@ export default function Chatbot() {
             }
         };
 
-        ws.onclose = () => console.log('Client WebSocket disconnected');
-        ws.onerror = (err) => console.error('Client WebSocket error:', err);
+        ws.onclose = (e) => {
+            console.log('Client WebSocket disconnected', e.reason);
+            // Reconnect if not manually closed
+            if (isInitialized && sessionToken && open) {
+                console.log('Attempting to reconnect WebSocket in 3s...');
+                setTimeout(() => {
+                    if (open && sessionToken) connectClientWebSocket(sessionToken);
+                }, 3000);
+            }
+        };
+
+        ws.onerror = (err) => {
+            console.error('Client WebSocket error:', err);
+            ws.close();
+        };
 
         wsRef.current = ws;
     };

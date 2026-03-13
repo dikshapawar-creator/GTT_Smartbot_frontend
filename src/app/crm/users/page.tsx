@@ -1,299 +1,214 @@
 "use client";
 
-import React, { useState, useEffect, useCallback } from "react";
-import { useRouter } from "next/navigation";
-import { AlertTriangle, CheckCheck, X } from "lucide-react";
+import { useState, useEffect, useCallback } from "react";
+import { Users, Shield, Plus, Download, Search, LayoutGrid, List } from "lucide-react";
 import { api } from "@/lib/api";
 import { auth } from "@/lib/auth";
-import Dashboard from "@/components/Dashboard/Dashboard";
-
-// Sub-components
-import { User, UserRole } from "@/components/users/types";
 import { UsersTable } from "@/components/users/UsersTable";
 import { RolesTable } from "@/components/users/RolesTable";
 import { CreateUserModal } from "@/components/users/CreateUserModal";
 import { CreateRoleModal } from "@/components/users/CreateRoleModal";
-import { ChangeRoleModal } from "@/components/users/ChangeRoleModal";
 import { DeactivateModal } from "@/components/users/DeactivateModal";
-
-function Toast({ message, type, onDismiss }: { message: string; type: "success" | "error"; onDismiss: () => void }) {
-    useEffect(() => {
-        const t = setTimeout(onDismiss, 3500);
-        return () => clearTimeout(t);
-    }, [onDismiss]);
-
-    return (
-        <div className={`fixed top-5 right-5 z-50 flex items-center gap-3 px-5 py-3.5 rounded-xl shadow-xl border animate-slide-in-right
-            ${type === "success"
-                ? "bg-white border-emerald-200 text-emerald-700"
-                : "bg-white border-red-200 text-red-600"}`}>
-            {type === "success"
-                ? <CheckCheck className="h-5 w-5 shrink-0" />
-                : <AlertTriangle className="h-5 w-5 shrink-0" />}
-            <span className="text-sm font-medium">{message}</span>
-            <button onClick={onDismiss} className="ml-2 text-gray-400 hover:text-gray-600">
-                <X className="h-4 w-4" />
-            </button>
-        </div>
-    );
-}
+import { ConfirmationModal } from "@/components/ui/ConfirmationModal";
+import { User, UserRole } from "@/components/users/types";
+import Dashboard from "@/components/Dashboard/Dashboard";
 
 export default function UserManagementPage() {
-    const router = useRouter();
-
-    // UI State
     const [activeTab, setActiveTab] = useState<"users" | "roles">("users");
-    const [mode, setMode] = useState<"list" | "createUser" | "createRole">("list");
-    const [toast, setToast] = useState<{ msg: string; type: "success" | "error" } | null>(null);
-
-    // Data State
     const [users, setUsers] = useState<User[]>([]);
     const [roles, setRoles] = useState<UserRole[]>([]);
-    const [isLoading, setIsLoading] = useState(true);
+    const [loading, setLoading] = useState(true);
 
-    // Modal Target State
-    const [deactivateTarget, setDeactivateTarget] = useState<User | null>(null);
-    const [changeRoleTarget, setChangeRoleTarget] = useState<User | null>(null);
-    const [actionLoading, setActionLoading] = useState(false);
+    // Modals state
+    const [showCreateUser, setShowCreateUser] = useState(false);
+    const [showCreateRole, setShowCreateRole] = useState(false);
+    const [deactivatingUser, setDeactivatingUser] = useState<User | null>(null);
+    const [deactivateLoading, setDeactivateLoading] = useState(false);
 
-    // Auth & Permissions
+    // Confirmation Modal state
+    const [confirmDeleteRole, setConfirmDeleteRole] = useState<number | null>(null);
+    const [isDeletingRole, setIsDeletingRole] = useState(false);
+
     const currentUser = auth.getUser();
-    const isSuperAdmin = (() => {
-        const r = currentUser?.role;
-        if (typeof r === "string") return r === "administrator";
-        if (r && typeof r === "object" && "name" in r) return (r as { name?: string }).name === "administrator";
-        return false;
-    })();
+    const isSuperAdmin = currentUser?.role === "administrator";
 
-    const showToast = useCallback((msg: string, type: "success" | "error" = "success") => {
-        setToast({ msg, type });
+    const fetchData = useCallback(async () => {
+        setLoading(true);
+        try {
+            const [uRes, rRes] = await Promise.all([
+                api.get<User[]>("/users/"),
+                api.get<UserRole[]>("/roles/")
+            ]);
+            setUsers(uRes.data);
+            setRoles(rRes.data);
+        } catch (err) {
+            console.error("Failed to fetch user management data:", err);
+        } finally {
+            setLoading(false);
+        }
     }, []);
 
     useEffect(() => {
-        // Access Control Guard
-        const user = auth.getUser();
-        if (user && user.role_level && user.role_level < 2) {
-            router.push('/crm/dashboard');
-            return;
-        }
+        fetchData();
+    }, [fetchData]);
 
-        fetchUsers();
-        fetchRoles();
-        // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, []);
-
-    const fetchRoles = async () => {
-        try {
-            const { data } = await api.get<UserRole[]>("/roles/");
-            setRoles(data);
-        } catch (error) {
-            console.error("Failed to load roles", error);
-        }
-    };
-
-    const fetchUsers = async () => {
-        setIsLoading(true);
-        try {
-            const { data } = await api.get<User[]>("/users/");
-            setUsers(data);
-        } catch {
-            showToast("Failed to load users", "error");
-        } finally {
-            setIsLoading(false);
-        }
-    };
-
-    // ── Actions ──
     const handleDeactivate = async () => {
-        if (!deactivateTarget) return;
-        setActionLoading(true);
+        if (!deactivatingUser) return;
+        setDeactivateLoading(true);
         try {
-            await api.delete(`/users/${deactivateTarget.id}`);
-            // Mark inactive locally
-            setUsers((prev) =>
-                prev.map((u) => u.id === deactivateTarget.id ? { ...u, is_active: false } : u)
-            );
-            showToast(`${deactivateTarget.email} has been deactivated`, "success");
+            await api.post(`/users/${deactivatingUser.id}/deactivate`);
+            setUsers(users.map(u => u.id === deactivatingUser.id ? { ...u, is_active: false } : u));
+            setDeactivatingUser(null);
         } catch (err) {
-            showToast((err as Error).message || "Deactivation failed", "error");
+            alert("Failed to deactivate user");
         } finally {
-            setActionLoading(false);
-            setDeactivateTarget(null);
+            setDeactivateLoading(false);
         }
     };
 
-    const handleRoleUpdate = async (newRoleName: string) => {
-        if (!changeRoleTarget) return;
-        setActionLoading(true);
+    const handleDeleteRole = async (roleId: number) => {
+        setIsDeletingRole(true);
         try {
-            const { data: updated } = await api.put<User>(`/users/${changeRoleTarget.id}`, {
-                role_name: newRoleName
-            });
-            setUsers((prev) => prev.map((u) => u.id === updated.id ? updated : u));
-            showToast(`Role updated for ${updated.email}`, "success");
-            setChangeRoleTarget(null);
+            await api.delete(`/roles/${roleId}`);
+            setRoles(roles.filter(r => r.id !== roleId));
+            setConfirmDeleteRole(null);
         } catch (err) {
-            showToast((err as Error).message || "Role update failed", "error");
+            alert("Failed to delete role. Ensure no users are assigned to it.");
         } finally {
-            setActionLoading(false);
-        }
-    };
-
-    const handleDeleteRole = async (id: number) => {
-        if (!confirm("Are you sure you want to delete this role? This cannot be undone.")) return;
-        try {
-            await api.delete(`/roles/${id}`);
-            setRoles(roles.filter(r => r.id !== id));
-            showToast("Role deleted successfully", "success");
-        } catch (error: unknown) {
-            showToast((error as Error).message || "Failed to delete role", "error");
+            setIsDeletingRole(false);
         }
     };
 
     return (
         <Dashboard>
-            <div className="min-h-screen bg-gray-50">
-                <div className="max-w-[1400px] mx-auto px-8 py-8 space-y-8">
+            <div className="min-h-screen bg-[#F8FAFC]">
+                <div className="max-w-[1400px] mx-auto px-6 lg:px-10 py-10">
 
-                    {/* ── Global Toast ── */}
-                    {toast && <Toast message={toast.msg} type={toast.type} onDismiss={() => setToast(null)} />}
-
-                    {/* ── Modals ── */}
-                    {mode === "createUser" && (
-                        <CreateUserModal
-                            isSuperAdmin={isSuperAdmin}
-                            onClose={() => setMode("list")}
-                            onCreated={(user) => setUsers(prev => [user, ...prev])}
-                            showToast={showToast}
-                        />
-                    )}
-
-                    {mode === "createRole" && (
-                        <CreateRoleModal
-                            onClose={() => setMode("list")}
-                            onCreated={(role) => setRoles(prev => [...prev, role])}
-                            showToast={showToast}
-                        />
-                    )}
-
-                    {deactivateTarget && (
-                        <DeactivateModal
-                            userEmail={deactivateTarget.email}
-                            loading={actionLoading}
-                            onConfirm={handleDeactivate}
-                            onCancel={() => setDeactivateTarget(null)}
-                        />
-                    )}
-
-                    {changeRoleTarget && (
-                        <ChangeRoleModal
-                            user={changeRoleTarget}
-                            roles={roles}
-                            loading={actionLoading}
-                            onConfirm={handleRoleUpdate}
-                            onCancel={() => setChangeRoleTarget(null)}
-                        />
-                    )}
-
-                    {/* ── Header ── */}
-                    <div className="flex items-end justify-between mb-8">
-                        <div>
-                            <h1 className="text-2xl font-semibold text-gray-900">
-                                User Management
-                            </h1>
-                            <p className="text-sm text-gray-500 mt-1 mb-6">
-                                Manage users, roles and permissions
-                            </p>
-
-                            {/* Segmented Tabs Component styled per Vercel/Enterprise standards */}
-                            <div className="inline-flex bg-gray-200/50 p-1 rounded-lg">
-                                <button
-                                    onClick={() => setActiveTab("users")}
-                                    className={`px-4 py-1.5 rounded-md text-sm font-medium transition-all duration-200 ${activeTab === "users"
-                                        ? "bg-white text-gray-900 shadow-sm"
-                                        : "text-gray-500 hover:text-gray-700"
-                                        }`}
-                                >
-                                    Users
-                                </button>
-                                <button
-                                    onClick={() => setActiveTab("roles")}
-                                    className={`px-4 py-1.5 rounded-md text-sm font-medium transition-all duration-200 ${activeTab === "roles"
-                                        ? "bg-white text-gray-900 shadow-sm"
-                                        : "text-gray-500 hover:text-gray-700"
-                                        }`}
-                                >
-                                    Roles & Permissions
-                                </button>
+                    {/* Header Section */}
+                    <div className="flex flex-col md:flex-row md:items-start justify-between gap-8 mb-12">
+                        <div className="space-y-2">
+                            <div
+                                className="flex items-center gap-2 mb-1"
+                            >
+                                <div className="h-1.5 w-6 bg-blue-600 rounded-full" />
+                                <span className="text-[10px] font-black text-blue-600 uppercase tracking-widest">Admin Control</span>
+                            </div>
+                            <div>
+                                <h1 className="text-3xl font-black text-slate-900 tracking-tight">User Management</h1>
+                                <p className="text-sm font-medium text-slate-500 mt-1">Manage team members and roles here.</p>
                             </div>
                         </div>
 
-                        {/* Right Actions */}
-                        <div className="flex items-center gap-4 mb-2">
-                            {activeTab === "users" ? (
-                                <>
-                                    <button className="px-4 py-2 rounded-lg border border-gray-200 bg-white text-sm font-medium text-gray-700 hover:bg-gray-50 transition shadow-sm">
-                                        Export
-                                    </button>
-                                    <button
-                                        onClick={() => setMode("createUser")}
-                                        className="px-4 py-2 rounded-lg bg-blue-600 text-white text-sm font-medium hover:bg-blue-700 transition shadow-sm"
-                                    >
-                                        + Create User
-                                    </button>
-                                </>
-                            ) : (
-                                <button
-                                    onClick={() => setMode("createRole")}
-                                    className="px-4 py-2 rounded-lg bg-blue-600 text-white text-sm font-medium hover:bg-blue-700 transition shadow-sm"
-                                >
-                                    + Create Role
-                                </button>
-                            )}
+                        {/* High-Contrast Actions */}
+                        <div className="flex items-center gap-3">
+                            <button className="flex items-center gap-2 px-4 py-2.5 rounded-xl border-2 border-slate-200 text-sm font-bold text-slate-600 hover:bg-slate-50 hover:border-slate-300 transition-all active:scale-95">
+                                <Download className="h-4 w-4" />
+                                <span>Export</span>
+                            </button>
+                            <button
+                                onClick={() => setShowCreateUser(true)}
+                                className="flex items-center gap-2 px-5 py-2.5 rounded-xl bg-white border-2 border-slate-900 text-slate-900 text-sm font-black shadow-[4px_4px_0px_0px_rgba(15,23,42,1)] hover:translate-x-[2px] hover:translate-y-[2px] hover:shadow-none transition-all active:scale-95"
+                            >
+                                <Plus className="h-4 w-4" />
+                                <span>Create User</span>
+                            </button>
                         </div>
                     </div>
 
-                    {/* ── Main Content Area ── */}
-                    {activeTab === "users" ? (
-                        <>
-                            {/* Metrics just for users page */}
-                            <div className="grid grid-cols-3 gap-6 mb-8 animate-fade-in">
-                                <div className="bg-white p-6 rounded-xl border border-gray-200 shadow-sm">
-                                    <p className="text-sm text-gray-500">Total Users</p>
-                                    <p className="text-2xl font-semibold text-gray-900 mt-1">{users.length}</p>
-                                </div>
-                                <div className="bg-white p-6 rounded-xl border border-gray-200 shadow-sm">
-                                    <p className="text-sm text-gray-500">Active Users</p>
-                                    <p className="text-2xl font-semibold text-gray-900 mt-1">
-                                        {users.filter(u => u.is_active).length}
-                                    </p>
-                                </div>
-                                <div className="bg-white p-6 rounded-xl border border-gray-200 shadow-sm">
-                                    <p className="text-sm text-gray-500">Inactive Users</p>
-                                    <p className="text-2xl font-semibold text-gray-900 mt-1">
-                                        {users.filter(u => !u.is_active).length}
-                                    </p>
-                                </div>
-                            </div>
+                    {/* Navigation Tabs - Modern Segmented Control */}
+                    <div className="inline-flex p-1 bg-slate-200/60 rounded-xl mb-10 border border-slate-200 shadow-sm">
+                        <button
+                            onClick={() => setActiveTab("users")}
+                            className={`flex items-center gap-2.5 px-6 py-2 rounded-lg text-sm font-bold transition-all duration-200
+                                ${activeTab === "users"
+                                    ? "bg-white text-blue-600 shadow-md translate-y-0"
+                                    : "text-slate-500 hover:text-slate-800"}`}
+                        >
+                            <Users className="h-4 w-4" />
+                            Users List
+                            {users.length > 0 && (
+                                <span className={`px-2 py-0.5 rounded-md text-[10px] font-black ${activeTab === "users" ? "bg-blue-50 text-blue-600" : "bg-slate-300/50 text-slate-600"}`}>
+                                    {users.length}
+                                </span>
+                            )}
+                        </button>
+                        <button
+                            onClick={() => setActiveTab("roles")}
+                            className={`flex items-center gap-2.5 px-6 py-2 rounded-lg text-sm font-bold transition-all duration-200
+                                ${activeTab === "roles"
+                                    ? "bg-white text-blue-600 shadow-md translate-y-0"
+                                    : "text-slate-500 hover:text-slate-800"}`}
+                        >
+                            <Shield className="h-4 w-4" />
+                            Security Roles
+                            {roles.length > 0 && (
+                                <span className={`px-2 py-0.5 rounded-md text-[10px] font-black ${activeTab === "roles" ? "bg-blue-50 text-blue-600" : "bg-slate-300/50 text-slate-600"}`}>
+                                    {roles.length}
+                                </span>
+                            )}
+                        </button>
+                    </div>
 
+                    {/* Content Section */}
+                    <div>
+                        {activeTab === "users" ? (
                             <UsersTable
                                 users={users}
                                 roles={roles}
-                                isLoading={isLoading}
-                                onChangeRole={(user) => setChangeRoleTarget(user)}
-                                onDeactivate={(user) => setDeactivateTarget(user)}
+                                isLoading={loading}
+                                onDeactivate={(u) => setDeactivatingUser(u)}
+                                onChangeRole={() => fetchData()}
                             />
-                        </>
-                    ) : (
-                        <RolesTable
-                            roles={roles}
-                            isLoading={isLoading}
-                            onEdit={() => showToast("Edit role coming soon", "success")}
-                            onDelete={handleDeleteRole}
-                        />
-                    )}
-
+                        ) : (
+                            <div className="bg-white rounded-3xl shadow-xl shadow-slate-200/50 border border-slate-100 overflow-hidden">
+                                <RolesTable
+                                    roles={roles}
+                                    isLoading={loading}
+                                    onDelete={(id) => setConfirmDeleteRole(id)}
+                                    onEdit={(role) => console.log("Edit role", role)}
+                                />
+                            </div>
+                        )}
+                    </div>
                 </div>
+
+                {/* Premium Modals */}
+                {showCreateUser && (
+                    <CreateUserModal
+                        onClose={() => setShowCreateUser(false)}
+                        onCreated={(u) => { setUsers([u, ...users]); setShowCreateUser(false); fetchData(); }}
+                        isSuperAdmin={isSuperAdmin}
+                        showToast={(m, t) => console.log(m, t)}
+                    />
+                )}
+                {showCreateRole && (
+                    <CreateRoleModal
+                        onClose={() => setShowCreateRole(false)}
+                        onCreated={(r) => { setRoles([...roles, r]); setShowCreateRole(false); }}
+                        showToast={(m, t) => console.log(m, t)}
+                    />
+                )}
+                {deactivatingUser && (
+                    <DeactivateModal
+                        userEmail={deactivatingUser.email}
+                        loading={deactivateLoading}
+                        onConfirm={handleDeactivate}
+                        onCancel={() => setDeactivatingUser(null)}
+                    />
+                )}
+                {confirmDeleteRole && (
+                    <ConfirmationModal
+                        isOpen={true}
+                        variant="danger"
+                        title="Delete Security Role?"
+                        message="This action is permanent. You can only delete roles that are not currently assigned to any team members."
+                        confirmLabel="DELETE ROLE"
+                        cancelLabel="KEEP ROLE"
+                        isLoading={isDeletingRole}
+                        onConfirm={() => handleDeleteRole(confirmDeleteRole)}
+                        onCancel={() => setConfirmDeleteRole(null)}
+                    />
+                )}
             </div>
         </Dashboard>
     );

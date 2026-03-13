@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback } from "react";
-import { X, Send, ChevronDown, UserPlus } from "lucide-react";
+import { X, Send, ChevronDown, UserPlus, Mail, Lock, Shield, Eye, EyeOff, Sparkles, CheckCheck } from "lucide-react";
 import { api } from "@/lib/api";
+import { User } from "./types";
 
 type UserRole = {
     id: number;
@@ -8,14 +9,11 @@ type UserRole = {
     level: number;
 };
 
-// Simplified User and Create types
-import { User } from "./types";
-
 const ROLE_BADGE: Record<string, string> = {
-    administrator: "bg-red-50 text-red-700 border-red-200",
+    administrator: "bg-purple-50 text-purple-700 border-purple-200",
     manager: "bg-blue-50 text-blue-700 border-blue-200",
-    sales: "bg-green-50 text-green-700 border-green-200",
-    employee: "bg-gray-50 text-gray-700 border-gray-200"
+    sales: "bg-emerald-50 text-emerald-700 border-emerald-200",
+    employee: "bg-slate-50 text-slate-700 border-slate-200"
 };
 
 const EMPTY_FORM = {
@@ -41,6 +39,7 @@ export function CreateUserModal({ onClose, onCreated, isSuperAdmin, showToast }:
     const [errors, setErrors] = useState<FormErrors>({});
     const [loading, setLoading] = useState(false);
     const [isLoadingRoles, setIsLoadingRoles] = useState(false);
+    const [showPassword, setShowPassword] = useState(false);
 
     const fetchRoles = useCallback(async () => {
         setIsLoadingRoles(true);
@@ -104,51 +103,77 @@ export function CreateUserModal({ onClose, onCreated, isSuperAdmin, showToast }:
 
     return (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
-            <div className="absolute inset-0 bg-black/40 backdrop-blur-sm" onClick={onClose} />
-            <div className="relative bg-white rounded-2xl shadow-2xl w-full max-w-[500px] p-0 animate-scale-in flex flex-col max-h-[90vh]">
+            <div
+                className="absolute inset-0 bg-slate-900/60 backdrop-blur-md"
+                onClick={onClose}
+            />
 
-                {/* Header */}
-                <div className="flex items-center justify-between px-6 py-5 border-b border-gray-100 shrink-0">
-                    <div>
-                        <h2 className="text-xl font-bold text-gray-900">Create New User</h2>
-                        <p className="text-sm text-gray-500 mt-1">Add a new user to your system</p>
+            <div
+                className="relative bg-white rounded-3xl shadow-2xl w-full max-w-lg overflow-hidden flex flex-col max-h-[90vh]"
+            >
+                {/* Header with Background Gradient */}
+                <div className="relative px-8 pt-8 pb-6 shrink-0 overflow-hidden">
+                    <div className="relative flex items-center justify-between">
+                        <div className="flex items-center gap-4">
+                            <div className="w-12 h-12 rounded-2xl bg-slate-900 flex items-center justify-center shadow-lg">
+                                <UserPlus className="h-6 w-6 text-white" />
+                            </div>
+                            <div>
+                                <h2 className="text-2xl font-black text-slate-900 tracking-tight">Add New User</h2>
+                                <p className="text-sm font-medium text-slate-500 mt-0.5">Fill in the details to create a new user.</p>
+                            </div>
+                        </div>
+                        <button
+                            onClick={onClose}
+                            className="p-2.5 rounded-xl hover:bg-slate-100 text-slate-400 hover:text-slate-900 transition-all active:scale-90"
+                        >
+                            <X className="h-5 w-5" />
+                        </button>
                     </div>
-                    <button onClick={onClose} className="p-2 rounded-lg hover:bg-gray-50 text-gray-400 hover:text-gray-900 transition">
-                        <X className="h-5 w-5" />
-                    </button>
                 </div>
 
                 {/* Form scrollable area */}
-                <div className="flex-1 overflow-y-auto px-6 py-6 space-y-6">
+                <div className="flex-1 overflow-y-auto px-8 py-4 space-y-6 scrollbar-hide">
                     <form id="create-user-form" onSubmit={handleSubmit} noValidate className="space-y-6">
-                        {/* Email */}
-                        <div>
-                            <label className="block text-sm font-medium text-gray-700 mb-1.5">
+
+                        {/* Email Field Group */}
+                        <div className="space-y-2">
+                            <label className="flex items-center gap-2 text-sm font-bold text-slate-700 px-1">
+                                <Mail className="h-4 w-4 text-slate-400" />
                                 Email Address <span className="text-red-500">*</span>
                             </label>
-                            <input
-                                type="email"
-                                value={form.email}
-                                onChange={(e) => field("email", e.target.value)}
-                                placeholder="user@company.com"
-                                className={`w-full h-11 px-4 rounded-lg border outline-none transition focus:ring-2 focus:ring-blue-500 focus:border-blue-500
-                                    ${errors.email ? "border-red-300 bg-red-50" : "border-gray-300 bg-white"}`}
-                            />
-                            {errors.email && <p className="text-xs text-red-500 mt-1">{errors.email}</p>}
+                            <div className="relative group">
+                                <input
+                                    type="email"
+                                    value={form.email}
+                                    onChange={(e) => field("email", e.target.value)}
+                                    placeholder="e.g. user@company.com"
+                                    className={`w-full h-12 px-4 rounded-xl border-2 outline-none transition-all duration-200 text-slate-900 font-medium
+                                        ${errors.email
+                                            ? "border-red-200 bg-red-50/30 focus:border-red-500 focus:ring-4 focus:ring-red-100"
+                                            : "border-slate-100 bg-slate-50/50 group-hover:bg-slate-50 focus:border-slate-900 focus:bg-white transition-all"
+                                        }`}
+                                />
+                                {errors.email && (
+                                    <p className="text-xs font-bold text-red-500 mt-1.5 px-1 bg-red-50/50 py-1 rounded w-fit">
+                                        {errors.email}
+                                    </p>
+                                )}
+                            </div>
                         </div>
 
-                        {/* Role */}
-                        <div>
-                            <label className="block text-sm font-medium text-gray-700 mb-1.5">
-                                Role <span className="text-red-500">*</span>
+                        {/* Role Selection Group */}
+                        <div className="space-y-2">
+                            <label className="flex items-center gap-2 text-sm font-bold text-slate-700 px-1">
+                                <Shield className="h-4 w-4 text-slate-400" />
+                                User Role <span className="text-red-500">*</span>
                             </label>
-                            <div className="relative">
+                            <div className="relative group">
                                 <select
                                     value={form.role_name}
                                     onChange={(e) => field("role_name", e.target.value)}
                                     disabled={isLoadingRoles}
-                                    className={`w-full h-11 px-4 rounded-lg border outline-none transition focus:ring-2 focus:ring-blue-500 focus:border-blue-500 bg-white appearance-none text-sm
-                                        ${errors.role_name ? "border-red-300 bg-red-50" : "border-gray-300"}`}
+                                    className="w-full h-12 pl-4 pr-12 rounded-xl border-2 border-slate-100 bg-slate-50/50 group-hover:bg-slate-50 focus:border-slate-900 focus:bg-white transition-all appearance-none text-slate-900 font-medium cursor-pointer"
                                 >
                                     {isLoadingRoles ? (
                                         <option>Loading roles...</option>
@@ -158,80 +183,83 @@ export function CreateUserModal({ onClose, onCreated, isSuperAdmin, showToast }:
                                         ))
                                     )}
                                 </select>
-                                <div className="absolute right-4 top-1/2 -translate-y-1/2 pointer-events-none text-gray-400">
-                                    <ChevronDown className="h-4 w-4" />
+                                <div className="absolute right-4 top-1/2 -translate-y-1/2 pointer-events-none text-slate-400 group-hover:text-slate-900 transition-colors">
+                                    <ChevronDown className="h-5 w-5" />
                                 </div>
                             </div>
-                            {errors.role_name && <p className="text-xs text-red-500 mt-1">{errors.role_name}</p>}
 
-                            {/* Role badge preview */}
-                            <div className="mt-2 flex items-center gap-1.5 text-xs text-gray-500">
-                                Permissions Level:
-                                <span className={`inline-flex px-2 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider border ${ROLE_BADGE[form.role_name] ?? ROLE_BADGE.employee}`}>
-                                    {form.role_name.replace(/_/g, ' ')} (Level {roles.find(r => r.name === form.role_name)?.level || '?'})
+                            {/* Visual Role Preview Card */}
+                            <div className="mt-3 p-3 rounded-2xl bg-indigo-50/30 border border-indigo-100/50 flex items-center justify-between">
+                                <div className="flex items-center gap-3">
+                                    <div className="w-8 h-8 rounded-lg bg-white flex items-center justify-center shadow-sm">
+                                        <CheckCheck className="h-4 w-4 text-indigo-600" />
+                                    </div>
+                                    <div className="text-[11px] font-bold text-indigo-800 tracking-wide uppercase">
+                                        Level {roles.find(r => r.name === form.role_name)?.level ?? '?'} Clearance
+                                    </div>
+                                </div>
+                                <span className={`px-2.5 py-1 rounded-full text-[10px] font-black uppercase tracking-[0.05em] border-2 shadow-sm ${ROLE_BADGE[form.role_name] ?? ROLE_BADGE.employee}`}>
+                                    {form.role_name.replace(/_/g, ' ')}
                                 </span>
                             </div>
                         </div>
 
-                        {/* Password */}
-                        <div>
-                            <label className="block text-sm font-medium text-gray-700 mb-1.5">
-                                Password{" "}
-                                {form.send_invite
-                                    ? <span className="text-gray-400 font-normal">(optional when invite is on)</span>
-                                    : <span className="text-red-500">*</span>
-                                }
+                        {/* Password Field Group */}
+                        <div className="space-y-2">
+                            <label className="flex items-center gap-2 text-sm font-bold text-slate-700 px-1">
+                                <Lock className="h-4 w-4 text-slate-400" />
+                                Password <span className="text-red-500">*</span>
                             </label>
-                            <input
-                                type="password"
-                                value={form.password}
-                                onChange={(e) => field("password", e.target.value)}
-                                placeholder="Minimum 8 characters"
-                                className={`w-full h-11 px-4 rounded-lg border outline-none transition focus:ring-2 focus:ring-blue-500 focus:border-blue-500
-                                    ${errors.password ? "border-red-300 bg-red-50" : "border-gray-300 bg-white"}`}
-                            />
-                            {errors.password && <p className="text-xs text-red-500 mt-1">{errors.password}</p>}
-                        </div>
-
-                        {/* Toggles */}
-                        <div className="flex flex-col gap-3.5 pt-2">
-                            <label className="flex items-center gap-3 cursor-pointer">
+                            <div className="relative group">
+                                <input
+                                    type={showPassword ? "text" : "password"}
+                                    value={form.password}
+                                    onChange={(e) => field("password", e.target.value)}
+                                    placeholder="8+ characters"
+                                    className={`w-full h-12 pl-4 pr-12 rounded-xl border-2 outline-none transition-all duration-200 text-slate-900 font-medium
+                                        ${errors.password
+                                            ? "border-red-200 bg-red-50/30 focus:border-red-500 focus:ring-4 focus:ring-red-100"
+                                            : "border-slate-100 bg-slate-50/50 group-hover:bg-slate-50 focus:border-slate-900 focus:bg-white transition-all"
+                                        }`}
+                                />
                                 <button
                                     type="button"
-                                    onClick={() => field("is_active", !form.is_active)}
-                                    className={`relative w-11 h-6 rounded-full transition-colors ${form.is_active ? "bg-blue-600" : "bg-gray-300"}`}
+                                    onClick={() => setShowPassword(!showPassword)}
+                                    className="absolute right-4 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-900 transition-colors"
                                 >
-                                    <span className={`absolute top-0.5 left-0.5 h-5 w-5 bg-white rounded-full shadow transition-transform ${form.is_active ? "translate-x-5" : "translate-x-0"}`} />
+                                    {showPassword ? <EyeOff className="h-5 w-5" /> : <Eye className="h-5 w-5" />}
                                 </button>
-                                <span className="text-sm text-gray-700">Set as Active on creation</span>
-                            </label>
-
-                            <label className="flex items-center gap-3 cursor-pointer">
-                                <button
-                                    type="button"
-                                    onClick={() => field("send_invite", !form.send_invite)}
-                                    className={`relative w-11 h-6 rounded-full transition-colors ${form.send_invite ? "bg-blue-600" : "bg-gray-300"}`}
-                                >
-                                    <span className={`absolute top-0.5 left-0.5 h-5 w-5 bg-white rounded-full shadow transition-transform ${form.send_invite ? "translate-x-5" : "translate-x-0"}`} />
-                                </button>
-                                <span className="text-sm text-gray-700">Send Invite Email</span>
-                                <Send className="h-3.5 w-3.5 text-gray-400" />
-                            </label>
+                                {errors.password && (
+                                    <p className="text-xs font-bold text-red-500 mt-1.5 px-1 bg-red-50/50 py-1 rounded w-fit">
+                                        {errors.password}
+                                    </p>
+                                )}
+                            </div>
                         </div>
 
-                        {/* Info box */}
-                        <div className="p-3.5 bg-blue-50 rounded-xl border border-blue-100 text-xs text-blue-700 leading-relaxed">
-                            <strong>Note:</strong> The user will be assigned to your tenant automatically. Role permissions are determined by the selected role above.
+                        {/* Status Toggle */}
+                        <div className="pt-2">
+                            <div
+                                onClick={() => field("is_active", !form.is_active)}
+                                className={`flex items-center p-4 rounded-xl border-2 transition-all cursor-pointer select-none
+                                    ${form.is_active ? "border-slate-900 bg-slate-50" : "border-slate-100 bg-white opacity-60"}
+                                `}
+                            >
+                                <div className={`w-6 h-6 rounded-lg flex items-center justify-center mr-3 transition-colors ${form.is_active ? "bg-slate-900 text-white" : "bg-slate-200 text-slate-400"}`}>
+                                    {form.is_active && <CheckCheck className="h-3.5 w-3.5" />}
+                                </div>
+                                <span className="text-sm font-bold text-slate-900">Active User</span>
+                            </div>
                         </div>
                     </form>
                 </div>
 
-                {/* Footer */}
-                <div className="px-6 py-5 border-t border-gray-100 flex justify-end gap-3 shrink-0 bg-gray-50 rounded-b-2xl">
+                {/* Footer with Gradient Primary Button */}
+                <div className="px-8 py-8 shrink-0 bg-white border-t border-slate-100 flex gap-4">
                     <button
                         type="button"
                         onClick={onClose}
-                        className="text-gray-600 bg-white border border-gray-200 hover:bg-gray-50 px-5 py-2.5 rounded-xl text-sm font-medium transition"
+                        className="flex-1 px-6 py-3.5 rounded-xl border-2 border-slate-200 text-sm font-bold text-slate-600 bg-white hover:bg-slate-50 hover:border-slate-300 transition-all active:scale-95"
                     >
                         Cancel
                     </button>
@@ -239,11 +267,16 @@ export function CreateUserModal({ onClose, onCreated, isSuperAdmin, showToast }:
                         form="create-user-form"
                         type="submit"
                         disabled={loading}
-                        className="bg-blue-600 hover:bg-blue-700 text-white px-5 py-2.5 rounded-xl text-sm font-medium transition disabled:opacity-60 flex items-center justify-center gap-2"
+                        className="flex-[1.5] px-6 py-3.5 rounded-xl bg-white border-2 border-slate-900 text-slate-900 text-sm font-black shadow-[4px_4px_0px_0px_rgba(15,23,42,1)] hover:translate-x-[2px] hover:translate-y-[2px] hover:shadow-none transition-all active:scale-95 flex items-center justify-center gap-3 disabled:opacity-50"
                     >
-                        {loading
-                            ? <><div className="h-4 w-4 border-2 border-white border-t-transparent rounded-full animate-spin" /> Creating…</>
-                            : <><UserPlus className="h-4 w-4" /> Create User</>}
+                        {loading ? (
+                            <div className="h-5 w-5 border-2 border-slate-300 border-t-slate-900 rounded-full animate-spin" />
+                        ) : (
+                            <>
+                                <UserPlus className="h-5 w-5" />
+                                <span>CREATE USER</span>
+                            </>
+                        )}
                     </button>
                 </div>
             </div>

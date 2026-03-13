@@ -206,10 +206,21 @@ export default function LiveChatPage() {
     useEffect(() => {
         fetchConversations();
         pollRef.current = setInterval(fetchConversations, 10000);
+
+        // Restore last selected session from localStorage
+        const savedSessionId = localStorage.getItem('gtt_last_selected_session');
+        if (savedSessionId) {
+            setSelectedSessionId(savedSessionId);
+            // We delay openChat slightly to ensure fetchConversations might have finished or is in flight
+            setTimeout(() => {
+                openChat(savedSessionId);
+            }, 500);
+        }
+
         return () => {
             if (pollRef.current) clearInterval(pollRef.current);
         };
-    }, [fetchConversations]);
+    }, [fetchConversations]); // openChat is not in deps to avoid infinite loop on mount
 
     // ── Fetch message history ────────────────────────────────────────────
 
@@ -290,6 +301,7 @@ export default function LiveChatPage() {
 
     const openChat = async (sessionId: string) => {
         setSelectedSessionId(sessionId);
+        localStorage.setItem('gtt_last_selected_session', sessionId);
         await fetchMessages(sessionId);
         const token = getToken();
         if (token) connectWebSocket(sessionId, token);
@@ -415,6 +427,12 @@ export default function LiveChatPage() {
                             handleTypingEvent(data.session_id, false);
                         }, 3000); // Clear typing status after 3 seconds
                     }
+                    return;
+                }
+
+                // 🚨 FILTER EMPTY MESSAGES: Avoid "USER" label spam
+                if (!data.message || !data.message.trim()) {
+                    console.log('Skipping empty/non-text message:', data);
                     return;
                 }
 
@@ -653,17 +671,19 @@ export default function LiveChatPage() {
                             </div>
 
                             <div className={styles.chatMessages}>
-                                {messages.map((msg) => (
-                                    <div key={msg.id} className={`${styles.message} ${msg.message_type === 'agent' ? styles.messageAgent :
-                                        msg.message_type === 'bot' ? styles.messageBot : styles.messageUser
-                                        }`}>
-                                        <div className={styles.msgMeta}>
-                                            <span className={styles.msgLabel}>{msg.message_type}</span>
-                                            <span className={styles.msgTime}>{formatIST(msg.created_at_utc)}</span>
+                                {messages
+                                    .filter(msg => msg.message_text && msg.message_text.trim() !== '')
+                                    .map((msg) => (
+                                        <div key={msg.id} className={`${styles.message} ${msg.message_type === 'agent' ? styles.messageAgent :
+                                            msg.message_type === 'bot' ? styles.messageBot : styles.messageUser
+                                            }`}>
+                                            <div className={styles.msgMeta}>
+                                                <span className={styles.msgLabel}>{msg.message_type}</span>
+                                                <span className={styles.msgTime}>{formatIST(msg.created_at_utc)}</span>
+                                            </div>
+                                            <div className={styles.msgText}>{msg.message_text}</div>
                                         </div>
-                                        <div className={styles.msgText}>{msg.message_text}</div>
-                                    </div>
-                                ))}
+                                    ))}
                                 <div ref={messagesEndRef} />
                             </div>
 
