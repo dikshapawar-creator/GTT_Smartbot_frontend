@@ -155,7 +155,7 @@ export default function Chatbot() {
                     else setStatusText('Online');
                 }
 
-                finalMessages = (history as any[]).filter(m => m && m.message).map((m: { role?: string; message: string }, idx: number) => ({
+                finalMessages = (history as { role?: string; message: string }[]).filter(m => m && m.message).map((m, idx: number) => ({
                     id: `${Date.now()}-h-${idx}`,
                     role: (m.role || 'bot') as 'bot' | 'user' | 'agent' | 'system',
                     type: 'text',
