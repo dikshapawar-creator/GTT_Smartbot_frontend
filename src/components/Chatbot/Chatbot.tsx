@@ -18,9 +18,27 @@ import { WS_BASE } from '@/lib/config';
 import api, { API_BASE } from '@/config/api';
 import axios from 'axios';
 
-// ── Enterprise Error Helper ───────────────────────────────────────────────
-// NEVER expose raw server errors (SQL, stack traces) to the user.
-// Always return a short, friendly message regardless of what the server sent.
+// ── Generic Resilience Helpers ───────────────────────────────────────────
+function generateUUID() {
+    if (typeof crypto !== 'undefined' && crypto.randomUUID) {
+        try { return crypto.randomUUID(); } catch { /* fallback */ }
+    }
+    return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, (c) => {
+        const r = (Math.random() * 16) | 0;
+        const v = c === 'x' ? r : (r & 0x3) | 0x8;
+        return v.toString(16);
+    });
+}
+
+const safeStorage = {
+    get: (key: string) => {
+        try { return typeof window !== 'undefined' ? localStorage.getItem(key) : null; } catch { return null; }
+    },
+    set: (key: string, val: string) => {
+        try { if (typeof window !== 'undefined') localStorage.setItem(key, val); } catch { /* ignore */ }
+    }
+};
+
 function toFriendlyError(err: unknown): string {
     if (axios.isAxiosError(err)) {
         // Use the backend's own friendly message if it set one (our new format)
@@ -98,10 +116,10 @@ export default function Chatbot() {
         setLoading(true);
         setError(null);
         try {
-            let visitor_uuid = localStorage.getItem("visitor_uuid");
+            let visitor_uuid = safeStorage.get("visitor_uuid");
             if (!visitor_uuid) {
-                visitor_uuid = crypto.randomUUID();
-                localStorage.setItem("visitor_uuid", visitor_uuid);
+                visitor_uuid = generateUUID();
+                safeStorage.set("visitor_uuid", visitor_uuid);
             }
 
             const res = await api.post('/chat/session/init', { visitor_uuid });
@@ -116,6 +134,8 @@ export default function Chatbot() {
                     setStatusText('Waiting for Agent');
                 } else if (normalizedStatus === 'human') {
                     setStatusText('Agent Connected');
+                } else {
+                    setStatusText('Online');
                 }
             }
 
@@ -125,16 +145,17 @@ export default function Chatbot() {
             const history = historyRes.data;
             let finalMessages: Message[] = [];
 
-            if (history && history.length > 0) {
+            if (Array.isArray(history) && history.length > 0) {
                 if (history[0].sessionId) setSessionToken(history[0].sessionId);
                 if (history[0].conversation_status) {
                     const normalizedStatus = history[0].conversation_status.toLowerCase() as ConversationStatus;
                     setConversationStatus(normalizedStatus);
                     if (normalizedStatus === 'waiting_for_agent') setStatusText('Waiting for Agent');
                     else if (normalizedStatus === 'human') setStatusText('Agent Connected');
+                    else setStatusText('Online');
                 }
 
-                finalMessages = history.map((m: { role?: string; message: string }, idx: number) => ({
+                finalMessages = (history as any[]).filter(m => m && m.message).map((m: { role?: string; message: string }, idx: number) => ({
                     id: `${Date.now()}-h-${idx}`,
                     role: (m.role || 'bot') as 'bot' | 'user' | 'agent' | 'system',
                     type: 'text',
@@ -185,12 +206,10 @@ export default function Chatbot() {
 
     // Update status based on initialization
     useEffect(() => {
-        if (isInitialized && statusText !== 'Demo Submitted') {
-            setStatusText('Online');
-        } else if (!isInitialized) {
+        if (!isInitialized) {
             setStatusText('Connecting...');
         }
-    }, [isInitialized, statusText]);
+    }, [isInitialized]);
 
     useEffect(() => {
         messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
