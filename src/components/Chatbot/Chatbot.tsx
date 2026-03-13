@@ -260,14 +260,16 @@ export default function Chatbot() {
                     content: data.message || '',
                 }]);
 
-                if (data.type === 'system' && (data.message?.includes('agent has joined') || (data.sender === 'system' && data.message?.includes('joined')))) {
-                    setConversationStatus('human');
-                    setStatusText('Agent Connected');
-                }
-
-                if (data.type === 'system' && (data.mode === 'BOT' || data.message.includes('agent has left') || data.message.includes('assistant has resumed'))) {
-                    setConversationStatus('bot');
-                    setStatusText('Online');
+                if (data.type === 'system') {
+                    const msgText: string = data.message || '';
+                    if (msgText.includes('agent has joined') || (data.sender === 'system' && msgText.includes('joined'))) {
+                        setConversationStatus('human');
+                        setStatusText('Agent Connected');
+                    }
+                    if (data.mode === 'BOT' || msgText.includes('agent has left') || msgText.includes('assistant has resumed')) {
+                        setConversationStatus('bot');
+                        setStatusText('Online');
+                    }
                 }
             } catch {
                 console.error('Failed to parse WS message');
