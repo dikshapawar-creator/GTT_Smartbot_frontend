@@ -138,7 +138,7 @@ export default function Chatbot() {
                     id: `${Date.now()}-h-${idx}`,
                     role: (m.role || 'bot') as 'bot' | 'user' | 'agent' | 'system',
                     type: 'text',
-                    content: m.message
+                    content: m.message || ''
                 }));
 
                 // Visual separator for returning visitor history
@@ -221,7 +221,8 @@ export default function Chatbot() {
         ws.onmessage = (event) => {
             try {
                 const data = JSON.parse(event.data);
-                if (data.type === 'typing') {
+                const type = data.type?.toLowerCase();
+                if (type === 'typing' || data.type === 'TYPING_EVENT') {
                     setIsAgentTyping(data.is_typing);
                     if (agentTypingTimeoutRef.current) clearTimeout(agentTypingTimeoutRef.current);
                     if (data.is_typing) {
@@ -230,15 +231,17 @@ export default function Chatbot() {
                     return;
                 }
 
+                if (!data.message && data.type !== 'system') return;
+
                 const role = data.sender === 'agent' ? 'agent' : data.sender === 'user' ? 'user' : data.sender === 'system' ? 'system' : 'bot';
                 setMessages((prev) => [...prev, {
-                    id: Date.now().toString() + '-ws',
+                    id: `${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
                     role: role as 'agent' | 'user' | 'system' | 'bot',
                     type: 'text',
-                    content: data.message,
+                    content: data.message || '',
                 }]);
 
-                if (data.type === 'system' && (data.message.includes('agent has joined') || (data.sender === 'system' && data.message.includes('joined')))) {
+                if (data.type === 'system' && (data.message?.includes('agent has joined') || (data.sender === 'system' && data.message?.includes('joined')))) {
                     setConversationStatus('human');
                     setStatusText('Agent Connected');
                 }
@@ -461,7 +464,7 @@ export default function Chatbot() {
     const renderMessage = (msg: Message) => {
         switch (msg.type) {
             case 'text':
-                if (!msg.content.trim()) return null;
+                if (!msg.content?.trim()) return null;
                 return (
                     <div className={`${styles.messageRow} ${msg.role === 'user' ? styles.messageRowUser : styles.messageRowBot}`}>
                         {msg.role !== 'user' && (
