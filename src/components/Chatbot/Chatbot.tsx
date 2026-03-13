@@ -210,7 +210,7 @@ export default function Chatbot() {
         }
 
         const ws = new WebSocket(
-            `${WS_BASE}/ws/chat/${sessionId}?role=client&token=${sessionId}`
+            `${WS_BASE}/live-chat/ws/chat/${sessionId}?role=client&token=${sessionId}`
         );
 
         ws.onopen = () => {
