@@ -740,28 +740,117 @@
     align-items: stretch;
 }
 
-.dialSelect {
-    width: 95px;
-    flex-shrink: 0;
-    padding: 9px 6px;
-    border: 1.5px solid #d1d5db;
-    border-radius: 10px;
-    font-size: 13px;
-    background: #f8fafc;
-    color: #1e293b;
-    cursor: pointer;
-    transition: border-color 0.2s ease;
+.phoneInputContainer {
+    width: 100%;
 }
 
-.dialSelect:focus {
-    border-color: #2563eb;
-    outline: none;
-    box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.1);
+.phoneInputContainer :global(.react-tel-input .form-control) {
+    width: 100% !important;
+    height: 48px !important;
+    border: 1.5px solid #e2e8f0 !important;
+    border-radius: 12px !important;
+    font-size: 15px !important;
+    color: #1e293b !important;
+    background: #ffffff !important;
+    padding-left: 55px !important;
+    transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1) !important;
+    font-family: inherit !important;
 }
 
-.phoneInput {
-    flex: 1;
-    min-width: 0;
+.phoneInputContainer :global(.react-tel-input .form-control:focus) {
+    border-color: #2563eb !important;
+    background: #ffffff !important;
+    box-shadow: 0 0 0 4px rgba(37, 99, 235, 0.1) !important;
+}
+
+.phoneInputContainer :global(.react-tel-input .flag-dropdown) {
+    border: 1.5px solid #e2e8f0 !important;
+    border-right: none !important;
+    border-radius: 12px 0 0 12px !important;
+    background: #f8fafc !important;
+    transition: all 0.2s ease !important;
+    width: 45px !important;
+}
+
+.phoneInputContainer :global(.react-tel-input .flag-dropdown.open),
+.phoneInputContainer :global(.react-tel-input .selected-flag.open) {
+    background: #f1f5f9 !important;
+    border-color: #cbd5e1 !important;
+}
+
+.phoneInputContainer :global(.react-tel-input .selected-flag) {
+    width: 100% !important;
+    border-radius: 12px 0 0 12px !important;
+    padding-left: 12px !important;
+    background: transparent !important;
+}
+
+.phoneInputContainer :global(.react-tel-input .country-list) {
+    border-radius: 10px !important;
+    margin-top: 5px !important;
+    box-shadow: 0 10px 20px -5px rgba(0, 0, 0, 0.15) !important;
+    border: 1px solid #e2e8f0 !important;
+    width: 220px !important;
+    /* Narrower for chatbot */
+    z-index: 10000 !important;
+    padding: 0 !important;
+    background: #ffffff !important;
+    overflow-x: hidden !important;
+}
+
+.phoneInputContainer :global(.react-tel-input .country-list .search) {
+    padding: 8px !important;
+    background: #ffffff !important;
+    position: sticky !important;
+    top: 0 !important;
+    z-index: 20 !important;
+    margin: 0 !important;
+    border-bottom: 1px solid #f1f5f9 !important;
+    display: flex !important;
+    align-items: center !important;
+}
+
+.phoneInputContainer :global(.react-tel-input .search-box) {
+    width: 100% !important;
+    margin: 0 !important;
+    padding: 7px 10px !important;
+    border-radius: 6px !important;
+    border: 1.5px solid #e2e8f0 !important;
+    font-size: 13px !important;
+    background: #f8fafc !important;
+    outline: none !important;
+}
+
+.phoneInputContainer :global(.react-tel-input .search-box:focus) {
+    border-color: #2563eb !important;
+    background: #ffffff !important;
+}
+
+.phoneInputContainer :global(.react-tel-input .country-list .country) {
+    padding: 8px 12px !important;
+    border-radius: 0 !important;
+    margin: 0 !important;
+    font-size: 13px !important;
+    display: flex !important;
+    align-items: center !important;
+    gap: 10px !important;
+    color: #334155 !important;
+    transition: background 0.15s ease !important;
+}
+
+.phoneInputContainer :global(.react-tel-input .country-list .country.highlight) {
+    background-color: #f8fafc !important;
+    color: #2563eb !important;
+}
+
+.phoneInputContainer :global(.react-tel-input .country-list .country:hover) {
+    background-color: #f8fafc !important;
+}
+
+.phoneInputContainer :global(.react-tel-input .country-list .country .dial-code) {
+    color: #64748b !important;
+    margin-left: auto !important;
+    font-weight: 500 !important;
 }
 
 .serverError {

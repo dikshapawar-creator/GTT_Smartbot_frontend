@@ -30,7 +30,9 @@ import styles from '../live-chat/LiveChat.module.css';
 import histStyles from './History.module.css';
 import api from '@/config/api';
 import { WS_BASE } from '@/config/api';
+import { wsManager } from '@/lib/wsManager';
 import { auth } from '@/lib/auth';
+import { formatToIST, normalizeMessages, normalizeSessions, getSyncedNow } from '@/lib/time';
 
 // ── Types ────────────────────────────────────────────────────────────────
 
@@ -62,6 +64,7 @@ interface Conversation {
     initial_ip: string | null;
     lead_email?: string | null;
     lead_phone?: string | null;
+    created_at_ist?: string;
 }
 
 interface Analytics {
@@ -85,6 +88,7 @@ interface ChatMessage {
     message_type: 'user' | 'bot' | 'agent' | 'system';
     message_text: string;
     created_at_utc: string;
+    created_at_ist?: string;
 }
 
 // ── Component ────────────────────────────────────────────────────────────
@@ -115,10 +119,10 @@ export default function HistoryPage() {
 
     // Real-Time Chat Overrides
     const [newMessage, setNewMessage] = useState('');
-    const wsRef = useRef<WebSocket | null>(null);
     const messagesEndRef = useRef<HTMLDivElement>(null);
 
     const [sessionLiveMode, setSessionLiveMode] = useState(false);
+    const [serverOffset, setServerOffset] = useState<number>(0);
 
     const fetchAnalytics = async () => {
         try {
@@ -127,6 +131,16 @@ export default function HistoryPage() {
         } catch (err) {
             console.error("Failed to fetch analytics", err);
         }
+    };
+
+    const syncServerTime = async () => {
+        try {
+            const t0 = Date.now();
+            const res = await api.get('/live-chat/server-time');
+            const t1 = Date.now();
+            const serverTime = new Date(res.data.server_time_utc).getTime();
+            setServerOffset(serverTime - t1);
+        } catch (err) { console.error("Sync failed", err); }
     };
 
     const fetchHistory = useCallback(async (pageNum = 1) => {
@@ -145,7 +159,11 @@ export default function HistoryPage() {
 
         try {
             const res = await api.get('/live-chat/history', { params });
-            setData(res.data);
+            const normalizedItems = normalizeSessions(res.data.items || []);
+            setData({
+                ...res.data,
+                items: normalizedItems
+            });
             setError(null);
         } catch {
             setError('Failed to load conversation history');
@@ -181,12 +199,13 @@ export default function HistoryPage() {
             setSelectedSession(detailRes.data);
 
             const res = await api.get(`/live-chat/messages/${conv.session_uuid}?page=1&page_size=100`);
-            setMessages(res.data.items || []);
+            setMessages(normalizeMessages(res.data.items || []));
 
             // AUTO-RESUME IF ALREADY HUMAN
             if (detailRes.data.current_mode === 'HUMAN') {
+                const token = auth.getAccessToken();
                 setSessionLiveMode(true);
-                connectWebSocket(conv.session_uuid);
+                if (token) connectWebSocket(conv.session_uuid, token);
             } else {
                 setSessionLiveMode(false);
             }
@@ -203,47 +222,52 @@ export default function HistoryPage() {
 
     // ── Real-Time Logic (Resume from History) ────────────────────────────
 
-    const connectWebSocket = useCallback(async (sessionId: string) => {
-        const token = auth.getAccessToken();
-        if (!token) return;
-
-        if (wsRef.current) {
-            wsRef.current.close();
-        }
-
-        const ws = new WebSocket(`${WS_BASE}/live-chat/ws/chat/${sessionId}?role=agent&token=${token}`);
-
-        ws.onmessage = (event) => {
-            try {
-                const data = JSON.parse(event.data);
-                // Simple append for History page takeover
-                if (data.type !== 'TYPING_EVENT') {
-                    const newMsg: ChatMessage = {
-                        id: Date.now(),
-                        session_id: sessionId,
-                        message_type: data.sender === 'user' ? 'user' : data.sender === 'system' ? 'system' : data.sender === 'agent' ? 'agent' : 'bot',
-                        message_text: data.message,
-                        created_at_utc: new Date().toISOString(),
-                    };
-                    setMessages((prev) => [...prev, newMsg]);
-                }
-            } catch {
-                console.error('Failed parsing WS message');
-            }
-        };
-
-        wsRef.current = ws;
+    const connectWebSocket = useCallback((sessionId: string, token: string) => {
+        const url = `${WS_BASE}/live-chat/ws/chat/${sessionId}?role=agent&token=${token}`;
+        wsManager.connect(url, 'chat');
     }, []);
+
+    useEffect(() => {
+        if (!selectedSession || !sessionLiveMode) return;
+
+        const unsubscribeMsg = wsManager.subscribe('message', (data: any) => {
+            if (data.purpose !== 'chat') return;
+
+            if (data.type !== 'TYPING_EVENT') {
+                const newMsg = normalizeMessages({
+                    id: Date.now(),
+                    session_id: selectedSession.session_uuid,
+                    message_type: (data.sender === 'user' ? 'user' : data.sender === 'system' ? 'system' : data.sender === 'agent' ? 'agent' : 'bot') as any,
+                    message_text: data.message_text || data.message,
+                    created_at_utc: data.created_at_utc || new Date(getSyncedNow(serverOffset)).toISOString()
+                });
+                setMessages((prev) => [...prev, newMsg]);
+            }
+        });
+
+        const unsubscribeSync = wsManager.subscribe('sync', (data: any) => {
+            if (data.purpose === 'chat') {
+                setServerOffset(data.serverTime - data.t1);
+            }
+        });
+
+        return () => {
+            unsubscribeMsg();
+            unsubscribeSync();
+        };
+    }, [selectedSession, sessionLiveMode, serverOffset]);
 
     const resumeChat = async (sessionId: string) => {
         try {
             await api.post(`/live-chat/intervene/${sessionId}`);
             setSessionLiveMode(true);
-            connectWebSocket(sessionId);
+            const token = auth.getAccessToken();
+            if (token) connectWebSocket(sessionId, token);
 
             // Mark visually active
             if (selectedSession) {
-                setSelectedSession({ ...selectedSession, current_mode: 'HUMAN', session_status: 'ACTIVE' });
+                const updated = { ...selectedSession, current_mode: 'HUMAN', session_status: 'ACTIVE' };
+                setSelectedSession(normalizeSessions([updated])[0]);
             }
             setError(null);
         } catch (err: unknown) {
@@ -256,28 +280,25 @@ export default function HistoryPage() {
     };
 
     const sendMessage = () => {
-        if (!wsRef.current || !newMessage.trim() || !selectedSession) return;
+        if (wsManager.getStatus('chat') !== 'OPEN' || !newMessage.trim() || !selectedSession) return;
 
-        wsRef.current.send(JSON.stringify({ message: newMessage.trim() }));
-        setMessages(prev => [...prev, {
+        wsManager.send({ message: newMessage.trim() }, 'chat');
+        const optimisticMsg = normalizeMessages({
             id: Date.now(),
             session_id: selectedSession.session_uuid,
             message_type: 'agent',
             message_text: newMessage.trim(),
-            created_at_utc: new Date().toISOString(),
-        }]);
+            created_at_utc: new Date(getSyncedNow(serverOffset)).toISOString(),
+        });
+        setMessages(prev => [...prev, optimisticMsg]);
         setNewMessage('');
     };
 
 
-    // Cleanup WS ONLY on unmount to prevent race conditions during session switches
-    // connectWebSocket already handles closing previous sockets before opening new ones
     useEffect(() => {
+        const syncInterval = setInterval(syncServerTime, 120000);
         return () => {
-            if (wsRef.current) {
-                wsRef.current.close();
-                wsRef.current = null;
-            }
+            clearInterval(syncInterval);
         };
     }, []);
 
@@ -305,22 +326,6 @@ export default function HistoryPage() {
 
     const totalPages = data ? Math.ceil(data.total / PAGE_SIZE) : 1;
 
-    const formatDate = (utc: string | null) => {
-        if (!utc) return '—';
-        try {
-            return new Intl.DateTimeFormat('en-IN', {
-                timeZone: 'Asia/Kolkata',
-                day: '2-digit',
-                month: 'short',
-                year: 'numeric',
-                hour: '2-digit',
-                minute: '2-digit',
-                hour12: true
-            }).format(new Date(utc));
-        } catch {
-            return '—';
-        }
-    };
 
     const formatDuration = (seconds: number) => {
         const m = Math.floor(seconds / 60);
@@ -346,6 +351,7 @@ export default function HistoryPage() {
     };
 
     const hasActiveFilters = statusFilter !== 'ALL' || dateFrom || dateTo || searchTerm || countryFilter || deviceFilter || minScore !== '' || spamFilter !== 'ALL';
+
 
     return (
         <div className={histStyles.dashboardWrapper}>
@@ -621,12 +627,7 @@ export default function HistoryPage() {
                                             </div>
                                             <div className={styles.msgText}>{msg.message_text}</div>
                                             <div className={styles.msgTime}>
-                                                {new Intl.DateTimeFormat('en-IN', {
-                                                    timeZone: 'Asia/Kolkata',
-                                                    hour: '2-digit',
-                                                    minute: '2-digit',
-                                                    hour12: true
-                                                }).format(new Date(msg.created_at_utc))}
+                                                {msg.created_at_ist}
                                             </div>
                                         </div>
                                     ))
@@ -752,7 +753,7 @@ export default function HistoryPage() {
                                         <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '13px' }}>
                                             <span style={{ color: 'var(--color-text-primary)', fontWeight: 600 }}>Started At (IST):</span>
                                             <span style={{ fontWeight: 500 }}>
-                                                {formatDate(selectedSession.created_at)}
+                                                {selectedSession.created_at_ist}
                                             </span>
                                         </div>
                                     </div>

@@ -8,8 +8,8 @@ import axios from 'axios';
 export const API_BASE =
     process.env.NEXT_PUBLIC_API_BASE_URL || 'http://localhost:8000';
 
-// WebSocket base URL helper
-export const WS_BASE = API_BASE.replace(/^http/, 'ws');
+// WebSocket base URL helper - properly handle both http and https
+export const WS_BASE = API_BASE.replace(/^https?/, (match) => match === 'https' ? 'wss' : 'ws');
 
 /**
  * Centralized Axios instance for Enterprise API communication.

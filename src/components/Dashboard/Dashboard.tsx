@@ -8,6 +8,7 @@ import styles from './Dashboard.module.css';
 
 import { auth } from '@/lib/auth';
 import { api } from '@/lib/api';
+import { formatToIST } from '@/lib/time';
 
 import {
     LayoutDashboard,
@@ -135,7 +136,7 @@ export default function Dashboard({ children }: { children?: React.ReactNode }) 
         if (diff < 60) return `${diff}m ago`;
         const hours = Math.floor(diff / 60);
         if (hours < 24) return `${hours}h ago`;
-        return date.toLocaleDateString();
+        return formatToIST(dateStr);
     };
 
     const getInitials = () => {
@@ -508,7 +509,7 @@ export default function Dashboard({ children }: { children?: React.ReactNode }) 
                                                             {l.status}
                                                         </span>
                                                     </td>
-                                                    <td className={styles.tdTiny}>{new Date(l.created_at).toLocaleDateString()}</td>
+                                                    <td className={styles.tdTiny}>{formatToIST(l.created_at)}</td>
                                                 </tr>
                                             ))}
                                         </tbody>

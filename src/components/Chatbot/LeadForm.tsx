@@ -1,31 +1,9 @@
 'use client';
 import { useState, useCallback, useRef } from 'react';
+import PhoneInput from 'react-phone-input-2';
+import 'react-phone-input-2/lib/style.css';
 import styles from './Chatbot.module.css';
 import api from '@/config/api';
-
-// ── Top-20 international dial codes ─────────────────────────────────────────
-const DIAL_CODES = [
-    { code: '+91', country: 'IN', label: '🇮🇳 +91', expectedLength: 10 },
-    { code: '+1', country: 'US', label: '🇺🇸 +1', expectedLength: 10 },
-    { code: '+44', country: 'GB', label: '🇬🇧 +44', expectedLength: 10 },
-    { code: '+971', country: 'AE', label: '🇦🇪 +971', expectedLength: 9 },
-    { code: '+65', country: 'SG', label: '🇸🇬 +65', expectedLength: 8 },
-    { code: '+852', country: 'HK', label: '🇭🇰 +852', expectedLength: 8 },
-    { code: '+86', country: 'CN', label: '🇨🇳 +86', expectedLength: 11 },
-    { code: '+81', country: 'JP', label: '🇯🇵 +81', expectedLength: 10 },
-    { code: '+49', country: 'DE', label: '🇩🇪 +49', expectedLength: 11 },
-    { code: '+33', country: 'FR', label: '🇫🇷 +33', expectedLength: 9 },
-    { code: '+61', country: 'AU', label: '🇦🇺 +61', expectedLength: 9 },
-    { code: '+55', country: 'BR', label: '🇧🇷 +55', expectedLength: 11 },
-    { code: '+27', country: 'ZA', label: '🇿🇦 +27', expectedLength: 9 },
-    { code: '+82', country: 'KR', label: '🇰🇷 +82', expectedLength: 10 },
-    { code: '+7', country: 'RU', label: '🇷🇺 +7', expectedLength: 10 },
-    { code: '+966', country: 'SA', label: '🇸🇦 +966', expectedLength: 9 },
-    { code: '+234', country: 'NG', label: '🇳🇬 +234', expectedLength: 10 },
-    { code: '+62', country: 'ID', label: '🇮🇩 + Indonesian', expectedLength: 11 },
-    { code: '+60', country: 'MY', label: '🇲🇾 +60', expectedLength: 9 },
-    { code: '+39', country: 'IT', label: '🇮🇹 +39', expectedLength: 10 },
-] as const;
 
 const NAME_REGEX = /^[A-Za-z\s\-'\.\u00C0-\u017F]+$/;
 const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
@@ -98,15 +76,8 @@ export default function LeadForm({ onClose, onSubmitSuccess }: LeadFormProps) {
                 if (!v) return 'Phone number is required';
                 const digitsOnly = v.replace(/[\s\-()]/g, '');
 
-                const currentDialCodeObj = DIAL_CODES.find(d => d.code === dialCode);
-                if (currentDialCodeObj) {
-                    if (digitsOnly.length !== currentDialCodeObj.expectedLength) {
-                        return `${currentDialCodeObj.country} phone number must be exactly ${currentDialCodeObj.expectedLength} digits`;
-                    }
-                } else {
-                    if (digitsOnly.length < 6 || digitsOnly.length > 15)
-                        return 'Please enter 6–15 digits';
-                }
+                if (digitsOnly.length < 6 || digitsOnly.length > 15)
+                    return 'Please enter 6–15 digits';
                 return '';
             }
             default:
@@ -129,20 +100,12 @@ export default function LeadForm({ onClose, onSubmitSuccess }: LeadFormProps) {
         return Object.keys(newErrors).length === 0;
     }, [formData, validateField]);
 
-    // ── Re-validate phone when country changes ──
-    const handleDialCodeChange = (newCode: string) => {
-        setDialCode(newCode);
-        if (touched.contact_number || formData.contact_number) {
-            // Use the new code immediately since state update is async
-            const v = formData.contact_number.trim();
-            const digitsOnly = v.replace(/[\s\-()]/g, '');
-            const obj = DIAL_CODES.find(d => d.code === newCode);
-            let err = '';
-            if (!v) err = 'Phone number is required';
-            else if (obj && digitsOnly.length !== obj.expectedLength) {
-                err = `${obj.country} phone number must be exactly ${obj.expectedLength} digits`;
-            }
-            setErrors(prev => ({ ...prev, contact_number: err }));
+    const handlePhoneChange = (value: string) => {
+        setFormData(prev => ({ ...prev, contact_number: value }));
+
+        // Clear error when user changes phone
+        if (errors.contact_number) {
+            setErrors(prev => ({ ...prev, contact_number: '' }));
         }
     };
 
@@ -163,10 +126,6 @@ export default function LeadForm({ onClose, onSubmitSuccess }: LeadFormProps) {
     // ── Handle change + live re-validation for ALL fields ──────────────
     const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
         const { name, value } = e.target;
-        if (name === 'dialCode') {
-            handleDialCodeChange(value);
-            return;
-        }
 
         let newValue = value;
         // Numeric-only enforcement for phone
@@ -223,15 +182,9 @@ export default function LeadForm({ onClose, onSubmitSuccess }: LeadFormProps) {
         isSubmitting.current = true;
         setLoading(true);
 
-        // Compose E.164 phone: dialCode + local digits
-        // Smart strip: if user includes + or dialCode in the input, remove it
-        let localDigits = formData.contact_number.replace(/[\s\-()+]/g, '');
-        const cleanDialCode = dialCode.replace('+', '');
-        if (localDigits.startsWith(cleanDialCode)) {
-            localDigits = localDigits.substring(cleanDialCode.length);
-        }
-
-        const e164Phone = `${dialCode}${localDigits}`;
+        const e164Phone = formData.contact_number.startsWith('+')
+            ? formData.contact_number
+            : `+${formData.contact_number}`;
 
         // Trim all fields + add honeypot
         const payload = {
@@ -424,35 +377,26 @@ export default function LeadForm({ onClose, onSubmitSuccess }: LeadFormProps) {
                     )}
                 </div>
 
-                {/* ── Phone Number (dial code + local) ──────────────────── */}
+                {/* ── Phone Number ──────────────────── */}
                 <div className={styles.formGroup}>
                     <label htmlFor="lead-phone" className={styles.label}>
                         Phone Number <span className={styles.required}>*</span>
                     </label>
-                    <div className={styles.phoneRow}>
-                        <select
-                            name="dialCode"
-                            value={dialCode}
-                            onChange={handleChange}
-                            className={styles.dialSelect}
-                            aria-label="Country dial code"
-                        >
-                            {DIAL_CODES.map(dc => (
-                                <option key={dc.code} value={dc.code}>{dc.label}</option>
-                            ))}
-                        </select>
-                        <input
-                            id="lead-phone"
-                            name="contact_number"
-                            type="tel"
+                    <div className={styles.phoneInputContainer}>
+                        <PhoneInput
+                            country={'in'}
                             value={formData.contact_number}
-                            onChange={handleChange}
-                            onBlur={handleBlur}
-                            className={`${styles.input} ${styles.phoneInput} ${touched.contact_number && errors.contact_number ? styles.inputError : ''}`}
-                            placeholder={dialCode === '+91' ? '9876543210' : 'Phone Number'}
-                            maxLength={DIAL_CODES.find(d => d.code === dialCode)?.expectedLength || 15}
-                            aria-invalid={!!errors.contact_number}
-                            aria-describedby={errors.contact_number ? 'err-phone' : undefined}
+                            onChange={handlePhoneChange}
+                            inputProps={{
+                                id: 'lead-phone',
+                                name: 'contact_number',
+                                required: true,
+                            }}
+                            containerClass={styles.phoneContainer}
+                            inputClass={styles.phoneControl}
+                            buttonClass={styles.phoneButton}
+                            dropdownClass={styles.phoneDropdown}
+                            enableSearch={true}
                         />
                     </div>
                     {touched.contact_number && errors.contact_number && (

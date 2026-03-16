@@ -10,6 +10,7 @@ import {
 import styles from './Dashboard.module.css';
 
 import api from '@/config/api';
+import { formatToIST } from '@/lib/time';
 
 // ── Types ────────────────────────────────────────────────────────────────
 
@@ -160,7 +161,6 @@ export default function LeadsList() {
         setPage(1); // Reset to first page on sort
     };
 
-    const formatDate = (dateStr: string) => new Date(dateStr).toLocaleString();
     const today = new Date().toISOString().split('T')[0];
 
     return (
@@ -299,7 +299,7 @@ export default function LeadsList() {
                                         </select>
                                     </td>
                                     <td className={styles.tdMuted}>
-                                        <div className={styles.tdSmall}>{formatDate(lead.created_at)}</div>
+                                        <div className={styles.tdSmall}>{formatToIST(lead.created_at)}</div>
                                     </td>
                                     <td>
                                         <div className="flex gap-1">
@@ -389,7 +389,7 @@ export default function LeadsList() {
                                         <span className="font-bold text-primary">{item.new_status}</span>
                                     </div>
                                     <div className={styles.historyMeta}>
-                                        Changed by {item.changed_by} via {item.source} • {formatDate(item.changed_at)}
+                                        Changed by {item.changed_by} via {item.source} • {formatToIST(item.changed_at)}
                                     </div>
                                 </div>
                             </div>

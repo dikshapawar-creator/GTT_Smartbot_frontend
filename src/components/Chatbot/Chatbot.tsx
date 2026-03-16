@@ -15,8 +15,10 @@ const LeadForm = dynamic(() => import('./LeadForm'), {
 });
 
 import { WS_BASE } from '@/lib/config';
+import { wsManager } from '@/lib/wsManager';
 import api, { API_BASE } from '@/config/api';
 import axios from 'axios';
+import { formatToIST, normalizeMessages, getSyncedNow } from '@/lib/time';
 
 // ── Generic Resilience Helpers ───────────────────────────────────────────
 function generateUUID() {
@@ -32,10 +34,22 @@ function generateUUID() {
 
 const safeStorage = {
     get: (key: string) => {
-        try { return typeof window !== 'undefined' ? localStorage.getItem(key) : null; } catch { return null; }
+        try { 
+            if (typeof window !== 'undefined') {
+                const value = localStorage.getItem(key);
+                console.log(`[Storage] GET ${key}:`, value);
+                return value;
+            }
+            return null;
+        } catch { return null; }
     },
     set: (key: string, val: string) => {
-        try { if (typeof window !== 'undefined') localStorage.setItem(key, val); } catch { /* ignore */ }
+        try { 
+            if (typeof window !== 'undefined') {
+                localStorage.setItem(key, val);
+                console.log(`[Storage] SET ${key}:`, val);
+            }
+        } catch { /* ignore */ }
     }
 };
 
@@ -59,6 +73,7 @@ type ConversationStatus = 'bot' | 'waiting_for_agent' | 'human' | 'closed';
 type BaseMessage = {
     id: string;
     role: 'bot' | 'user' | 'agent' | 'system';
+    created_at_ist?: string;
 };
 
 type TextMessage = BaseMessage & {
@@ -91,7 +106,7 @@ export default function Chatbot() {
     const [statusText, setStatusText] = useState('Online');
     const [conversationStatus, setConversationStatus] = useState<ConversationStatus>('bot');
     const [sessionToken, setSessionToken] = useState<string | null>(null);
-    const wsRef = useRef<WebSocket | null>(null);
+    const [serverOffset, setServerOffset] = useState<number>(0);
 
     const [isAgentTyping, setIsAgentTyping] = useState(false);
     const typingTimeoutRef = useRef<NodeJS.Timeout | null>(null);
@@ -102,14 +117,20 @@ export default function Chatbot() {
 
     // ── Chat-specific API helper: sends session UUID as Bearer token ──
     const chatApi = useCallback((sessionUUID: string) => ({
-        get: (url: string) => axios.get(`${API_BASE}${url}`, {
-            withCredentials: true,
-            headers: { 'Authorization': `Bearer ${sessionUUID}`, 'Content-Type': 'application/json' }
-        }),
-        post: (url: string, data?: unknown) => axios.post(`${API_BASE}${url}`, data, {
-            withCredentials: true,
-            headers: { 'Authorization': `Bearer ${sessionUUID}`, 'Content-Type': 'application/json' }
-        }),
+        get: (url: string) => {
+            const t0 = Date.now();
+            return axios.get(`${API_BASE}${url}`, {
+                withCredentials: true,
+                headers: { 'Authorization': `Bearer ${sessionUUID}`, 'Content-Type': 'application/json' }
+            }).then(res => ({ ...res, t0, t1: Date.now() }));
+        },
+        post: (url: string, data?: unknown) => {
+            const t0 = Date.now();
+            return axios.post(`${API_BASE}${url}`, data, {
+                withCredentials: true,
+                headers: { 'Authorization': `Bearer ${sessionUUID}`, 'Content-Type': 'application/json' }
+            }).then(res => ({ ...res, t0, t1: Date.now() }));
+        },
     }), []);
 
     const initSession = useCallback(async () => {
@@ -120,13 +141,20 @@ export default function Chatbot() {
             if (!visitor_uuid) {
                 visitor_uuid = generateUUID();
                 safeStorage.set("visitor_uuid", visitor_uuid);
+                console.log('[Chatbot] Generated new visitor_uuid:', visitor_uuid);
+            } else {
+                console.log('[Chatbot] Using existing visitor_uuid:', visitor_uuid);
             }
 
             const res = await api.post('/chat/session/init', { visitor_uuid });
             const data = res.data;
             setIsInitialized(true);
 
-            if (data.session_token) setSessionToken(data.session_token);
+            if (data.session_token) {
+                setSessionToken(data.session_token);
+                safeStorage.set('session_token', data.session_token);
+                console.log('[Chatbot] Session initialized:', data.session_token);
+            }
             if (data.conversation_status) {
                 const normalizedStatus = data.conversation_status.toLowerCase() as ConversationStatus;
                 setConversationStatus(normalizedStatus);
@@ -137,6 +165,14 @@ export default function Chatbot() {
                 } else {
                     setStatusText('Online');
                 }
+            }
+
+            if (data.server_time_utc) {
+                const t1 = Date.now();
+                const t0 = (res as any).t0 || t1;
+                const serverTime = new Date(data.server_time_utc).getTime();
+                const latency = (t1 - t0) / 2;
+                setServerOffset((serverTime + latency) - t1);
             }
 
             // ── Restore History using session UUID as auth ────────────────
@@ -204,6 +240,27 @@ export default function Chatbot() {
         }
     }, [chatApi]);
 
+    // ── NTP-Sync Handler ─────────────────────────────────────────────
+    const syncServerTime = useCallback(async () => {
+        if (!sessionToken) return;
+        try {
+            const t0 = Date.now();
+            const res = await chatApi(sessionToken).get('/chat/history');
+            const t1 = Date.now();
+            const serverTime = res.data?.server_time_utc
+                ? new Date(res.data.server_time_utc).getTime()
+                : null;
+
+            if (serverTime) {
+                const latency = (t1 - t0) / 2;
+                setServerOffset((serverTime + latency) - t1);
+                console.log(`[ClockSync] Offset updated: ${serverTime - t1}ms (Latency: ${latency}ms)`);
+            }
+        } catch (err) {
+            console.warn('[ClockSync] Failed to re-sync server time', err);
+        }
+    }, [sessionToken, chatApi]);
+
     // Update status based on initialization
     useEffect(() => {
         if (!isInitialized) {
@@ -217,113 +274,128 @@ export default function Chatbot() {
 
     useEffect(() => {
         if (open && !isInitialized) {
+            console.log('[Chatbot] Opening chatbot, checking for existing session...');
+            const existingToken = safeStorage.get('session_token');
+            if (existingToken) {
+                console.log('[Chatbot] Found existing session token:', existingToken);
+                setSessionToken(existingToken);
+                setIsInitialized(true);
+                // Try to restore session without creating a new one
+                return;
+            }
             initSession();
         }
     }, [open, isInitialized, initSession]);
 
+    // ── Periodic and Visibility-based Re-sync ────────────────────────
+    useEffect(() => {
+        if (!isInitialized || !sessionToken) return;
+
+        const interval = setInterval(syncServerTime, 120000); // 2 mins
+
+        const handleVisibilityChange = () => {
+            if (document.visibilityState === 'visible') {
+                console.log('[ClockSync] Tab visible, triggering re-sync...');
+                syncServerTime();
+            }
+        };
+
+        document.addEventListener('visibilitychange', handleVisibilityChange);
+        return () => {
+            clearInterval(interval);
+            document.removeEventListener('visibilitychange', handleVisibilityChange);
+        };
+    }, [isInitialized, sessionToken, syncServerTime]);
+
     // ── WebSocket connect for live agent chat ────────────────────────
     const connectClientWebSocket = useCallback((sessionId: string) => {
-        if (wsRef.current) {
-            wsRef.current.close();
-            wsRef.current = null;
-        }
+        const url = `${WS_BASE}/live-chat/ws/chat/${sessionId}?role=client&token=${sessionId}`;
+        wsManager.connect(url, 'chatbot');
+    }, []);
 
-        const ws = new WebSocket(
-            `${WS_BASE}/live-chat/ws/chat/${sessionId}?role=client&token=${sessionId}`
-        );
-
-        ws.onopen = () => {
-            console.log('Client WebSocket connected');
-            setError(null);
-        };
-
-        ws.onmessage = (event) => {
-            try {
-                const data = JSON.parse(event.data);
-                const type = data.type?.toLowerCase();
-                if (type === 'typing' || data.type === 'TYPING_EVENT') {
-                    setIsAgentTyping(data.is_typing);
-                    if (agentTypingTimeoutRef.current) clearTimeout(agentTypingTimeoutRef.current);
-                    if (data.is_typing) {
-                        agentTypingTimeoutRef.current = setTimeout(() => setIsAgentTyping(false), 3000);
-                    }
-                    return;
-                }
-
-                if (!data.message && data.type !== 'system') return;
-
-                const role = data.sender === 'agent' ? 'agent' : data.sender === 'user' ? 'user' : data.sender === 'system' ? 'system' : 'bot';
-                setMessages((prev) => [...prev, {
-                    id: `${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
-                    role: role as 'agent' | 'user' | 'system' | 'bot',
-                    type: 'text',
-                    content: data.message || '',
-                }]);
-
-                if (data.type === 'system') {
-                    const msgText: string = data.message || '';
-                    if (msgText.includes('agent has joined') || (data.sender === 'system' && msgText.includes('joined'))) {
-                        setConversationStatus('human');
-                        setStatusText('Agent Connected');
-                    }
-                    if (data.mode === 'BOT' || msgText.includes('agent has left') || msgText.includes('assistant has resumed')) {
-                        setConversationStatus('bot');
-                        setStatusText('Online');
-                    }
-                }
-            } catch {
-                console.error('Failed to parse WS message');
-            }
-        };
-
-        ws.onclose = (e) => {
-            console.log('Client WebSocket disconnected', e.reason);
-            // Reconnect if not manually closed
-            if (isInitialized && sessionToken && open) {
-                console.log('Attempting to reconnect WebSocket in 3s...');
-                setTimeout(() => {
-                    if (open && sessionToken) connectClientWebSocket(sessionToken);
-                }, 3000);
-            }
-        };
-
-        ws.onerror = (err) => {
-            console.error('Client WebSocket error:', err);
-            ws.close();
-        };
-
-        wsRef.current = ws;
-    }, [isInitialized, open, sessionToken]);
-
-    // ── WebSocket Reactive Sync ─────────────────────────────────────
     useEffect(() => {
-        // Connect to WS immediately to listen for agent joins/messages
-        if (isInitialized && !wsRef.current && sessionToken) {
-            connectClientWebSocket(sessionToken);
-        }
+        if (!isInitialized || !sessionToken) return;
+
+        const unsubscribeSync = wsManager.subscribe('sync', (syncData) => {
+            if (syncData.purpose === 'chatbot') {
+                const { serverTime, t1 } = syncData;
+                setServerOffset(serverTime - t1);
+                console.log(`[ChatbotSync] Offset synchronized: ${serverTime - t1}ms`);
+            }
+        });
+
+        const unsubscribeMessage = wsManager.subscribe('message', (data) => {
+            if (data.purpose !== 'chatbot') return;
+
+            const type = data.type?.toLowerCase();
+            if (type === 'typing' || data.type === 'TYPING_EVENT') {
+                setIsAgentTyping(data.is_typing);
+                if (agentTypingTimeoutRef.current) clearTimeout(agentTypingTimeoutRef.current);
+                if (data.is_typing) {
+                    agentTypingTimeoutRef.current = setTimeout(() => setIsAgentTyping(false), 3000);
+                }
+                return;
+            }
+
+            if (!data.message && data.type !== 'system') return;
+
+            const role = data.sender === 'agent' ? 'agent' : data.sender === 'user' ? 'user' : data.sender === 'system' ? 'system' : 'bot';
+            setMessages((prev) => [...prev, {
+                id: `${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
+                role: role as 'agent' | 'user' | 'system' | 'bot',
+                type: 'text',
+                content: data.message || '',
+                created_at_ist: formatToIST(new Date(getSyncedNow(serverOffset)))
+            }]);
+
+            if (data.type === 'system') {
+                const msgText: string = data.message || '';
+                if (msgText.includes('agent has joined') || (data.sender === 'system' && msgText.includes('joined'))) {
+                    setConversationStatus('human');
+                    setStatusText('Agent Connected');
+                }
+                if (data.mode === 'BOT' || msgText.includes('agent has left') || msgText.includes('assistant has resumed')) {
+                    setConversationStatus('bot');
+                    setStatusText('Online');
+                }
+            }
+        });
+
+        const unsubscribeOpen = wsManager.subscribe('open', (data) => {
+            if (data.purpose === 'chatbot') {
+                console.log('Chatbot WebSocket connected via Manager');
+                setError(null);
+            }
+        });
+
+        const unsubscribeError = wsManager.subscribe('error', (err) => {
+            console.error('Chatbot WebSocket error via Manager:', err);
+        });
+
+        // Initial connect
+        connectClientWebSocket(sessionToken);
 
         return () => {
-            if (wsRef.current && !isInitialized) {
-                wsRef.current.close();
-                wsRef.current = null;
-            }
+            unsubscribeSync();
+            unsubscribeMessage();
+            unsubscribeOpen();
+            unsubscribeError();
         };
-    }, [isInitialized, sessionToken, connectClientWebSocket]);
+    }, [isInitialized, sessionToken, connectClientWebSocket, serverOffset]);
 
     useEffect(() => {
         return () => {
-            if (wsRef.current) wsRef.current.close();
             if (typingTimeoutRef.current) clearTimeout(typingTimeoutRef.current);
             if (agentTypingTimeoutRef.current) clearTimeout(agentTypingTimeoutRef.current);
         };
     }, []);
 
     const sendTypingStatus = (isTyping: boolean) => {
-        if (isInitialized && wsRef.current?.readyState === WebSocket.OPEN) {
-            wsRef.current.send(JSON.stringify({
+        if (isInitialized && wsManager.getStatus('chatbot') === 'OPEN') {
+            wsManager.send({
                 type: 'typing',
                 is_typing: isTyping
-            }));
+            }, 'chatbot');
         }
     };
 
@@ -342,18 +414,21 @@ export default function Chatbot() {
             id: Date.now().toString(),
             role: 'user',
             type: 'text',
-            content: text
+            content: text,
+            created_at_ist: formatToIST(new Date(getSyncedNow(serverOffset)))
         };
         setMessages((prev) => [...prev, userMsg]);
         setInput('');
 
         // ── WebSocket path: when agent is active ─────────────────
-        if (conversationStatus !== 'bot' && wsRef.current && wsRef.current.readyState === WebSocket.OPEN) {
-            wsRef.current.send(JSON.stringify({ message: text }));
+        if (conversationStatus !== 'bot' && wsManager.getStatus('chatbot') === 'OPEN') {
+            console.log('[Chatbot] Sending message via WebSocket:', text);
+            wsManager.send({ message: text }, 'chatbot');
             return;
         }
 
         // ── REST API path: normal bot mode ───────────────────────
+        console.log('[Chatbot] Sending message via REST API:', text);
         setLoading(true);
         setError(null);
 
@@ -366,6 +441,12 @@ export default function Chatbot() {
                 if (normalizedStatus !== conversationStatus) {
                     setConversationStatus(normalizedStatus);
                 }
+            }
+
+            if (data.server_time_utc) {
+                const serverTime = new Date(data.server_time_utc).getTime();
+                const localTime = Date.now();
+                setServerOffset(serverTime - localTime);
             }
 
             const newBotMessages: Message[] = [];
@@ -535,6 +616,7 @@ export default function Chatbot() {
                 return null;
         }
     };
+
 
     return (
         <>
