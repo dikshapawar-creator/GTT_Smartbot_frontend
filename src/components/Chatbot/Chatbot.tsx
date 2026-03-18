@@ -34,7 +34,7 @@ function generateUUID() {
 
 const safeStorage = {
     get: (key: string) => {
-        try { 
+        try {
             if (typeof window !== 'undefined') {
                 const value = localStorage.getItem(key);
                 console.log(`[Storage] GET ${key}:`, value);
@@ -44,7 +44,7 @@ const safeStorage = {
         } catch { return null; }
     },
     set: (key: string, val: string) => {
-        try { 
+        try {
             if (typeof window !== 'undefined') {
                 localStorage.setItem(key, val);
                 console.log(`[Storage] SET ${key}:`, val);
@@ -256,7 +256,12 @@ export default function Chatbot() {
                 setServerOffset((serverTime + latency) - t1);
                 console.log(`[ClockSync] Offset updated: ${serverTime - t1}ms (Latency: ${latency}ms)`);
             }
-        } catch (err) {
+        } catch (err: unknown) {
+            // If 401, session is stale — silently ignore (initSession will fix it)
+            if (axios.isAxiosError(err) && err.response?.status === 401) {
+                console.warn('[ClockSync] Session expired, skipping sync');
+                return;
+            }
             console.warn('[ClockSync] Failed to re-sync server time', err);
         }
     }, [sessionToken, chatApi]);
@@ -274,15 +279,7 @@ export default function Chatbot() {
 
     useEffect(() => {
         if (open && !isInitialized) {
-            console.log('[Chatbot] Opening chatbot, checking for existing session...');
-            const existingToken = safeStorage.get('session_token');
-            if (existingToken) {
-                console.log('[Chatbot] Found existing session token:', existingToken);
-                setSessionToken(existingToken);
-                setIsInitialized(true);
-                // Try to restore session without creating a new one
-                return;
-            }
+            console.log('[Chatbot] Opening chatbot, initializing session...');
             initSession();
         }
     }, [open, isInitialized, initSession]);
@@ -483,7 +480,49 @@ export default function Chatbot() {
             setMessages((prev) => [...prev, ...newBotMessages]);
             setTimeout(() => inputRef.current?.focus(), 50);
         } catch (err: unknown) {
-            setError(toFriendlyError(err));
+            // ── Auto-Recovery: if 401, re-init session and retry once ────
+            if (axios.isAxiosError(err) && err.response?.status === 401) {
+                console.warn('[Chatbot] Session expired (401), auto-recovering...');
+                try {
+                    // Clear stale token
+                    safeStorage.set('session_token', '');
+                    setIsInitialized(false);
+
+                    // Re-initialize session
+                    let visitor_uuid = safeStorage.get('visitor_uuid');
+                    if (!visitor_uuid) {
+                        visitor_uuid = generateUUID();
+                        safeStorage.set('visitor_uuid', visitor_uuid);
+                    }
+                    const initRes = await api.post('/chat/session/init', { visitor_uuid });
+                    const initData = initRes.data;
+
+                    if (initData.session_token) {
+                        setSessionToken(initData.session_token);
+                        safeStorage.set('session_token', initData.session_token);
+                        setIsInitialized(true);
+                        console.log('[Chatbot] Session recovered:', initData.session_token);
+
+                        // Retry the original message with new session
+                        const retryRes = await chatApi(initData.session_token).post('/chat/message', { message: text });
+                        const retryData = retryRes.data;
+
+                        const retryMessages: Message[] = [];
+                        if (retryData.message) {
+                            retryMessages.push({ id: Date.now().toString() + '-retry', role: 'bot', type: 'text', content: retryData.message });
+                        }
+                        if (retryData.type === 'CTA' && retryData.cta_label && retryData.action) {
+                            retryMessages.push({ id: Date.now().toString() + '-retry-cta', role: 'bot', type: 'cta', label: retryData.cta_label, action: retryData.action });
+                        }
+                        setMessages((prev) => [...prev, ...retryMessages]);
+                    }
+                } catch (retryErr) {
+                    console.error('[Chatbot] Auto-recovery failed:', retryErr);
+                    setError('Session expired. Please refresh the page.');
+                }
+            } else {
+                setError(toFriendlyError(err));
+            }
         } finally {
             setLoading(false);
         }
