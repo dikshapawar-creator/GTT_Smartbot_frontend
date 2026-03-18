@@ -39,7 +39,7 @@ export const getSyncedNow = (serverOffset: number = 0): number => {
  * Normalizes an array of messages or a single message to include formatted IST strings.
  * Use this BEFORE setting state to prevent hydration flicker.
  */
-export const normalizeMessages = <T extends { created_at_utc?: string | null }>(messages: T | T[]): any => {
+export const normalizeMessages = <T extends { created_at_utc?: string | null }>(messages: T | T[]): (T & { created_at_ist: string }) | (T & { created_at_ist: string })[] => {
     const format = (m: T) => ({
         ...m,
         created_at_ist: formatToIST(m.created_at_utc)
@@ -52,7 +52,7 @@ export const normalizeMessages = <T extends { created_at_utc?: string | null }>(
 /**
  * Normalizes session objects to include formatted IST strings for their activity.
  */
-export const normalizeSessions = <T extends { created_at?: string | null, last_message_at?: string | null }>(sessions: T | T[]): any => {
+export const normalizeSessions = <T extends { created_at?: string | null, last_message_at?: string | null }>(sessions: T | T[]): (T & { created_at_ist: string, last_message_ist: string }) | (T & { created_at_ist: string, last_message_ist: string })[] => {
     const format = (s: T) => ({
         ...s,
         created_at_ist: formatToIST(s.created_at),

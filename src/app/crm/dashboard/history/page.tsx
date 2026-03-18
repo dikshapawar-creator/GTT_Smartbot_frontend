@@ -32,7 +32,7 @@ import api from '@/config/api';
 import { WS_BASE } from '@/config/api';
 import { wsManager } from '@/lib/wsManager';
 import { auth } from '@/lib/auth';
-import { formatToIST, normalizeMessages, normalizeSessions, getSyncedNow } from '@/lib/time';
+import { normalizeMessages, normalizeSessions, getSyncedNow } from '@/lib/time';
 
 // ── Types ────────────────────────────────────────────────────────────────
 
@@ -135,7 +135,6 @@ export default function HistoryPage() {
 
     const syncServerTime = async () => {
         try {
-            const t0 = Date.now();
             const res = await api.get('/live-chat/server-time');
             const t1 = Date.now();
             const serverTime = new Date(res.data.server_time_utc).getTime();
@@ -230,23 +229,26 @@ export default function HistoryPage() {
     useEffect(() => {
         if (!selectedSession || !sessionLiveMode) return;
 
-        const unsubscribeMsg = wsManager.subscribe('message', (data: any) => {
+        const unsubscribeMsg = wsManager.subscribe('message', (data: { purpose?: string; type?: string; message_text?: string; message?: string; created_at_utc?: string; sender?: string }) => {
             if (data.purpose !== 'chat') return;
 
             if (data.type !== 'TYPING_EVENT') {
+                const messageType = (data.sender === 'user' ? 'user' : data.sender === 'system' ? 'system' : data.sender === 'agent' ? 'agent' : 'bot') as 'user' | 'system' | 'agent' | 'bot';
+                const messageText = data.message_text || data.message || '';
+
                 const newMsg = normalizeMessages({
                     id: Date.now(),
                     session_id: selectedSession.session_uuid,
-                    message_type: (data.sender === 'user' ? 'user' : data.sender === 'system' ? 'system' : data.sender === 'agent' ? 'agent' : 'bot') as any,
-                    message_text: data.message_text || data.message,
+                    message_type: messageType,
+                    message_text: messageText,
                     created_at_utc: data.created_at_utc || new Date(getSyncedNow(serverOffset)).toISOString()
-                });
+                }) as ChatMessage;
                 setMessages((prev) => [...prev, newMsg]);
             }
         });
 
-        const unsubscribeSync = wsManager.subscribe('sync', (data: any) => {
-            if (data.purpose === 'chat') {
+        const unsubscribeSync = wsManager.subscribe('sync', (data: { purpose?: string; serverTime?: number; t1?: number }) => {
+            if (data.purpose === 'chat' && data.serverTime !== undefined && data.t1 !== undefined) {
                 setServerOffset(data.serverTime - data.t1);
             }
         });
@@ -267,7 +269,7 @@ export default function HistoryPage() {
             // Mark visually active
             if (selectedSession) {
                 const updated = { ...selectedSession, current_mode: 'HUMAN', session_status: 'ACTIVE' };
-                setSelectedSession(normalizeSessions([updated])[0]);
+                setSelectedSession((normalizeSessions([updated]) as Conversation[])[0]);
             }
             setError(null);
         } catch (err: unknown) {
@@ -286,10 +288,10 @@ export default function HistoryPage() {
         const optimisticMsg = normalizeMessages({
             id: Date.now(),
             session_id: selectedSession.session_uuid,
-            message_type: 'agent',
+            message_type: 'agent' as const,
             message_text: newMessage.trim(),
             created_at_utc: new Date(getSyncedNow(serverOffset)).toISOString(),
-        });
+        }) as ChatMessage;
         setMessages(prev => [...prev, optimisticMsg]);
         setNewMessage('');
     };

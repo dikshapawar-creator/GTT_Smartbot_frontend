@@ -191,9 +191,6 @@ export default function LiveChatPage() {
         } catch (err) { console.warn("[ClockSync] Dashboard re-sync failed", err); }
     }, []);
 
-    const handleTypingEvent = useCallback((sessionId: string, isTyping: boolean) => {
-        setTypingSessions(prev => ({ ...prev, [sessionId]: isTyping }));
-    }, []);
 
     const extractContactInfo = useCallback(async (text: string, sessionId: string) => {
         const emailRegex = /([a-zA-Z0-9._-]+@[a-zA-Z0-9._-]+\.[a-zA-Z0-9_-]+)/gi;
@@ -241,40 +238,6 @@ export default function LiveChatPage() {
         wsManager.connect(url, 'chat');
     }, []);
 
-    const setupChatListeners = useCallback((sessionId: string) => {
-        const unsubscribe = wsManager.subscribe('message', (data) => {
-            if (data.type === 'TYPING_EVENT') {
-                handleTypingEvent(data.session_id, data.is_typing);
-                if (typingTimeoutRef.current[data.session_id]) {
-                    clearTimeout(typingTimeoutRef.current[data.session_id]);
-                }
-                if (data.is_typing) {
-                    typingTimeoutRef.current[data.session_id] = setTimeout(() => {
-                        handleTypingEvent(data.session_id, false);
-                    }, 3000);
-                }
-                return;
-            }
-
-            if (!data.message || !data.message.trim()) return;
-
-            const newMsg: ChatMessage = {
-                id: Date.now(),
-                session_id: sessionId,
-                message_type: (data.sender === 'user' ? 'user' : data.sender === 'system' ? 'system' : 'bot') as any,
-                message_text: data.message,
-                created_at_utc: new Date(getSyncedNow(serverOffset)).toISOString(),
-                created_at_ist: formatToIST(new Date(getSyncedNow(serverOffset)))
-            };
-            setMessages((prev) => [...prev, newMsg]);
-
-            if (data.sender === 'user') {
-                extractContactInfo(data.message, sessionId);
-            }
-        });
-        return unsubscribe;
-    }, [handleTypingEvent, extractContactInfo]);
-
     const intervene = async (sessionId: string) => {
         try {
             await api.post(`/live-chat/intervene/${sessionId}`);
@@ -294,7 +257,7 @@ export default function LiveChatPage() {
             console.error('Invalid session ID provided to openChat:', sessionId);
             return;
         }
-        
+
         setSelectedSessionId(sessionId);
         localStorage.setItem('gtt_last_selected_session', sessionId);
         await fetchMessages(sessionId);
@@ -302,28 +265,20 @@ export default function LiveChatPage() {
         if (token) connectWebSocket(sessionId, token);
     }, [fetchMessages, connectWebSocket, getToken]);
 
-    const closeChat = async (sessionId: string) => {
-        try {
-            await api.post(`/live-chat/close/${sessionId}`);
-            wsManager.disconnect('chat');
-            setSelectedSessionId(null);
-            fetchConversations();
-        } catch (err) {
-            console.error('Failed to close chat', err);
-        }
-    };
+
 
     useEffect(() => {
         const token = getToken();
         if (!token) return;
 
-        const unsubscribeSync = wsManager.subscribe('sync', (data: any) => {
-            if (data.purpose === 'dashboard' || data.purpose === 'chat') {
+        const unsubscribeSync = wsManager.subscribe('sync', (data: { purpose?: string; serverTime?: number; t1?: number }) => {
+            if ((data.purpose === 'dashboard' || data.purpose === 'chat') && data.serverTime !== undefined && data.t1 !== undefined) {
                 const { serverTime, t1 } = data;
                 setServerOffset(serverTime - t1);
             }
         });
 
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
         const unsubscribeMsg = wsManager.subscribe('message', (data: any) => {
             // 1. Dashboard Events
             if (data.purpose === 'dashboard') {
@@ -346,26 +301,27 @@ export default function LiveChatPage() {
             // 2. Chat Events (per session)
             if (data.purpose !== 'chat') return;
 
-            if (data.type === 'TYPING_EVENT') {
-                setTypingSessions(prev => ({ ...prev, [data.session_id]: data.is_typing }));
-                if (typingTimeoutRef.current[data.session_id]) clearTimeout(typingTimeoutRef.current[data.session_id]);
+            if (data.type === 'TYPING_EVENT' && data.session_id) {
+                const sid = data.session_id;
+                setTypingSessions(prev => ({ ...prev, [sid]: data.is_typing || false }));
+                if (typingTimeoutRef.current[sid]) clearTimeout(typingTimeoutRef.current[sid]);
                 if (data.is_typing) {
-                    typingTimeoutRef.current[data.session_id] = setTimeout(() => {
-                        setTypingSessions(prev => ({ ...prev, [data.session_id]: false }));
+                    typingTimeoutRef.current[sid] = setTimeout(() => {
+                        setTypingSessions(prev => ({ ...prev, [sid]: false }));
                     }, 3000);
                 }
                 return;
             }
 
-            if (data.message_text || data.message) {
-                const message_text = data.message_text || data.message;
+            if ((data.message_text || data.message) && data.session_id) {
+                const message_text = data.message_text || data.message || '';
                 const normalizedMsg = normalizeMessages({
                     id: data.id || Date.now(),
                     session_id: data.session_id,
-                    message_type: (data.sender === 'user' ? 'user' : data.sender === 'system' ? 'system' : 'bot') as any,
+                    message_type: (data.sender === 'user' ? 'user' : data.sender === 'system' ? 'system' : 'bot') as 'user' | 'system' | 'bot' | 'agent',
                     message_text: message_text,
                     created_at_utc: data.created_at_utc || new Date(getSyncedNow(serverOffset)).toISOString()
-                });
+                }) as ChatMessage;
                 setMessages(prev => {
                     if (prev.find(m => m.id === normalizedMsg.id)) return prev;
                     return [...prev, normalizedMsg];
@@ -377,12 +333,12 @@ export default function LiveChatPage() {
             }
         });
 
-        const unsubscribeOpen = wsManager.subscribe('open', (data: any) => {
+        const unsubscribeOpen = wsManager.subscribe('open', (data: { purpose?: string }) => {
             console.log(`[WS][${data.purpose}] Connected`);
             setError(null);
         });
 
-        const unsubscribeError = wsManager.subscribe('error', (data: any) => {
+        const unsubscribeError = wsManager.subscribe('error', (data: { purpose?: string; error?: unknown }) => {
             console.error(`[WS][${data.purpose}] Error:`, data.error);
         });
 
@@ -504,7 +460,7 @@ export default function LiveChatPage() {
         return () => {
             if (durationIntervalRef.current) clearInterval(durationIntervalRef.current);
         };
-    }, [conversations]);
+    }, [conversations, serverOffset]);
 
     useEffect(() => {
         const savedOffset = localStorage.getItem('gtt_server_offset');

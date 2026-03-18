@@ -1,15 +1,31 @@
-import { WS_BASE } from './config';
+// import { WS_BASE } from './config';
+
 
 export type WSState = 'IDLE' | 'CONNECTING' | 'OPEN' | 'CLOSED';
 export type WSEventType = 'message' | 'open' | 'close' | 'error' | 'statusChange' | 'sync';
 
-export interface WSEvent {
-    type: string;
-    data?: any;
-    [key: string]: any;
+export interface WSData {
+    purpose?: string;
+    type?: string;
+    serverTime?: number;
+    t1?: number;
+    [key: string]: unknown;
 }
 
-type EventCallback = (data: any) => void;
+export interface WSMessage extends WSData {
+    message?: string;
+    message_text?: string;
+    sender?: string;
+    session_id?: string;
+    is_typing?: boolean;
+}
+
+export interface WSEvent {
+    type: string;
+    data?: WSData;
+}
+
+type EventCallback = (data: WSMessage) => void;
 
 class WSManager {
     private static instance: WSManager;
@@ -165,7 +181,7 @@ class WSManager {
         }
     }
 
-    public send(data: any, purpose = 'default') {
+    public send(data: string | Record<string, unknown>, purpose = 'default') {
         const socket = this.sockets.get(purpose);
         if (socket?.readyState === WebSocket.OPEN) {
             const payload = typeof data === 'string' ? data : JSON.stringify(data);
@@ -184,7 +200,7 @@ class WSManager {
         };
     }
 
-    private emit(event: WSEventType, data: any) {
+    private emit(event: WSEventType, data: WSMessage) {
         this.listeners[event]?.forEach(callback => callback(data));
     }
 

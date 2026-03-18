@@ -248,7 +248,7 @@ export default function IntentManager() {
         (async () => {
             try {
                 const res = await api.get('/intents/');
-                const mapped: Intent[] = res.data.map((i: any) => ({
+                const mapped: Intent[] = res.data.map((i: { id: number | string; intent_key: string; keywords: string[]; response_text: string }) => ({
                     id: i.id.toString(),
                     intentKey: '#' + i.intent_key.toUpperCase(),
                     name: toDisplayName(i.intent_key),

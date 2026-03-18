@@ -35,7 +35,7 @@ export default function LeadForm({ onClose, onSubmitSuccess }: LeadFormProps) {
         business_email: '',
         contact_number: '',
     });
-    const [dialCode, setDialCode] = useState('+91');
+    // const dialCode = '+91'; // Hardcoded for now, or you can use useState if you plan to update it later.
     const [errors, setErrors] = useState<Record<string, string>>({});
     const [touched, setTouched] = useState<Record<string, boolean>>({});
     const [loading, setLoading] = useState(false);
@@ -83,7 +83,7 @@ export default function LeadForm({ onClose, onSubmitSuccess }: LeadFormProps) {
             default:
                 return '';
         }
-    }, [dialCode, formData.business_email]);
+    }, [formData.business_email]);
 
     // ── Validate all fields at once (for submit) ────────────────────────
     const validateAll = useCallback((): boolean => {

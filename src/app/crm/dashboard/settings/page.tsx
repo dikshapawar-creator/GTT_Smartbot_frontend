@@ -1,7 +1,7 @@
 'use client';
 
-import React, { useState, useEffect, useCallback } from 'react';
-import { Activity, Lock, Save, RotateCcw } from 'lucide-react';
+import React, { useState, useEffect } from 'react';
+import { Activity, Save, RotateCcw } from 'lucide-react';
 import api from '@/config/api';
 import IntentManager from '@/components/Dashboard/IntentManager';
 
@@ -20,7 +20,7 @@ const LS = {
 function loadLS<T>(key: string, fallback: T): T {
     try { const v = localStorage.getItem(key); return v ? JSON.parse(v) : fallback; } catch { return fallback; }
 }
-function saveLS(key: string, val: any) { localStorage.setItem(key, JSON.stringify(val)); }
+function saveLS(key: string, val: unknown) { localStorage.setItem(key, JSON.stringify(val)); }
 
 // ── Scoped CSS (same design system as IntentManager) ─────────────────
 
@@ -242,13 +242,10 @@ const DEFAULT_NOTIFS: Record<string, boolean> = {
 };
 
 function GeneralTab({ notify }: { notify: (msg: string) => void }) {
-    const [data, setData] = useState<GeneralData>(DEFAULT_GENERAL);
-    const [notifs, setNotifs] = useState<Record<string, boolean>>(DEFAULT_NOTIFS);
+    const [data, setData] = useState<GeneralData>(() => loadLS(LS.general, DEFAULT_GENERAL));
+    const [notifs, setNotifs] = useState<Record<string, boolean>>(() => loadLS(LS.notifs, DEFAULT_NOTIFS));
 
-    useEffect(() => {
-        setData(loadLS(LS.general, DEFAULT_GENERAL));
-        setNotifs(loadLS(LS.notifs, DEFAULT_NOTIFS));
-    }, []);
+    // Remove the useEffect doing setState since initialization now handles it.
 
     const saveGeneral = () => { saveLS(LS.general, data); notify('Workspace identity saved ✓'); };
     const saveLocalization = () => { saveLS(LS.general, data); notify('Localization saved ✓'); };
@@ -410,13 +407,10 @@ const LEAD_TOGGLE_ITEMS: LeadToggle[] = [
 const DEFAULT_LEAD_TOGGLES: Record<string, boolean> = { lt_email_alert: true, lt_crm_sync: true, lt_auto_assign: false, lt_dupe_detect: true };
 
 function LeadRulesTab({ notify }: { notify: (msg: string) => void }) {
-    const [scoring, setScoring] = useState<LeadScoring>(DEFAULT_LEAD_SCORING);
-    const [toggles, setToggles] = useState<Record<string, boolean>>(DEFAULT_LEAD_TOGGLES);
+    const [scoring, setScoring] = useState<LeadScoring>(() => loadLS(LS.leads, DEFAULT_LEAD_SCORING));
+    const [toggles, setToggles] = useState<Record<string, boolean>>(() => loadLS(LS.leadToggles, DEFAULT_LEAD_TOGGLES));
 
-    useEffect(() => {
-        setScoring(loadLS(LS.leads, DEFAULT_LEAD_SCORING));
-        setToggles(loadLS(LS.leadToggles, DEFAULT_LEAD_TOGGLES));
-    }, []);
+    // Initialization handled by the useState initializer.
 
     const saveScoring = () => { saveLS(LS.leads, scoring); notify('Lead scoring rules saved ✓'); };
     const saveToggles = () => { saveLS(LS.leadToggles, toggles); notify('Automation settings saved ✓'); };
@@ -513,14 +507,11 @@ const DEFAULT_SEC_TOGGLES: Record<string, boolean> = {
 interface BlockedIP { ip: string; reason: string; time: string; }
 
 function SecurityTab({ notify }: { notify: (msg: string) => void }) {
-    const [secToggles, setSecToggles] = useState<Record<string, boolean>>(DEFAULT_SEC_TOGGLES);
-    const [blocked, setBlocked] = useState<BlockedIP[]>([]);
+    const [secToggles, setSecToggles] = useState<Record<string, boolean>>(() => loadLS(LS.securityToggles, DEFAULT_SEC_TOGGLES));
+    const [blocked, setBlocked] = useState<BlockedIP[]>(() => loadLS(LS.blockedIPs, []));
     const [liveStats, setLiveStats] = useState<{ active_visitors: number; spam_visitors: number }>({ active_visitors: 0, spam_visitors: 0 });
 
     useEffect(() => {
-        setSecToggles(loadLS(LS.securityToggles, DEFAULT_SEC_TOGGLES));
-        setBlocked(loadLS(LS.blockedIPs, []));
-
         // Fetch live security stats from backend
         (async () => {
             try {

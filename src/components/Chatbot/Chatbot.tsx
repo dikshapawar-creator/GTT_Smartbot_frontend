@@ -18,7 +18,7 @@ import { WS_BASE } from '@/lib/config';
 import { wsManager } from '@/lib/wsManager';
 import api, { API_BASE } from '@/config/api';
 import axios from 'axios';
-import { formatToIST, normalizeMessages, getSyncedNow } from '@/lib/time';
+import { formatToIST, getSyncedNow } from '@/lib/time';
 
 // ── Generic Resilience Helpers ───────────────────────────────────────────
 function generateUUID() {
@@ -169,7 +169,7 @@ export default function Chatbot() {
 
             if (data.server_time_utc) {
                 const t1 = Date.now();
-                const t0 = (res as any).t0 || t1;
+                const t0 = (res as { t0?: number }).t0 || t1;
                 const serverTime = new Date(data.server_time_utc).getTime();
                 const latency = (t1 - t0) / 2;
                 setServerOffset((serverTime + latency) - t1);
@@ -316,8 +316,10 @@ export default function Chatbot() {
         const unsubscribeSync = wsManager.subscribe('sync', (syncData) => {
             if (syncData.purpose === 'chatbot') {
                 const { serverTime, t1 } = syncData;
-                setServerOffset(serverTime - t1);
-                console.log(`[ChatbotSync] Offset synchronized: ${serverTime - t1}ms`);
+                if (serverTime !== undefined && t1 !== undefined) {
+                    setServerOffset(serverTime - t1);
+                    console.log(`[ChatbotSync] Offset synchronized: ${serverTime - t1}ms`);
+                }
             }
         });
 
@@ -326,7 +328,7 @@ export default function Chatbot() {
 
             const type = data.type?.toLowerCase();
             if (type === 'typing' || data.type === 'TYPING_EVENT') {
-                setIsAgentTyping(data.is_typing);
+                setIsAgentTyping(!!data.is_typing);
                 if (agentTypingTimeoutRef.current) clearTimeout(agentTypingTimeoutRef.current);
                 if (data.is_typing) {
                     agentTypingTimeoutRef.current = setTimeout(() => setIsAgentTyping(false), 3000);
