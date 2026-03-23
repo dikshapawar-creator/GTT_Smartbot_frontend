@@ -84,39 +84,38 @@ export function UsersTable({ users, roles, isLoading, onDeactivate, onChangeRole
         });
 
     return (
-        <div className="space-y-8 px-2">
-
+        <div className="p-6">
             {/* Redesigned Metrics Grid */}
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
                 {[
                     { label: "Total Users", value: users.length, icon: Users, bg: "bg-blue-50", text: "text-blue-600" },
                     { label: "Active", value: users.filter(u => u.is_active).length, icon: CheckCheck, bg: "bg-emerald-50", text: "text-emerald-600" },
                     { label: "Inactive", value: users.filter(u => !u.is_active).length, icon: UserX, bg: "bg-rose-50", text: "text-rose-600" }
                 ].map((stat, i) => (
-                    <div key={i} className="bg-white p-5 rounded-2xl border border-slate-100 shadow-sm flex items-center justify-between transition-all hover:shadow-md">
+                    <div key={i} className="bg-white p-6 rounded-2xl border border-slate-100 shadow-sm flex items-center justify-between transition-all hover:shadow-md">
                         <div>
-                            <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">{stat.label}</p>
-                            <p className="text-2xl font-black text-slate-900 mt-0.5">{stat.value}</p>
+                            <p className="text-[11px] font-bold text-slate-400 uppercase tracking-wider">{stat.label}</p>
+                            <p className="text-2xl font-black text-slate-900 mt-1">{stat.value}</p>
                         </div>
-                        <div className={`w-10 h-10 rounded-xl ${stat.bg} flex items-center justify-center ${stat.text}`}>
-                            <stat.icon className="h-5 w-5" />
+                        <div className={`w-12 h-12 rounded-xl ${stat.bg} flex items-center justify-center ${stat.text}`}>
+                            <stat.icon className="h-6 w-6" />
                         </div>
                     </div>
                 ))}
             </div>
 
             {/* Table Core Container */}
-            <div className="bg-white rounded-[2rem] border border-slate-100 shadow-xl shadow-slate-200/40 overflow-hidden">
+            <div className="bg-white rounded-2xl border border-slate-100 shadow-sm overflow-hidden">
                 {/* Fixed Toolbar */}
-                <div className="p-6 border-b border-slate-50 flex flex-col lg:flex-row gap-6 justify-between items-center bg-white/80 backdrop-blur-sm">
+                <div className="p-6 border-b border-slate-100 flex flex-col lg:flex-row gap-6 justify-between items-center bg-white">
                     <div className="relative w-full lg:w-96 group">
                         <Search className="absolute left-4 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400 group-focus-within:text-blue-600 transition-colors" />
                         <input
                             type="text"
-                            placeholder="Find operator by email or ID..."
+                            placeholder="Find by name, email or ID…"
                             value={searchQuery}
                             onChange={(e) => setSearchQuery(e.target.value)}
-                            className="w-full h-11 pl-11 pr-5 bg-slate-50/50 border-2 border-slate-50 rounded-2xl text-sm font-medium focus:outline-none focus:bg-white focus:border-blue-500 focus:ring-4 focus:ring-blue-50/50 transition-all text-slate-900"
+                            className="w-full h-11 pl-11 pr-5 bg-slate-50 border border-slate-200 rounded-xl text-sm font-medium focus:outline-none focus:bg-white focus:border-blue-500 focus:ring-2 focus:ring-blue-100 transition-all text-slate-900"
                         />
                     </div>
                     <div className="flex items-center gap-4 w-full lg:w-auto">
@@ -124,9 +123,9 @@ export function UsersTable({ users, roles, isLoading, onDeactivate, onChangeRole
                             <select
                                 value={roleFilter}
                                 onChange={(e) => setRoleFilter(e.target.value)}
-                                className="w-full h-11 px-4 pr-10 border-2 border-slate-50 bg-slate-50/50 rounded-2xl text-xs font-bold text-slate-600 focus:border-blue-500 focus:bg-white outline-none transition-all cursor-pointer"
+                                className="w-full h-11 px-4 pr-10 border border-slate-200 bg-slate-50 rounded-xl text-sm font-medium text-slate-600 focus:border-blue-500 focus:bg-white outline-none transition-all cursor-pointer"
                             >
-                                <option value="">Global Roles</option>
+                                <option value="">All roles</option>
                                 {roles.map(r => (
                                     <option key={r.id} value={r.name} className="capitalize">{r.name.replace(/_/g, ' ')}</option>
                                 ))}
@@ -136,21 +135,21 @@ export function UsersTable({ users, roles, isLoading, onDeactivate, onChangeRole
                             <select
                                 value={statusFilter}
                                 onChange={(e) => setStatusFilter(e.target.value)}
-                                className="w-full h-11 px-4 pr-10 border-2 border-slate-50 bg-slate-50/50 rounded-2xl text-xs font-bold text-slate-600 focus:border-blue-500 focus:bg-white outline-none transition-all cursor-pointer"
+                                className="w-full h-11 px-4 pr-10 border border-slate-200 bg-slate-50 rounded-xl text-sm font-medium text-slate-600 focus:border-blue-500 focus:bg-white outline-none transition-all cursor-pointer"
                             >
-                                <option value="">Every Status</option>
-                                <option value="active">Active Online</option>
-                                <option value="inactive">Currently Offline</option>
+                                <option value="">All statuses</option>
+                                <option value="active">Active</option>
+                                <option value="inactive">Inactive</option>
                             </select>
                         </div>
                     </div>
                 </div>
 
                 {/* Table */}
-                <div className="overflow-x-auto min-h-[400px]">
+                <div className="overflow-x-auto">
                     <table className="w-full text-left border-collapse">
                         <thead>
-                            <tr className="border-b border-slate-100 text-[10px] uppercase font-black tracking-widest text-slate-400 bg-slate-50/20">
+                            <tr className="border-b border-slate-100 text-[11px] uppercase font-semibold tracking-wide text-slate-500 bg-slate-50">
                                 <th className="px-6 py-4 w-12 text-center">
                                     <input type="checkbox" checked={allSelected} onChange={toggleAll} className="rounded border-slate-300 text-blue-600 focus:ring-blue-600" />
                                 </th>
@@ -161,25 +160,25 @@ export function UsersTable({ users, roles, isLoading, onDeactivate, onChangeRole
                                 </th>
                                 <th className="px-6 py-4 cursor-pointer" onClick={() => handleSort("email")}>
                                     <div className="flex items-center">
-                                        Operator identity <SortIcon col="email" sortKey={sortKey} sortDir={sortDir} />
+                                        User <SortIcon col="email" sortKey={sortKey} sortDir={sortDir} />
                                     </div>
                                 </th>
                                 <th className="px-6 py-4 cursor-pointer" onClick={() => handleSort("role")}>
                                     <div className="flex items-center">
-                                        Access Role <SortIcon col="role" sortKey={sortKey} sortDir={sortDir} />
+                                        Role <SortIcon col="role" sortKey={sortKey} sortDir={sortDir} />
                                     </div>
                                 </th>
                                 <th className="px-6 py-4 cursor-pointer" onClick={() => handleSort("is_active")}>
                                     <div className="flex items-center">
-                                        Node Status <SortIcon col="is_active" sortKey={sortKey} sortDir={sortDir} />
+                                        Status <SortIcon col="is_active" sortKey={sortKey} sortDir={sortDir} />
                                     </div>
                                 </th>
                                 <th className="px-6 py-4 cursor-pointer" onClick={() => handleSort("created_at")}>
                                     <div className="flex items-center">
-                                        Activation <SortIcon col="created_at" sortKey={sortKey} sortDir={sortDir} />
+                                        Joined <SortIcon col="created_at" sortKey={sortKey} sortDir={sortDir} />
                                     </div>
                                 </th>
-                                <th className="px-6 py-4 font-black text-right">Settings</th>
+                                <th className="px-6 py-4 font-semibold text-right">Actions</th>
                             </tr>
                         </thead>
                         <tbody>
@@ -188,7 +187,7 @@ export function UsersTable({ users, roles, isLoading, onDeactivate, onChangeRole
                                     <td colSpan={7} className="text-center py-20">
                                         <div className="flex flex-col items-center justify-center text-slate-400 gap-3">
                                             <div className="h-8 w-8 border-4 border-slate-100 border-t-blue-600 rounded-full animate-spin" />
-                                            <p className="text-xs font-bold uppercase tracking-widest">Compiling team data...</p>
+                                            <p className="text-sm font-medium">Loading users...</p>
                                         </div>
                                     </td>
                                 </tr>
@@ -196,10 +195,10 @@ export function UsersTable({ users, roles, isLoading, onDeactivate, onChangeRole
                                 <tr>
                                     <td colSpan={7} className="text-center py-20">
                                         <div className="flex flex-col items-center justify-center text-slate-400 gap-4">
-                                            <div className="w-16 h-16 bg-slate-50 rounded-[2rem] flex items-center justify-center">
-                                                <Users className="h-8 w-8 text-slate-200" />
+                                            <div className="w-16 h-16 bg-slate-50 rounded-2xl flex items-center justify-center">
+                                                <Users className="h-8 w-8 text-slate-300" />
                                             </div>
-                                            <p className="text-sm font-bold text-slate-500">No operators found matching criteria.</p>
+                                            <p className="text-sm font-medium text-slate-500">No users found matching criteria.</p>
                                         </div>
                                     </td>
                                 </tr>
@@ -207,7 +206,7 @@ export function UsersTable({ users, roles, isLoading, onDeactivate, onChangeRole
                                 paginated.map((user) => {
                                     const roleName = getRoleName(user);
                                     return (
-                                        <tr key={user.id} className="border-b border-slate-50 hover:bg-slate-50/40 transition-colors group">
+                                        <tr key={user.id} className="border-b border-slate-50 hover:bg-slate-50 transition-colors group">
                                             <td className="px-6 py-4 text-center">
                                                 <input
                                                     type="checkbox"
@@ -217,61 +216,61 @@ export function UsersTable({ users, roles, isLoading, onDeactivate, onChangeRole
                                                 />
                                             </td>
                                             <td className="px-6 py-4 text-center">
-                                                <span className="text-[11px] font-black text-slate-400 bg-slate-100 px-2 py-1 rounded-lg">#{user.id}</span>
+                                                <span className="text-[11px] font-semibold text-slate-500 bg-slate-100 px-2 py-1 rounded-lg">#{user.id}</span>
                                             </td>
                                             <td className="px-6 py-4">
                                                 <div className="flex items-center gap-4">
-                                                    <div className={`h-10 w-10 rounded-2xl ${avatarBg(user.email)} flex items-center justify-center text-white text-xs font-black shadow-lg shadow-white/20 ring-4 ring-white`}>
+                                                    <div className={`h-10 w-10 rounded-xl ${avatarBg(user.email)} flex items-center justify-center text-white text-sm font-semibold shadow-sm`}>
                                                         {getInitials(user.email)}
                                                     </div>
                                                     <div>
-                                                        <p className="text-sm font-black text-slate-900">{user.email}</p>
-                                                        <p className="text-[10px] font-bold text-slate-400 uppercase tracking-tighter">Verified Node</p>
+                                                        <p className="text-sm font-semibold text-slate-900">{user.email}</p>
+                                                        <p className="text-[11px] font-medium text-slate-500">#{user.id} · verified</p>
                                                     </div>
                                                 </div>
                                             </td>
                                             <td className="px-6 py-4">
-                                                <span className={`inline-flex px-3 py-1 rounded-xl text-[10px] font-black uppercase tracking-widest ${ROLE_BADGE[roleName] || ROLE_BADGE.employee}`}>
+                                                <span className={`inline-flex px-3 py-1 rounded-lg text-[11px] font-medium ${ROLE_BADGE[roleName] || ROLE_BADGE.employee}`}>
                                                     {roleName.replace(/_/g, ' ')}
                                                 </span>
                                             </td>
                                             <td className="px-6 py-4">
                                                 <div className="flex items-center gap-2">
-                                                    <div className={`h-2 w-2 rounded-full ${user.is_active ? 'bg-emerald-500 shadow-[0_0_8px_rgba(16,185,129,0.4)]' : 'bg-slate-300'}`} />
-                                                    <span className={`text-[10px] font-black uppercase tracking-widest ${user.is_active ? 'text-emerald-600' : 'text-slate-400'}`}>
-                                                        {user.is_active ? "Online" : "Terminated"}
+                                                    <div className={`h-2 w-2 rounded-full ${user.is_active ? 'bg-emerald-500' : 'bg-slate-300'}`} />
+                                                    <span className={`text-[11px] font-medium ${user.is_active ? 'text-emerald-600' : 'text-slate-500'}`}>
+                                                        {user.is_active ? "Active" : "Inactive"}
                                                     </span>
                                                 </div>
                                             </td>
-                                            <td className="px-6 py-4 text-[11px] font-bold text-slate-500">
+                                            <td className="px-6 py-4 text-sm font-medium text-slate-600">
                                                 {formatDate(user.created_at)}
                                             </td>
                                             <td className="px-6 py-4 text-right">
                                                 <div className="relative inline-block text-left">
                                                     <button
                                                         onClick={() => setOpenMenuId(openMenuId === user.id ? null : user.id)}
-                                                        className="w-10 h-10 rounded-xl hover:bg-slate-100 text-slate-400 hover:text-slate-900 transition-all flex items-center justify-center border border-transparent hover:border-slate-200 shadow-sm hover:shadow-md"
+                                                        className="w-8 h-8 rounded-lg hover:bg-slate-100 text-slate-400 hover:text-slate-600 transition-all flex items-center justify-center"
                                                     >
-                                                        <MoreVertical className="h-5 w-5" />
+                                                        <MoreVertical className="h-4 w-4" />
                                                     </button>
                                                     {openMenuId === user.id && (
-                                                        <div className="absolute right-0 top-12 w-48 bg-white rounded-2xl shadow-2xl border border-slate-100 py-2 z-50 ring-1 ring-slate-900/5 origin-top-right">
+                                                        <div className="absolute right-0 top-10 w-48 bg-white rounded-xl shadow-lg border border-slate-100 py-2 z-50 origin-top-right">
                                                             <button
-                                                                className="w-full text-left px-5 py-2.5 text-xs font-black text-slate-600 hover:bg-slate-50 hover:text-blue-600 flex items-center gap-3 transition-colors"
+                                                                className="w-full text-left px-4 py-2 text-sm font-medium text-slate-600 hover:bg-slate-50 hover:text-blue-600 flex items-center gap-3 transition-colors"
                                                                 onClick={() => { setOpenMenuId(null); onChangeRole(); }}
                                                             >
-                                                                <Pencil className="h-4 w-4" /> REASSIGN ROLE
+                                                                <Pencil className="h-4 w-4" /> Edit
                                                             </button>
-                                                            <button className="w-full text-left px-5 py-2.5 text-xs font-black text-slate-600 hover:bg-slate-50 hover:text-blue-600 flex items-center gap-3 transition-colors">
-                                                                <KeyRound className="h-4 w-4" /> RESET ACCESS
+                                                            <button className="w-full text-left px-4 py-2 text-sm font-medium text-slate-600 hover:bg-slate-50 hover:text-blue-600 flex items-center gap-3 transition-colors">
+                                                                <KeyRound className="h-4 w-4" /> Reset Password
                                                             </button>
-                                                            <div className="h-px bg-slate-50 my-2" />
+                                                            <div className="h-px bg-slate-100 my-2" />
                                                             <button
-                                                                className="w-full text-left px-5 py-2.5 text-xs font-black text-rose-600 hover:bg-rose-50 flex items-center gap-3 transition-colors"
+                                                                className="w-full text-left px-4 py-2 text-sm font-medium text-rose-600 hover:bg-rose-50 flex items-center gap-3 transition-colors"
                                                                 onClick={() => { setOpenMenuId(null); onDeactivate(user); }}
                                                             >
                                                                 {user.is_active ? <Power className="h-4 w-4" /> : <UserX className="h-4 w-4" />}
-                                                                {user.is_active ? "DEACTIVATE NODE" : "PURGE RECORDS"}
+                                                                {user.is_active ? "Suspend" : "Delete"}
                                                             </button>
                                                         </div>
                                                     )}
@@ -287,22 +286,22 @@ export function UsersTable({ users, roles, isLoading, onDeactivate, onChangeRole
 
                 {/* Pagination */}
                 {!isLoading && filtered.length > 0 && (
-                    <div className="px-6 py-4 border-t border-slate-50 bg-slate-50/30 flex items-center justify-between">
-                        <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">
+                    <div className="px-6 py-4 border-t border-slate-100 bg-slate-50 flex items-center justify-between">
+                        <p className="text-sm font-medium text-slate-500">
                             Page {page} of {totalPages}
                         </p>
                         <div className="flex items-center gap-2">
                             <button
                                 disabled={page === 1}
                                 onClick={() => setPage(page - 1)}
-                                className="w-8 h-8 rounded-lg flex items-center justify-center bg-white border border-slate-200 text-slate-500 hover:text-blue-600 hover:border-blue-200 disabled:opacity-30 disabled:grayscale transition-all"
+                                className="w-8 h-8 rounded-lg flex items-center justify-center bg-white border border-slate-200 text-slate-500 hover:text-blue-600 hover:border-blue-200 disabled:opacity-50 disabled:cursor-not-allowed transition-all"
                             >
                                 <ChevronUp className="h-4 w-4 -rotate-90" />
                             </button>
                             <button
                                 disabled={page === totalPages}
                                 onClick={() => setPage(page + 1)}
-                                className="w-8 h-8 rounded-lg flex items-center justify-center bg-white border border-slate-200 text-slate-500 hover:text-blue-600 hover:border-blue-200 disabled:opacity-30 disabled:grayscale transition-all"
+                                className="w-8 h-8 rounded-lg flex items-center justify-center bg-white border border-slate-200 text-slate-500 hover:text-blue-600 hover:border-blue-200 disabled:opacity-50 disabled:cursor-not-allowed transition-all"
                             >
                                 <ChevronDown className="h-4 w-4 -rotate-90" />
                             </button>

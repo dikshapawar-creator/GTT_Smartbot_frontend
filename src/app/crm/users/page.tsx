@@ -82,93 +82,100 @@ export default function UserManagementPage() {
     return (
         <Dashboard>
             <div className="min-h-screen bg-[#F8FAFC]">
-                <div className="max-w-[1400px] mx-auto px-6 lg:px-10 py-10">
+                <div className="max-w-[1400px] mx-auto px-6 lg:px-10 py-6">
 
-                    {/* Header Section */}
-                    <div className="flex flex-col md:flex-row md:items-start justify-between gap-8 mb-12">
-                        <div className="space-y-2">
-                            <div
-                                className="flex items-center gap-2 mb-1"
-                            >
-                                <div className="h-1.5 w-6 bg-blue-600 rounded-full" />
-                                <span className="text-[10px] font-black text-blue-600 uppercase tracking-widest">Admin Control</span>
+                    {/* Enhanced Hero Section */}
+                    <div className="flex items-center justify-between p-6 mb-6 bg-gradient-to-r from-slate-900 via-slate-800 to-slate-900 rounded-2xl border border-indigo-500/30 shadow-2xl shadow-indigo-500/10">
+                        <div className="flex flex-col gap-1">
+                            <div className="flex items-center gap-2 mb-1">
+                                <Shield className="h-3 w-3 text-indigo-400" />
+                                <span className="text-[10px] font-medium text-indigo-400 lowercase tracking-wide">Admin control</span>
                             </div>
-                            <div>
-                                <h1 className="text-3xl font-black text-slate-900 tracking-tight">User Management</h1>
-                                <p className="text-sm font-medium text-slate-500 mt-1">Manage team members and roles here.</p>
-                            </div>
+                            <h1 className="text-xl font-semibold text-slate-100 tracking-tight">User Management</h1>
+                            <p className="text-[11px] text-slate-400">Manage team members, roles and access permissions</p>
                         </div>
-
-                        {/* High-Contrast Actions */}
                         <div className="flex items-center gap-3">
-                            <button className="flex items-center gap-2 px-4 py-2.5 rounded-xl border-2 border-slate-200 text-sm font-bold text-slate-600 hover:bg-slate-50 hover:border-slate-300 transition-all active:scale-95">
-                                <Download className="h-4 w-4" />
-                                <span>Export</span>
+                            <button className="flex items-center gap-2 px-4 py-2 rounded-lg border border-slate-600 text-sm font-medium text-slate-300 hover:bg-slate-800 hover:border-slate-500 transition-all">
+                                <Download className="h-3 w-3" />
+                                Export
                             </button>
                             <button
                                 onClick={() => setShowCreateUser(true)}
-                                className="flex items-center gap-2 px-5 py-2.5 rounded-xl bg-white border-2 border-slate-900 text-slate-900 text-sm font-black shadow-[4px_4px_0px_0px_rgba(15,23,42,1)] hover:translate-x-[2px] hover:translate-y-[2px] hover:shadow-none transition-all active:scale-95"
+                                className="flex items-center gap-2 px-4 py-2 rounded-lg bg-indigo-600 text-white text-sm font-medium hover:bg-indigo-700 transition-all"
                             >
-                                <Plus className="h-4 w-4" />
-                                <span>Create User</span>
+                                <Plus className="h-3 w-3" />
+                                Invite User
                             </button>
                         </div>
                     </div>
 
-                    {/* Navigation Tabs - Modern Segmented Control */}
-                    <div className="inline-flex p-1 bg-slate-200/60 rounded-xl mb-10 border border-slate-200 shadow-sm">
-                        <button
-                            onClick={() => setActiveTab("users")}
-                            className={`flex items-center gap-2.5 px-6 py-2 rounded-lg text-sm font-bold transition-all duration-200
-                                ${activeTab === "users"
-                                    ? "bg-white text-blue-600 shadow-md translate-y-0"
-                                    : "text-slate-500 hover:text-slate-800"}`}
-                        >
-                            <Users className="h-4 w-4" />
-                            Users List
-                            {users.length > 0 && (
-                                <span className={`px-2 py-0.5 rounded-md text-[10px] font-black ${activeTab === "users" ? "bg-blue-50 text-blue-600" : "bg-slate-300/50 text-slate-600"}`}>
-                                    {users.length}
-                                </span>
-                            )}
-                        </button>
-                        <button
-                            onClick={() => setActiveTab("roles")}
-                            className={`flex items-center gap-2.5 px-6 py-2 rounded-lg text-sm font-bold transition-all duration-200
-                                ${activeTab === "roles"
-                                    ? "bg-white text-blue-600 shadow-md translate-y-0"
-                                    : "text-slate-500 hover:text-slate-800"}`}
-                        >
-                            <Shield className="h-4 w-4" />
-                            Security Roles
-                            {roles.length > 0 && (
-                                <span className={`px-2 py-0.5 rounded-md text-[10px] font-black ${activeTab === "roles" ? "bg-blue-50 text-blue-600" : "bg-slate-300/50 text-slate-600"}`}>
-                                    {roles.length}
-                                </span>
-                            )}
-                        </button>
-                    </div>
+                    {/* Container with tabs and content */}
+                    <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
+                        {/* Tabs */}
+                        <div className="flex border-b border-slate-200 bg-white px-6">
+                            <button
+                                onClick={() => setActiveTab("users")}
+                                className={`flex items-center gap-2 px-4 py-3 text-sm font-medium border-b-2 transition-all ${
+                                    activeTab === "users"
+                                        ? "border-indigo-600 text-indigo-600 bg-white"
+                                        : "border-transparent text-slate-500 hover:bg-slate-50"
+                                }`}
+                            >
+                                <Users className="h-3 w-3" />
+                                Users list
+                                {users.length > 0 && (
+                                    <span className={`px-2 py-0.5 rounded-full text-[10px] font-medium ${
+                                        activeTab === "users" 
+                                            ? "bg-indigo-100 text-indigo-600" 
+                                            : "bg-slate-100 text-slate-600"
+                                    }`}>
+                                        {users.length}
+                                    </span>
+                                )}
+                            </button>
+                            <button
+                                onClick={() => setActiveTab("roles")}
+                                className={`flex items-center gap-2 px-4 py-3 text-sm font-medium border-b-2 transition-all ${
+                                    activeTab === "roles"
+                                        ? "border-indigo-600 text-indigo-600 bg-white"
+                                        : "border-transparent text-slate-500 hover:bg-slate-50"
+                                }`}
+                            >
+                                <Shield className="h-3 w-3" />
+                                Security roles
+                                {roles.length > 0 && (
+                                    <span className={`px-2 py-0.5 rounded-full text-[10px] font-medium ${
+                                        activeTab === "roles" 
+                                            ? "bg-indigo-100 text-indigo-600" 
+                                            : "bg-slate-100 text-slate-600"
+                                    }`}>
+                                        {roles.length}
+                                    </span>
+                                )}
+                            </button>
+                        </div>
 
-                    {/* Content Section */}
-                    <div>
-                        {activeTab === "users" ? (
-                            <UsersTable
-                                users={users}
-                                roles={roles}
-                                isLoading={loading}
-                                onDeactivate={(u) => setDeactivatingUser(u)}
-                                onChangeRole={() => fetchData()}
-                            />
-                        ) : (
-                            <div className="bg-white rounded-3xl shadow-xl shadow-slate-200/50 border border-slate-100 overflow-hidden">
-                                <RolesTable
+                        {/* Content Section */}
+                        <div>
+                            {activeTab === "users" ? (
+                                <UsersTable
+                                    users={users}
                                     roles={roles}
                                     isLoading={loading}
-                                    onDelete={(id) => setConfirmDeleteRole(id)}
-                                    onEdit={(role) => console.log("Edit role", role)}
+                                    onDeactivate={(u) => setDeactivatingUser(u)}
+                                    onChangeRole={() => fetchData()}
                                 />
-                            </div>
-                        )}
+                            ) : (
+                                <div className="bg-white overflow-hidden">
+                                    <RolesTable
+                                        roles={roles}
+                                        isLoading={loading}
+                                        onDelete={(id) => setConfirmDeleteRole(id)}
+                                        onEdit={(role) => console.log("Edit role", role)}
+                                    />
+                                </div>
+                            )}
+                        </div>
                     </div>
                 </div>
 

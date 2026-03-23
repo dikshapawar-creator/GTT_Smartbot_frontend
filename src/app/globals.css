@@ -321,3 +321,75 @@ ol {
 .animate-dropdown {
   animation: dropdownFade 0.15s ease both;
 }
+/* ============================================
+   LIVE CHAT DESIGN TOKENS
+   ============================================ */
+:root {
+  /* Live Chat Colors - Light Mode */
+  --live-bg: #f0efe9;
+  --live-bg-card: #ffffff;
+  --live-bg-panel: #ffffff;
+  --live-bg-input: #f5f4f0;
+  
+  --live-sidebar-bg: #0f1117;
+  --live-sidebar-text: #e2e4ea;
+  --live-sidebar-muted: #555870;
+  --live-sidebar-active-bg: rgba(255,255,255,0.08);
+  
+  --live-text-primary: #18181b;
+  --live-text-secondary: #6b7280;
+  --live-text-muted: #9ca3af;
+  
+  --live-border: rgba(0,0,0,0.08);
+  --live-border-strong: rgba(0,0,0,0.14);
+  
+  --live-accent: #2B2A9B;
+  --live-accent-hover: #1e1d7a;
+  --live-accent-light: #ede9fe;
+  --live-accent-mid: #c4b5fd;
+  
+  --live-green: #16a34a;
+  --live-green-bg: #dcfce7;
+  --live-green-border: rgba(22,163,74,0.25);
+  
+  --live-red: #dc2626;
+  --live-red-bg: #fee2e2;
+  --live-red-border: rgba(220,38,38,0.25);
+  
+  --live-amber: #d97706;
+  --live-amber-bg: #fef3c7;
+  --live-amber-border: rgba(217,119,6,0.25);
+  
+  --live-blue: #1d4ed8;
+  --live-blue-bg: #dbeafe;
+  
+  --live-radius: 10px;
+  --live-radius-sm: 7px;
+  --live-radius-xs: 5px;
+}
+
+[data-theme="dark"] {
+  /* Live Chat Colors - Dark Mode */
+  --live-bg: #0d0e12;
+  --live-bg-card: #16181f;
+  --live-bg-panel: #1a1c24;
+  --live-bg-input: #12141a;
+  
+  --live-text-primary: #e8eaf2;
+  --live-text-secondary: #8b8fa8;
+  --live-text-muted: #555870;
+  
+  --live-border: rgba(255,255,255,0.06);
+  --live-border-strong: rgba(255,255,255,0.11);
+  
+  --live-accent-light: rgba(91,33,182,0.18);
+  --live-accent-mid: rgba(196,181,253,0.25);
+  
+  --live-green-bg: rgba(22,163,74,0.12);
+  --live-green-border: rgba(22,163,74,0.2);
+  --live-red-bg: rgba(220,38,38,0.12);
+  --live-red-border: rgba(220,38,38,0.2);
+  --live-amber-bg: rgba(217,119,6,0.12);
+  --live-amber-border: rgba(217,119,6,0.2);
+  --live-blue-bg: rgba(29,78,216,0.15);
+}

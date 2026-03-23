@@ -37,7 +37,7 @@ class WSManager {
     private isConnecting: Map<string, boolean> = new Map();
 
     private constructor() {
-        console.log('[WSManager] Initialized Singleton');
+        // Essential initialization log removed for cleaner production console
     }
 
     public static getInstance(): WSManager {
@@ -49,7 +49,8 @@ class WSManager {
 
     private setState(purpose: string, newState: WSState) {
         if (this.states.get(purpose) !== newState) {
-            console.log(`[WSManager][${purpose}] STATE: ${this.states.get(purpose) || 'IDLE'} -> ${newState}`);
+            // Log state transitions clearly without clutter
+            console.log(`[WSManager][${purpose}] ${this.states.get(purpose) || 'IDLE'} -> ${newState}`);
             this.states.set(purpose, newState);
             this.emit('statusChange', { purpose, state: newState });
         }
@@ -64,11 +65,7 @@ class WSManager {
             return;
         }
 
-        console.log(`[WSManager][${purpose}] CONNECT CALLED: ${url}`);
-        console.trace(`[WSManager][${purpose}] CONNECT STACK TRACE:`);
-
         if (existingUrl !== url && this.sockets.has(purpose)) {
-            console.log(`[WSManager][${purpose}] Switching context: ${existingUrl} -> ${url}`);
             this.disconnect(purpose, false);
         }
 
@@ -159,9 +156,6 @@ class WSManager {
     }
 
     public disconnect(purpose = 'default', intentional = true) {
-        console.log(`[WSManager][${purpose}] DISCONNECT CALLED (intentional: ${intentional})`);
-        console.trace(`[WSManager][${purpose}] DISCONNECT STACK TRACE:`);
-
         this.isConnecting.set(purpose, false);
         this._stopHeartbeat(purpose);
         const socket = this.sockets.get(purpose);

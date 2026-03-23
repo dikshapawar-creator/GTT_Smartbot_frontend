@@ -504,36 +504,76 @@ const DEFAULT_SEC_TOGGLES: Record<string, boolean> = {
     sec_fingerprint: false, sec_geo_restrict: false, sec_2fa: true,
 };
 
-interface BlockedIP { ip: string; reason: string; time: string; }
+interface BlockedIP { id?: number; ip: string; reason: string; time: string; }
 
 function SecurityTab({ notify }: { notify: (msg: string) => void }) {
     const [secToggles, setSecToggles] = useState<Record<string, boolean>>(() => loadLS(LS.securityToggles, DEFAULT_SEC_TOGGLES));
-    const [blocked, setBlocked] = useState<BlockedIP[]>(() => loadLS(LS.blockedIPs, []));
+    const [blocked, setBlocked] = useState<BlockedIP[]>([]);
+    const [ipInput, setIpInput] = useState('');
+    const [editId, setEditId] = useState<number | null>(null);
+    const [editReason, setEditReason] = useState('');
     const [liveStats, setLiveStats] = useState<{ active_visitors: number; spam_visitors: number }>({ active_visitors: 0, spam_visitors: 0 });
 
     useEffect(() => {
-        // Fetch live security stats from backend
-        (async () => {
+        const init = async () => {
             try {
-                const res = await api.get('/live-chat/analytics');
-                if (res.data) setLiveStats(res.data);
+                // Fetch stats
+                const sRes = await api.get('/live-chat/analytics');
+                if (sRes.data) setLiveStats(sRes.data);
+
+                // Fetch blocked
+                const bRes = await api.get('/admin/security/blocked-ips');
+                if (bRes.data) setBlocked(bRes.data);
             } catch { /* fail silently */ }
-        })();
+        };
+        init();
     }, []);
 
     const saveToggles = () => { saveLS(LS.securityToggles, secToggles); notify('Security settings saved ✓'); };
     const toggleItem = (key: string) => setSecToggles(prev => ({ ...prev, [key]: !prev[key] }));
-    const addIP = (ip: string) => {
-        const updated = [{ ip, reason: 'Manual block', time: new Date().toLocaleString() }, ...blocked];
-        setBlocked(updated);
-        saveLS(LS.blockedIPs, updated);
-        notify('IP blocked ✓');
+
+    const addIP = async () => {
+        if (!ipInput.trim()) return;
+        try {
+            await api.post('/admin/security/block-ip', { ip: ipInput.trim(), reason: 'Manual block' });
+            setIpInput('');
+            const res = await api.get('/admin/security/blocked-ips');
+            if (res.data) setBlocked(res.data);
+            notify('IP blocked ✓');
+        } catch {
+            notify('Failed to block IP');
+        }
     };
-    const removeIP = (idx: number) => {
-        const updated = blocked.filter((_, i) => i !== idx);
-        setBlocked(updated);
-        saveLS(LS.blockedIPs, updated);
-        notify('IP unblocked ✓');
+
+    const removeIP = async (id?: number) => {
+        if (!id) return;
+        if (!confirm('Unblock this IP?')) return;
+        try {
+            await api.delete(`/admin/security/unblock-ip/${id}`);
+            const res = await api.get('/admin/security/blocked-ips');
+            if (res.data) setBlocked(res.data);
+            notify('IP unblocked ✓');
+        } catch {
+            notify('Failed to unblock IP');
+        }
+    };
+
+    const startEdit = (b: BlockedIP) => {
+        setEditId(b.id ?? null);
+        setEditReason(b.reason);
+    };
+
+    const saveEdit = async () => {
+        if (editId === null) return;
+        try {
+            await api.patch(`/admin/security/block-ip/${editId}`, { reason: editReason });
+            setEditId(null);
+            const res = await api.get('/admin/security/blocked-ips');
+            if (res.data) setBlocked(res.data);
+            notify('Reason updated ✓');
+        } catch {
+            notify('Update failed');
+        }
     };
 
     return (
@@ -599,32 +639,80 @@ function SecurityTab({ notify }: { notify: (msg: string) => void }) {
                 </div>
                 <div className="section-body">
                     <div style={{ display: 'flex', gap: 8, marginBottom: 16 }}>
-                        <input className="form-input" placeholder="Enter IP address to block, e.g. 192.168.1.1" style={{ flex: 1 }} id="ip-block-input" />
-                        <button className="btn-danger" onClick={() => {
-                            const input = document.getElementById('ip-block-input') as HTMLInputElement;
-                            if (input?.value.trim()) {
-                                addIP(input.value.trim());
-                                input.value = '';
-                            }
-                        }}>Block</button>
+                        <input
+                            className="form-input"
+                            placeholder="Enter IP address to block, e.g. 192.168.1.1"
+                            style={{ flex: 1 }}
+                            value={ipInput}
+                            onChange={e => setIpInput(e.target.value)}
+                            onKeyDown={e => e.key === 'Enter' && addIP()}
+                        />
+                        <button className="btn-danger" onClick={addIP}>Block IP</button>
                     </div>
                     <div className="blocked-list">
-                        {blocked.map((b, idx) => (
-                            <div key={idx} className="blocked-item">
-                                <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-                                    <code style={{ fontSize: 12, fontFamily: 'monospace', color: 'var(--ct)' }}>{b.ip}</code>
-                                    <span className="tag">{b.reason}</span>
-                                </div>
-                                <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-                                    <span style={{ fontSize: 11, color: 'var(--ctm)' }}>{b.time}</span>
-                                    <button className="btn-secondary" style={{ height: 28, padding: '0 10px', fontSize: 11 }} onClick={() => removeIP(idx)}>
-                                        Unblock
-                                    </button>
-                                </div>
-                            </div>
-                        ))}
+                        {blocked.length > 0 && (
+                            <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '13px' }}>
+                                <thead>
+                                    <tr style={{ borderBottom: '1px solid var(--cb)', textAlign: 'left', color: 'var(--ctm)' }}>
+                                        <th style={{ padding: '8px 4px', fontWeight: 500 }}>IP Address</th>
+                                        <th style={{ padding: '8px 4px', fontWeight: 500 }}>Reason</th>
+                                        <th style={{ padding: '8px 4px', fontWeight: 500 }}>Blocked At</th>
+                                        <th style={{ padding: '8px 4px', textAlign: 'right' }}>Actions</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    {blocked.map((b) => (
+                                        <tr key={b.id} style={{ borderBottom: '.5px solid var(--cb)' }}>
+                                            <td style={{ padding: '12px 4px' }}>
+                                                <code style={{ background: '#f3f4f6', padding: '2px 4px', borderRadius: 4 }}>{b.ip}</code>
+                                            </td>
+                                            <td style={{ padding: '12px 4px' }}>
+                                                {editId === b.id ? (
+                                                    <input
+                                                        className="form-input"
+                                                        style={{ height: 28, padding: '2px 8px' }}
+                                                        value={editReason}
+                                                        onChange={e => setEditReason(e.target.value)}
+                                                        onBlur={saveEdit}
+                                                        onKeyDown={e => e.key === 'Enter' && saveEdit()}
+                                                        autoFocus
+                                                    />
+                                                ) : (
+                                                    <span style={{ color: 'var(--cts)' }}>{b.reason}</span>
+                                                )}
+                                            </td>
+                                            <td style={{ padding: '12px 4px', color: 'var(--ctm)', fontSize: '11px' }}>
+                                                {new Date(b.time).toLocaleString()}
+                                            </td>
+                                            <td style={{ padding: '12px 4px', textAlign: 'right' }}>
+                                                <div style={{ display: 'flex', gap: 6, justifyContent: 'flex-end' }}>
+                                                    <button
+                                                        className="btn-secondary"
+                                                        style={{ width: 32, height: 32, padding: 0, justifyContent: 'center' }}
+                                                        onClick={() => startEdit(b)}
+                                                        title="Edit Reason"
+                                                    >
+                                                        ✏️
+                                                    </button>
+                                                    <button
+                                                        className="btn-danger"
+                                                        style={{ width: 32, height: 32, padding: 0, justifyContent: 'center', background: '#fee2e2' }}
+                                                        onClick={() => removeIP(b.id)}
+                                                        title="Unblock IP"
+                                                    >
+                                                        ❌
+                                                    </button>
+                                                </div>
+                                            </td>
+                                        </tr>
+                                    ))}
+                                </tbody>
+                            </table>
+                        )}
                         {blocked.length === 0 && (
-                            <div style={{ textAlign: 'center', padding: '24px', fontSize: 13, color: 'var(--ctm)' }}>No blocked IPs — your chatbot is accessible from all addresses.</div>
+                            <div style={{ textAlign: 'center', padding: '32px', fontSize: '13px', color: 'var(--ctm)', background: 'var(--cbgs)', borderRadius: 12 }}>
+                                No blocked IPs — your chatbot is accessible to everyone.
+                            </div>
                         )}
                     </div>
                 </div>

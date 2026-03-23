@@ -5,12 +5,13 @@ import { Modal } from '@/components/ui/Modal';
 import {
     RefreshCw, History, Trash2, CheckCircle2, Clock, MapPin,
     Package, Building2, Search, ChevronLeft, ChevronRight,
-    ArrowUpDown, ArrowUp, ArrowDown, Phone, Mail
+    ArrowUpDown, ArrowUp, ArrowDown, Phone, Mail, Monitor
 } from 'lucide-react';
 import styles from './Dashboard.module.css';
 
 import api from '@/config/api';
 import { formatToIST } from '@/lib/time';
+import { auth } from '@/lib/auth';
 
 // ── Types ────────────────────────────────────────────────────────────────
 
@@ -29,6 +30,14 @@ interface Lead {
     requirement_type?: string;
     source: string;
     version: number;
+    // Visitor Metadata
+    ip_address?: string;
+    country?: string;
+    city?: string;
+    browser?: string;
+    os?: string;
+    device_type?: string;
+    visitor_uuid?: string;
 }
 
 interface PaginatedResponse {
@@ -133,8 +142,21 @@ export default function LeadsList() {
         }
     };
 
-    const handleDelete = (id: string) => {
-        setLeads(prev => prev.filter(l => l.id !== id));
+    const handleDelete = async (id: string) => {
+        if (!window.confirm('Are you sure you want to delete this lead? This action is permanent in the CRM.')) return;
+
+        try {
+            await api.delete(`/leads/${id}`);
+            // Optimistic update
+            setLeads(prev => prev.filter(l => l.id !== id));
+            setTotalLeads(prev => prev - 1);
+        } catch (error) {
+            console.error('Delete Failed:', error);
+            // @ts-expect-error: Axios error type is not explicitly imported or available
+            const msg = error?.response?.data?.detail || 'Failed to delete lead. You may not have permission.';
+            alert(msg);
+            fetchLeads(); // Sync back
+        }
     };
 
     const fetchHistory = async (lead: Lead) => {
@@ -247,6 +269,7 @@ export default function LeadsList() {
                                 </th>
                                 <th>Contact Details</th>
                                 <th>Trade Info</th>
+                                <th>Location / Tech</th>
                                 <th>Source</th>
                                 <th>Status</th>
                                 <th onClick={() => toggleSort('created_at')} className={styles.sortableHeader}>
@@ -282,6 +305,15 @@ export default function LeadsList() {
                                         </div>
                                     </td>
                                     <td>
+                                        <div className="flex flex-col gap-1">
+                                            <div className={styles.tdSmall}><MapPin size={10} className="inline mr-1" /> {lead.country || 'Unknown'}, {lead.city || ''}</div>
+                                            <div className={styles.tdSmall} style={{ fontSize: '10px', color: '#64748b' }}>
+                                                <Monitor size={10} className="inline mr-1" /> {lead.browser || 'Unknown'} / {lead.os || 'Unknown'}
+                                            </div>
+                                            <div className={styles.tdSmall} style={{ fontSize: '9px', opacity: 0.6 }}>{lead.ip_address}</div>
+                                        </div>
+                                    </td>
+                                    <td>
                                         <span className="text-[10px] uppercase font-bold text-slate-400 px-2 py-1 bg-slate-100 rounded-md">
                                             {lead.source}
                                         </span>
@@ -306,9 +338,11 @@ export default function LeadsList() {
                                             <Button variant="ghost" size="sm" onClick={() => fetchHistory(lead)} title="View Audit Trail">
                                                 <History size={15} />
                                             </Button>
-                                            <Button variant="ghost" size="sm" onClick={() => handleDelete(lead.id)} className="text-red-500 hover:bg-red-50" title="Delete">
-                                                <Trash2 size={15} />
-                                            </Button>
+                                            {(auth.getUser()?.role_level ?? 0) >= 2 && (
+                                                <Button variant="ghost" size="sm" onClick={() => handleDelete(lead.id)} className="text-red-500 hover:bg-red-50" title="Delete">
+                                                    <Trash2 size={15} />
+                                                </Button>
+                                            )}
                                         </div>
                                     </td>
                                 </tr>

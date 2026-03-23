@@ -23,17 +23,26 @@ const isPersonalEmail = (email: string) => {
 interface LeadFormProps {
     onClose: () => void;
     onSubmitSuccess: (message: string) => void;
+    visitor_uuid?: string | null;
+    initialData?: {
+        full_name?: string;
+        company_name?: string;
+        business_email?: string;
+        contact_number?: string;
+        website?: string;
+        status?: string;
+    };
 }
 
 type FieldName = 'full_name' | 'company_name' | 'website' | 'business_email' | 'contact_number';
 
-export default function LeadForm({ onClose, onSubmitSuccess }: LeadFormProps) {
+export default function LeadForm({ onSubmitSuccess, visitor_uuid, initialData }: LeadFormProps) {
     const [formData, setFormData] = useState({
-        full_name: '',
-        company_name: '',
-        website: '',
-        business_email: '',
-        contact_number: '',
+        full_name: initialData?.full_name || '',
+        company_name: initialData?.company_name || '',
+        website: initialData?.website || '',
+        business_email: initialData?.business_email || '',
+        contact_number: initialData?.contact_number || '',
     });
     // const dialCode = '+91'; // Hardcoded for now, or you can use useState if you plan to update it later.
     const [errors, setErrors] = useState<Record<string, string>>({});
@@ -193,6 +202,7 @@ export default function LeadForm({ onClose, onSubmitSuccess }: LeadFormProps) {
             website: formData.website.trim() || null,
             business_email: formData.business_email.trim().toLowerCase(),
             contact_number: e164Phone.trim(),
+            visitor_uuid: visitor_uuid,
             hp_field: ((e.target as HTMLFormElement).elements.namedItem('hp_field') as HTMLInputElement)?.value || '',
         };
 
@@ -211,10 +221,8 @@ export default function LeadForm({ onClose, onSubmitSuccess }: LeadFormProps) {
 
                 setSuccess(true);
                 setServerError('');
-                setTimeout(() => {
-                    onSubmitSuccess(data.message);
-                    onClose();
-                }, 2000);
+                onSubmitSuccess(data.message);
+                // We no longer call onClose() here because we want the form to stay in history
             }
         } catch (err: unknown) {
             const axiosErr = err as { response?: { status?: number; data?: { detail?: { message?: string } | Array<{ loc?: string[]; msg?: string }> } } };
@@ -255,14 +263,17 @@ export default function LeadForm({ onClose, onSubmitSuccess }: LeadFormProps) {
     };
 
     // ── Success state ───────────────────────────────────────────────────
-    if (success) {
+    if (success || initialData?.status === 'submitted') {
         return (
             <div className={styles.systemMessage}>
                 <div className={styles.successIcon}>✓</div>
-                <h3 className={styles.successTitle}>Demo Request Submitted</h3>
-                <p className={styles.successMsg}>
-                    Thank you. Our team will contact you soon.
-                </p>
+                <h3 className={styles.successTitle}>Lead Form Submitted</h3>
+                <div className={styles.formSummaryDetails}>
+                    <p><strong>Name:</strong> {formData.full_name}</p>
+                    <p><strong>Email:</strong> {formData.business_email}</p>
+                    <p><strong>Phone:</strong> {formData.contact_number}</p>
+                    <p><strong>Company:</strong> {formData.company_name}</p>
+                </div>
             </div>
         );
     }

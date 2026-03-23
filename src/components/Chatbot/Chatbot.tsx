@@ -74,6 +74,8 @@ type BaseMessage = {
     id: string;
     role: 'bot' | 'user' | 'agent' | 'system';
     created_at_ist?: string;
+    message?: string; // History data from backend uses 'message'
+    type?: string;
 };
 
 type TextMessage = BaseMessage & {
@@ -83,16 +85,29 @@ type TextMessage = BaseMessage & {
 
 type CtaMessage = BaseMessage & {
     type: 'cta';
-    label: string;
-    action: string;
+    label?: string;
+    action?: string;
+    ctas?: { label: string; action: string; icon?: string; type?: string }[];
 };
 
 type FormMessage = BaseMessage & {
     type: 'form';
     formType: 'demo';
+    content?: string;
 };
 
 type Message = TextMessage | CtaMessage | FormMessage;
+
+interface SessionInitData {
+    session_token: string;
+    message?: string;
+    server_time_utc?: string;
+    type?: string;
+    ctas?: { label: string; action: string; icon?: string; type?: string }[];
+    cta_label?: string;
+    action?: string;
+    conversation_status?: string;
+}
 
 
 
@@ -106,6 +121,7 @@ export default function Chatbot() {
     const [statusText, setStatusText] = useState('Online');
     const [conversationStatus, setConversationStatus] = useState<ConversationStatus>('bot');
     const [sessionToken, setSessionToken] = useState<string | null>(null);
+    const [visitorUuid, setVisitorUuid] = useState<string | null>(null);
     const [serverOffset, setServerOffset] = useState<number>(0);
 
     const [isAgentTyping, setIsAgentTyping] = useState(false);
@@ -114,6 +130,48 @@ export default function Chatbot() {
 
     const messagesEndRef = useRef<HTMLDivElement>(null);
     const inputRef = useRef<HTMLInputElement>(null);
+    const inactivityTimerRef = useRef<NodeJS.Timeout | null>(null);
+    const messagesRef = useRef(messages);
+
+    useEffect(() => {
+        messagesRef.current = messages;
+    }, [messages]);
+
+    const resetInactivityTimer = useCallback(() => {
+        if (inactivityTimerRef.current) {
+            console.log('[Inactivity] Clearing existing timer');
+            clearTimeout(inactivityTimerRef.current);
+        }
+
+        if (open && isInitialized && conversationStatus === 'bot') {
+            console.log('[Inactivity] Starting 60s timer...');
+            inactivityTimerRef.current = setTimeout(() => {
+                const currentMsg = messagesRef.current;
+                const last = currentMsg[currentMsg.length - 1];
+
+                const lastTxt = last && last.type === 'text' ? (last as TextMessage).content : 'non-text';
+                console.log('[Inactivity] Timer FIRED. Last message snippet:', lastTxt?.substring(0, 20));
+
+                // Avoid duplicate nudge
+                if (last && last.role === 'bot' && last.type === 'text' && (last as TextMessage).content?.includes('https://wa.me/918527376675')) {
+                    console.log('[Inactivity] Duplicate nudge detected, skipping.');
+                    return;
+                }
+
+                console.log('[Inactivity] Sending nudge!');
+                const nudge: Message = {
+                    id: `${Date.now()}-inactivity`,
+                    role: 'bot',
+                    type: 'text',
+                    content: "We’ve received your message and will get back to you soon.\n\nFor more details, feel free to reach us anytime:\n💬 https://wa.me/918527376675\n📞 WhatsApp: +91 8527376675\n\nWe’ll be happy to assist you with complete support.",
+                    created_at_ist: formatToIST(new Date(getSyncedNow(serverOffset)))
+                };
+                setMessages(prev => [...prev, nudge]);
+            }, 60000);
+        } else {
+            console.log('[Inactivity] Timer not started:', { open, isInitialized, conversationStatus });
+        }
+    }, [open, isInitialized, conversationStatus, serverOffset]);
 
     // ── Chat-specific API helper: sends session UUID as Bearer token ──
     const chatApi = useCallback((sessionUUID: string) => ({
@@ -147,7 +205,8 @@ export default function Chatbot() {
             }
 
             const res = await api.post('/chat/session/init', { visitor_uuid });
-            const data = res.data;
+            const data = res.data as SessionInitData;
+            setVisitorUuid(visitor_uuid);
             setIsInitialized(true);
 
             if (data.session_token) {
@@ -191,12 +250,18 @@ export default function Chatbot() {
                     else setStatusText('Online');
                 }
 
-                finalMessages = (history as { role?: string; message: string }[]).filter(m => m && m.message).map((m, idx: number) => ({
-                    id: `${Date.now()}-h-${idx}`,
-                    role: (m.role || 'bot') as 'bot' | 'user' | 'agent' | 'system',
-                    type: 'text',
-                    content: m.message || ''
-                }));
+                finalMessages = (history as BaseMessage[]).filter(m => m && m.message).map((m, idx: number) => {
+                    const base = {
+                        id: `${Date.now()}-h-${idx}`,
+                        role: (m.role || 'bot') as 'user' | 'bot' | 'agent' | 'system',
+                        content: m.message || '',
+                        created_at_ist: m.created_at_ist || formatToIST(new Date())
+                    };
+                    if (m.type === 'form') {
+                        return { ...base, type: 'form', formType: 'demo' } as Message;
+                    }
+                    return { ...base, type: 'text' } as Message;
+                });
 
                 // Visual separator for returning visitor history
                 if (data.message === "Welcome back 👋 How can I help today?") {
@@ -212,22 +277,32 @@ export default function Chatbot() {
             // Always push the init message if it's a brand new session or a returning visitor
             if (finalMessages.length === 0 || data.message === "Welcome back 👋 How can I help today?") {
                 if (data.message) {
-                    finalMessages.push({
-                        id: Date.now().toString() + '-text',
+                    const welcomeMsg: Message = {
+                        id: Date.now().toString() + '-init',
                         role: 'bot',
                         type: 'text',
-                        content: data.message
-                    });
-                }
+                        content: data.message,
+                        created_at_ist: formatToIST(new Date(getSyncedNow(serverOffset)))
+                    };
 
-                if (data.type === 'CTA' && data.cta_label && data.action) {
-                    finalMessages.push({
-                        id: Date.now().toString() + '-cta',
-                        role: 'bot',
-                        type: 'cta',
-                        label: data.cta_label,
-                        action: data.action
-                    });
+                    if (data.type === 'CTA' && data.ctas) {
+                        finalMessages.push({
+                            id: Date.now().toString() + '-init-cta',
+                            role: 'bot',
+                            type: 'cta',
+                            ctas: data.ctas
+                        } as Message);
+                    } else if (data.type === 'CTA' && data.cta_label && data.action) {
+                        finalMessages.push({
+                            id: Date.now().toString() + '-init-cta',
+                            role: 'bot',
+                            type: 'cta',
+                            label: data.cta_label,
+                            action: data.action
+                        } as Message);
+                    } else {
+                        finalMessages.push(welcomeMsg);
+                    }
                 }
             }
 
@@ -238,7 +313,7 @@ export default function Chatbot() {
         } finally {
             setLoading(false);
         }
-    }, [chatApi]);
+    }, [chatApi, serverOffset]);
 
     // ── NTP-Sync Handler ─────────────────────────────────────────────
     const syncServerTime = useCallback(async () => {
@@ -303,6 +378,16 @@ export default function Chatbot() {
             document.removeEventListener('visibilitychange', handleVisibilityChange);
         };
     }, [isInitialized, sessionToken, syncServerTime]);
+
+    // ── Inactivity Timer Effect ──────────────────────────────────────
+    useEffect(() => {
+        if (open && isInitialized && conversationStatus === 'bot') {
+            resetInactivityTimer();
+        }
+        return () => {
+            if (inactivityTimerRef.current) clearTimeout(inactivityTimerRef.current);
+        };
+    }, [open, isInitialized, conversationStatus, messages, input, resetInactivityTimer]);
 
     // ── WebSocket connect for live agent chat ────────────────────────
     const connectClientWebSocket = useCallback((sessionId: string) => {
@@ -455,7 +540,8 @@ export default function Chatbot() {
                     id: Date.now().toString() + '-reply',
                     role: 'bot',
                     type: 'text',
-                    content: data.message
+                    content: data.message,
+                    created_at_ist: formatToIST(new Date(getSyncedNow(serverOffset)))
                 });
             }
 
@@ -465,18 +551,28 @@ export default function Chatbot() {
                     id: Date.now().toString() + '-form',
                     role: 'bot',
                     type: 'form',
-                    formType: 'demo'
+                    formType: 'demo',
+                    created_at_ist: formatToIST(new Date(getSyncedNow(serverOffset)))
                 });
             }
 
-            if (data.type === 'CTA' && data.cta_label && data.action) {
-                newBotMessages.push({
-                    id: Date.now().toString() + '-cta-reply',
-                    role: 'bot',
-                    type: 'cta',
-                    label: data.cta_label,
-                    action: data.action
-                });
+            if (data.type === 'CTA') {
+                if (data.ctas) {
+                    newBotMessages.push({
+                        id: Date.now().toString() + '-ctas',
+                        role: 'bot',
+                        type: 'cta',
+                        ctas: data.ctas
+                    });
+                } else if (data.cta_label && data.action) {
+                    newBotMessages.push({
+                        id: Date.now().toString() + '-cta',
+                        role: 'bot',
+                        type: 'cta',
+                        label: data.cta_label,
+                        action: data.action
+                    });
+                }
             }
 
             setMessages((prev) => [...prev, ...newBotMessages]);
@@ -530,36 +626,9 @@ export default function Chatbot() {
         }
     };
 
-    // ── Talk to Sales: dedicated handler to avoid confusing bot API response ──
-    const handleTalkToSales = async () => {
-        if (!isInitialized) return;
-
-        // 1. Show the user's message in chat
-        const userMsg: Message = {
-            id: Date.now().toString() + '-u',
-            role: 'user',
-            type: 'text',
-            content: 'Talk to Sales'
-        };
-        setMessages((prev) => [...prev, userMsg]);
-
-        // 2. Immediately show a friendly connecting message — no waiting for API
-        const botMsg: Message = {
-            id: Date.now().toString() + '-b',
-            role: 'bot',
-            type: 'text',
-            content: "Great! I'm connecting you with our sales team right away. Please hold on a moment — an agent will be with you shortly."
-        };
-        setMessages((prev) => [...prev, botMsg]);
-        setConversationStatus('waiting_for_agent');
-        setStatusText('Waiting for Agent');
-
-        // 3. Notify backend silently (ignore its response text to avoid duplicate/confusing messages)
-        try {
-            await chatApi(sessionToken!).post('/chat/message', { message: 'Talk to Sales' });
-        } catch (err) {
-            console.error('Failed to register talk-to-sales with backend:', err);
-        }
+    // ── Talk to Sales: direct WhatsApp redirect ──────────────────────
+    const handleTalkToSales = () => {
+        window.open('https://wa.me/918527376675', '_blank');
     };
 
     const handleEndChat = async () => {
@@ -594,14 +663,38 @@ export default function Chatbot() {
     };
 
     const handleFormSuccess = (message: string) => {
-        setMessages(prev => [...prev, {
-            id: Date.now().toString(),
-            role: 'bot',
-            type: 'text',
-            content: message
-        }]);
+        setMessages(prev => {
+            // Keep the form message but add the success message
+            return [...prev, {
+                id: Date.now().toString(),
+                role: 'bot',
+                type: 'text',
+                content: message
+            }];
+        });
         setStatusText('Waiting for Agent');
         setConversationStatus('waiting_for_agent');
+    };
+
+    const linkify = (text: string) => {
+        if (!text) return text;
+        const urlRegex = /(https?:\/\/[^\s]+)/g;
+        return text.split(urlRegex).map((part, i) => {
+            if (part.match(urlRegex)) {
+                return (
+                    <a
+                        key={i}
+                        href={part}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className={styles.messageLink}
+                    >
+                        {part}
+                    </a>
+                );
+            }
+            return part;
+        });
     };
 
     const renderMessage = (msg: Message) => {
@@ -624,7 +717,8 @@ export default function Chatbot() {
                                     : styles.bubbleBot
                             }`}>
                             {msg.role === 'agent' && <div className={styles.agentLabel}>Sales Agent</div>}
-                            {msg.content}
+                            {linkify(msg.content)}
+                            <div className={styles.msgTime}>{msg.created_at_ist}</div>
                         </div>
                     </div>
                 );
@@ -635,24 +729,51 @@ export default function Chatbot() {
                             <Image src="/logo.png" alt="GTD" width={18} height={18} className="object-contain inverted-logo" />
                         </div>
                         <div className={styles.ctaWrap}>
-                            <button
-                                className={styles.ctaBtn}
-                                onClick={() => handleAction(msg.action)}
-                            >
-                                {msg.label}
-                            </button>
+                            {msg.ctas ? (
+                                <div className={styles.quickGrid} style={{ width: '100%', margin: 0, gap: '8px' }}>
+                                    {msg.ctas.map((cta, i) => (
+                                        <button
+                                            key={i}
+                                            className={styles.quickBtn}
+                                            onClick={() => cta.action === 'HANDOFF' ? handleTalkToSales() : handleAction(cta.action)}
+                                            style={{ margin: 0, width: '100%', justifyContent: 'center' }}
+                                        >
+                                            {cta.icon && <span className={styles.quickIcon}>{cta.icon}</span>}
+                                            <span className={styles.quickLabel}>{cta.label}</span>
+                                        </button>
+                                    ))}
+                                </div>
+                            ) : (
+                                <button
+                                    className={styles.quickBtn}
+                                    onClick={() => handleAction(msg.action || '')}
+                                >
+                                    {msg.label}
+                                </button>
+                            )}
                         </div>
                     </div>
                 );
-            case 'form':
+            case 'form': {
+                let initialData = undefined;
+                if (msg.content && msg.content.startsWith('{')) {
+                    try {
+                        initialData = JSON.parse(msg.content);
+                    } catch (e) {
+                        console.error('Failed to parse form data:', e);
+                    }
+                }
                 return (
                     <div className={styles.formWrap}>
                         <LeadForm
                             onClose={() => { }}
                             onSubmitSuccess={handleFormSuccess}
+                            initialData={initialData}
+                            visitor_uuid={visitorUuid}
                         />
                     </div>
                 );
+            }
             default:
                 return null;
         }
@@ -738,18 +859,24 @@ export default function Chatbot() {
                             </div>
                             <div style={{ display: 'flex', flexDirection: 'column', gap: '10px', maxWidth: '80%' }}>
                                 <div className={styles.welcomeBubble} style={{ maxWidth: '100%' }}>
-                                    <p className={styles.welcomeLine1}>Welcome to GTD Service.</p>
-                                    <p className={styles.welcomeLine2}>Please let me know how I can assist you.</p>
+                                    {messages[0] && messages[0].type === 'text' ? (
+                                        <p className={styles.welcomeLine1}>{(messages[0] as TextMessage).content}</p>
+                                    ) : (
+                                        <>
+                                            <p className={styles.welcomeLine1}>Welcome to GTD Service.</p>
+                                            <p className={styles.welcomeLine2}>Please let me know how I can assist you.</p>
+                                        </>
+                                    )}
                                 </div>
-                                {messages.length <= 1 && conversationStatus === 'bot' && (
+                                {conversationStatus === 'bot' && (
                                     <div className={styles.quickGrid}>
                                         <button className={styles.quickBtn} onClick={() => handleAction('OPEN_LEAD_FORM')}>
                                             <span className={styles.quickIcon}>🚀</span>
-                                            <span className={styles.quickLabel}>Request Demo</span>
+                                            <span className={styles.quickLabel}>Book Demo</span>
                                         </button>
                                         <button className={styles.quickBtn} onClick={() => handleTalkToSales()}>
                                             <span className={styles.quickIcon}>💬</span>
-                                            <span className={styles.quickLabel}>Talk to Sales</span>
+                                            <span className={styles.quickLabel}>Connect To Data Expert</span>
                                         </button>
                                     </div>
                                 )}
@@ -838,3 +965,4 @@ export default function Chatbot() {
         </>
     );
 }
+
