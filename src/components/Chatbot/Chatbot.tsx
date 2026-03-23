@@ -137,41 +137,7 @@ export default function Chatbot() {
         messagesRef.current = messages;
     }, [messages]);
 
-    const resetInactivityTimer = useCallback(() => {
-        if (inactivityTimerRef.current) {
-            console.log('[Inactivity] Clearing existing timer');
-            clearTimeout(inactivityTimerRef.current);
-        }
-
-        if (open && isInitialized && conversationStatus === 'bot') {
-            console.log('[Inactivity] Starting 60s timer...');
-            inactivityTimerRef.current = setTimeout(() => {
-                const currentMsg = messagesRef.current;
-                const last = currentMsg[currentMsg.length - 1];
-
-                const lastTxt = last && last.type === 'text' ? (last as TextMessage).content : 'non-text';
-                console.log('[Inactivity] Timer FIRED. Last message snippet:', lastTxt?.substring(0, 20));
-
-                // Avoid duplicate nudge
-                if (last && last.role === 'bot' && last.type === 'text' && (last as TextMessage).content?.includes('https://wa.me/918527376675')) {
-                    console.log('[Inactivity] Duplicate nudge detected, skipping.');
-                    return;
-                }
-
-                console.log('[Inactivity] Sending nudge!');
-                const nudge: Message = {
-                    id: `${Date.now()}-inactivity`,
-                    role: 'bot',
-                    type: 'text',
-                    content: "We’ve received your message and will get back to you soon.\n\nFor more details, feel free to reach us anytime:\n💬 https://wa.me/918527376675\n📞 WhatsApp: +91 8527376675\n\nWe’ll be happy to assist you with complete support.",
-                    created_at_ist: formatToIST(new Date(getSyncedNow(serverOffset)))
-                };
-                setMessages(prev => [...prev, nudge]);
-            }, 60000);
-        } else {
-            console.log('[Inactivity] Timer not started:', { open, isInitialized, conversationStatus });
-        }
-    }, [open, isInitialized, conversationStatus, serverOffset]);
+    // ── Inactivity Timer Removed (Backend handles this now) ──
 
     // ── Chat-specific API helper: sends session UUID as Bearer token ──
     const chatApi = useCallback((sessionUUID: string) => ({
@@ -378,16 +344,6 @@ export default function Chatbot() {
             document.removeEventListener('visibilitychange', handleVisibilityChange);
         };
     }, [isInitialized, sessionToken, syncServerTime]);
-
-    // ── Inactivity Timer Effect ──────────────────────────────────────
-    useEffect(() => {
-        if (open && isInitialized && conversationStatus === 'bot') {
-            resetInactivityTimer();
-        }
-        return () => {
-            if (inactivityTimerRef.current) clearTimeout(inactivityTimerRef.current);
-        };
-    }, [open, isInitialized, conversationStatus, messages, input, resetInactivityTimer]);
 
     // ── WebSocket connect for live agent chat ────────────────────────
     const connectClientWebSocket = useCallback((sessionId: string) => {

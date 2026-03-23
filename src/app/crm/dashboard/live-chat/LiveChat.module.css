@@ -1431,13 +1431,13 @@
 .dataLabel {
     font-size: 11px;
     font-weight: 600;
-    color: var(--live-text-muted);
+    color: #3b82f6;
 }
 
 .dataValue {
     font-size: 12px;
     font-weight: 600;
-    color: var(--live-text-primary);
+    color: #1e293b;
     text-align: right;
     max-width: 140px;
     word-break: break-word;
@@ -1876,9 +1876,8 @@
     flex-direction: column;
     gap: 8px;
     padding: 12px;
-    background: rgba(0, 0, 0, 0.6);
-    backdrop-filter: blur(10px);
-    border: 1px solid rgba(255, 255, 255, 0.1);
+    background: rgba(59, 130, 246, 0.05);
+    border: 1px solid rgba(59, 130, 246, 0.15);
     border-radius: var(--live-radius);
 }
 
@@ -1902,7 +1901,7 @@
 
 .leadFormTime {
     font-size: 10px;
-    color: rgba(255, 255, 255, 0.5);
+    color: #64748b;
     font-weight: 500;
 }
 
@@ -1928,16 +1927,16 @@
     flex-direction: column;
     gap: 4px;
     padding: 10px 12px;
-    background: rgba(0, 0, 0, 0.4);
-    backdrop-filter: blur(8px);
-    border: 1px solid rgba(255, 255, 255, 0.08);
+    background: #ffffff;
+    border: 1px solid #e2e8f0;
     border-radius: var(--live-radius);
+    box-shadow: 0 1px 2px rgba(0, 0, 0, 0.03);
 }
 
 .leadFormLabel {
     font-size: 9px;
     font-weight: 700;
-    color: #9ca3af;
+    color: #3b82f6;
     text-transform: uppercase;
     letter-spacing: 0.5px;
 }
@@ -1945,7 +1944,7 @@
 .leadFormValue {
     font-size: 12px;
     font-weight: 600;
-    color: #f9fafb;
+    color: #1e293b;
     word-break: break-word;
 }
 
@@ -2004,7 +2003,7 @@
 .insightLabel {
     font-size: 11px;
     font-weight: 700;
-    color: #94a3b8;
+    color: #3b82f6;
     text-transform: uppercase;
     letter-spacing: 0.5px;
 }
@@ -2012,7 +2011,7 @@
 .insightValue {
     font-size: 12px;
     font-weight: 800;
-    color: #f8fafc;
+    color: #1e293b;
 }
 
 .insightBar {

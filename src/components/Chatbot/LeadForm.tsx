@@ -7,18 +7,9 @@ import api from '@/config/api';
 
 const NAME_REGEX = /^[A-Za-z\s\-'\.\u00C0-\u017F]+$/;
 const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-const PERSONAL_DOMAINS = [
-    'gmail.com', 'yahoo.com', 'hotmail.com', 'outlook.com',
-    'icloud.com', 'protonmail.com', 'aol.com', 'zoho.com', 'mail.com'
-];
 const WEBSITE_REGEX = /^([a-zA-Z0-9-]+\.)+[a-zA-Z]{2,}(\/.*)?$/;
 
 // ── Pure Logic Helpers ──
-const isPersonalEmail = (email: string) => {
-    if (!email) return false;
-    const domain = email.split('@')[1]?.toLowerCase();
-    return PERSONAL_DOMAINS.includes(domain || '');
-};
 
 interface LeadFormProps {
     onClose: () => void;
@@ -74,9 +65,6 @@ export default function LeadForm({ onSubmitSuccess, visitor_uuid, initialData }:
                 if (!EMAIL_REGEX.test(v)) return 'Enter a valid email address';
                 return '';
             case 'website':
-                if (isPersonalEmail(formData.business_email) && !v) {
-                    return 'Website is required for verification when using personal email';
-                }
                 if (v && !WEBSITE_REGEX.test(v.replace(/^https?:\/\//, '').replace(/^www\./, ''))) {
                     return 'Please enter a valid domain (e.g. company.com)';
                 }
@@ -124,11 +112,6 @@ export default function LeadForm({ onSubmitSuccess, visitor_uuid, initialData }:
         const hasEmptyFields = requiredFields.some(f => !formData[f].trim());
         const hasFieldErrors = Object.values(errors).some(err => !!err);
 
-        // Conditional Website requirement
-        if (isPersonalEmail(formData.business_email) && !formData.website.trim()) {
-            return false;
-        }
-
         return !hasEmptyFields && !hasFieldErrors && !loading;
     };
 
@@ -149,12 +132,7 @@ export default function LeadForm({ onSubmitSuccess, visitor_uuid, initialData }:
         setServerError('');
 
         if (name === 'business_email') {
-            const isPersonal = isPersonalEmail(newValue);
-            if (isPersonal) {
-                setWarning('Please use your company email for faster verification.');
-            } else {
-                setWarning('');
-            }
+            setWarning('');
         }
 
         // Perform real-time validation
@@ -343,7 +321,7 @@ export default function LeadForm({ onSubmitSuccess, visitor_uuid, initialData }:
                 {/* ── Business Website ───────────────────────────────────────── */}
                 <div className={styles.formGroup}>
                     <label htmlFor="lead-website" className={styles.label}>
-                        Business Website {isPersonalEmail(formData.business_email) && <span className={styles.required}>*</span>}
+                        Business Website
                     </label>
                     <input
                         id="lead-website"
