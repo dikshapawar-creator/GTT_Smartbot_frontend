@@ -245,7 +245,7 @@ export default function LeadForm({ onSubmitSuccess, visitor_uuid, initialData }:
         return (
             <div className={styles.systemMessage}>
                 <div className={styles.successIcon}>✓</div>
-                <h3 className={styles.successTitle}>Lead Form Submitted</h3>
+                <h3 className={styles.successTitle}>Enquiry Submitted</h3>
                 <div className={styles.formSummaryDetails}>
                     <p><strong>Name:</strong> {formData.full_name}</p>
                     <p><strong>Email:</strong> {formData.business_email}</p>

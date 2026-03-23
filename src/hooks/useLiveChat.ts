@@ -159,7 +159,7 @@ export function useLiveChat() {
                 break;
 
             case 'SESSION_UPDATED':
-                // Session updated (e.g., lead form submitted)
+                // Session updated (e.g., enquiry submitted)
                 if (data.session_uuid) {
                     console.log('SESSION_UPDATED received:', data);
                     setConversations(prev =>

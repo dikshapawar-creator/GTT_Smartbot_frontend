@@ -365,7 +365,7 @@ export default function LiveChatPage() {
                                         <div className={styles.msgBubble}>
                                             {msg.message_type === 'form' ? (
                                                 <div className={styles.formSummary}>
-                                                    <div className={styles.formSummaryTitle}>Lead Form Submission</div>
+                                                    <div className={styles.formSummaryTitle}>Enquiry Submission</div>
                                                     {(() => {
                                                         try {
                                                             const data = JSON.parse(msg.message_text);
@@ -559,7 +559,7 @@ export default function LiveChatPage() {
                             <div className={styles.panelSection}>
                                 <div className={styles.sectionHeader}>
                                     <div className={styles.sectionTitle}>
-                                        <CheckCircle2 size={14} /> Lead Form Submitted
+                                        <CheckCircle2 size={14} /> Enquiry Submitted
                                     </div>
                                 </div>
 

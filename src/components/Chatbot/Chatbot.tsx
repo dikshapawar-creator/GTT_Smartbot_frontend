@@ -628,7 +628,7 @@ export default function Chatbot() {
                 content: message
             }];
         });
-        setStatusText('Waiting for Agent');
+        setStatusText('Enquiry Submitted');
         setConversationStatus('waiting_for_agent');
     };
 
@@ -897,12 +897,12 @@ export default function Chatbot() {
                                 className={styles.chatInput}
                                 type="text"
                                 placeholder={
-                                    statusText === 'Demo Submitted'
+                                    statusText === 'Enquiry Submitted'
                                         ? 'Thank you!'
                                         : 'Type your message...'
                                 }
                                 value={input}
-                                disabled={!isInitialized || loading || statusText === 'Demo Submitted'}
+                                disabled={!isInitialized || loading || statusText === 'Enquiry Submitted'}
                                 onChange={handleInputChange}
                                 onKeyDown={(e) => e.key === 'Enter' && sendMessage(input)}
                             />
