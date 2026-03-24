@@ -90,7 +90,21 @@ api.interceptors.response.use(
             }
         }
 
-        const message = error.response?.data?.detail || error.message || 'Network Error';
+        let message = 'Network Error';
+        if (error.response?.data?.detail) {
+            const detail = error.response.data.detail;
+            if (typeof detail === 'string') {
+                message = detail;
+            } else if (Array.isArray(detail)) {
+                // Handle FastAPI validation error list
+                message = detail.map((d: { msg?: string } | string) => (typeof d === 'string' ? d : d.msg || JSON.stringify(d))).join(', ');
+            } else {
+                message = typeof detail === 'object' ? JSON.stringify(detail) : String(detail);
+            }
+        } else if (error.message) {
+            message = error.message;
+        }
+
         return Promise.reject(new Error(message));
     }
 );

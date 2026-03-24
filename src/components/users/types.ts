@@ -24,14 +24,29 @@ export type RoleName = typeof ROLES[number];
 export const ROLE_BADGE: Record<string, string> = {
     administrator: "bg-[#EDE9FE] text-[#5B21B6] border border-[#DDD6FE]",
     administrator_level_3: "bg-[#EDE9FE] text-[#5B21B6] border border-[#DDD6FE]",
+    manager: "bg-amber-100 text-amber-700 border-amber-200",
     admin: "bg-[#E0F2FE] text-[#0369A1] border border-[#BAE6FD]",
-    sales: "bg-[#E0F2FE] text-[#0369A1] border border-[#BAE6FD]",
+    sales: "bg-[#DCFCE7] text-[#166534] border border-[#BBF7D0]",
     employee: "bg-gray-100 text-gray-600 border border-gray-200",
+};
+
+export const ROLE_COLORS: Record<string, string> = {
+    administrator: "bg-violet-50 text-violet-700 border-violet-200",
+    manager: "bg-amber-50 text-amber-700 border-amber-200",
+    sales: "bg-emerald-50 text-emerald-700 border-emerald-200",
+    employee: "bg-slate-50 text-slate-600 border-slate-200",
+};
+
+export const LEVEL_COLORS: Record<number, string> = {
+    1: "bg-emerald-50 text-emerald-700 border-emerald-200",
+    2: "bg-sky-50 text-sky-700 border-sky-200",
+    3: "bg-violet-50 text-violet-700 border-violet-200",
+    4: "bg-amber-50 text-amber-700 border-amber-200",
 };
 
 export const STATUS_BADGE = {
     active: "bg-[#DCFCE7] text-[#166534] border border-[#BBF7D0]",
-    inactive: "bg-[#FEE2E2] text-[#991B1B] border border-[#FECACA]",
+    inactive: "bg-slate-50 text-slate-400 border-slate-100",
 };
 
 export function getRoleName(user: User): string {

@@ -77,6 +77,19 @@ export const auth = {
     isAdmin() {
         const user = this.getUser();
         if (!user) return false;
-        return user.role === 'administrator' || (user.role_level !== undefined && user.role_level >= 3);
+        const role = String(user.role || '').toLowerCase();
+        return role === 'administrator' ||
+            role === 'super_admin' ||
+            (user.role_level !== undefined && user.role_level >= 3);
+    },
+
+    isManager() {
+        const user = this.getUser();
+        if (!user) return false;
+        const role = String(user.role || '').toLowerCase();
+        return this.isAdmin() ||
+            role === 'manager' ||
+            role === 'admin' ||
+            (user.role_level !== undefined && user.role_level >= 2);
     }
 };

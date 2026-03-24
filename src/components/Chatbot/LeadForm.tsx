@@ -80,7 +80,7 @@ export default function LeadForm({ onSubmitSuccess, visitor_uuid, initialData }:
             default:
                 return '';
         }
-    }, [formData.business_email]);
+    }, []);
 
     // ── Validate all fields at once (for submit) ────────────────────────
     const validateAll = useCallback((): boolean => {

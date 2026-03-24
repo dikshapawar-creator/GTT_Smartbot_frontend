@@ -1,51 +1,58 @@
 import { useState, useEffect, useCallback } from "react";
-import { X, ChevronDown, UserPlus, Mail, Lock, Shield, Eye, EyeOff, CheckCheck } from "lucide-react";
+import {
+    X, ChevronDown, UserPlus, Mail, Lock, Shield,
+    Eye, EyeOff, CheckCheck, Check, RefreshCw
+} from "lucide-react";
 import { api } from "@/lib/api";
-import { User } from "./types";
+import { auth } from "@/lib/auth";
+import { User, ROLE_COLORS } from "./types";
 
-type UserRole = {
-    id: number;
-    name: string;
-    level: number;
-};
-
-const ROLE_BADGE: Record<string, string> = {
-    administrator: "bg-purple-50 text-purple-700 border-purple-200",
-    manager: "bg-blue-50 text-blue-700 border-blue-200",
-    sales: "bg-emerald-50 text-emerald-700 border-emerald-200",
-    employee: "bg-slate-50 text-slate-700 border-slate-200"
-};
+type UserRole = { id: number; name: string; level: number };
 
 const EMPTY_FORM = {
     email: "",
     password: "",
-    role_name: "sales" as string,
+    role_name: "sales",
     is_active: true,
     send_invite: false,
 };
 
 type FormErrors = Partial<Record<keyof typeof EMPTY_FORM, string>>;
 
+const PASSWORD_REQS = [
+    { regex: /.{8,}/, label: "8+ chars" },
+    { regex: /[A-Z]/, label: "Upper" },
+    { regex: /[a-z]/, label: "Lower" },
+    { regex: /[0-9]/, label: "Number" },
+    { regex: /[^A-Za-z0-9]/, label: "Special" },
+];
+
 interface CreateUserModalProps {
     onClose: () => void;
     onCreated: (user: User) => void;
-    isSuperAdmin: boolean;
+    canManage: boolean;
     showToast: (msg: string, type: "success" | "error") => void;
 }
 
-export function CreateUserModal({ onClose, onCreated, isSuperAdmin, showToast }: CreateUserModalProps) {
+export function CreateUserModal({ onClose, onCreated, canManage, showToast }: CreateUserModalProps) {
     const [form, setForm] = useState({ ...EMPTY_FORM });
     const [roles, setRoles] = useState<UserRole[]>([]);
     const [errors, setErrors] = useState<FormErrors>({});
     const [loading, setLoading] = useState(false);
-    const [isLoadingRoles, setIsLoadingRoles] = useState(false);
     const [showPassword, setShowPassword] = useState(false);
+    const [success, setSuccess] = useState(false);
 
     const fetchRoles = useCallback(async () => {
-        setIsLoadingRoles(true);
         try {
             const { data } = await api.get<UserRole[]>("/roles/");
-            const filtered = isSuperAdmin ? data : data.filter(r => r.name !== "administrator");
+            const profile = auth.getUser();
+            const currentLevel = profile?.role_level || 0;
+            const isSuper = auth.isAdmin();
+
+            const filtered = isSuper
+                ? data
+                : data.filter((r: UserRole) => r.level < currentLevel);
+
             setRoles(filtered);
             if (filtered.length > 0 && !form.role_name) {
                 setForm(f => ({ ...f, role_name: filtered[0].name }));
@@ -53,9 +60,8 @@ export function CreateUserModal({ onClose, onCreated, isSuperAdmin, showToast }:
         } catch {
             showToast("Failed to load roles", "error");
         } finally {
-            setIsLoadingRoles(false);
         }
-    }, [isSuperAdmin, form.role_name, showToast]);
+    }, [canManage, showToast, form.role_name]);
 
     useEffect(() => {
         fetchRoles();
@@ -69,10 +75,12 @@ export function CreateUserModal({ onClose, onCreated, isSuperAdmin, showToast }:
         if (!form.email.trim()) e.email = "Email is required";
         else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(form.email)) e.email = "Invalid email address";
 
-        const selectedRole = roles.find(r => r.name === form.role_name);
-        if (!selectedRole) e.role_name = "Please select a valid role";
-
-        if (!form.password && !form.send_invite) e.password = "Password required (or enable Send Invite)";
+        if (!form.send_invite) {
+            if (!form.password) e.password = "Password required (or enable Send Invite)";
+            else if (PASSWORD_REQS.some(r => !r.regex.test(form.password))) {
+                e.password = "Password does not meet requirements";
+            }
+        }
         setErrors(e);
         return Object.keys(e).length === 0;
     };
@@ -89,11 +97,11 @@ export function CreateUserModal({ onClose, onCreated, isSuperAdmin, showToast }:
                 is_active: form.is_active,
             };
             const { data: created } = await api.post<User>("/users/create", payload);
-            onCreated(created);
-            showToast(`User "${created.email}" created successfully`, "success");
-            setForm({ ...EMPTY_FORM });
-            setErrors({});
-            onClose();
+            setSuccess(true);
+            setTimeout(() => {
+                onCreated(created);
+                onClose();
+            }, 800);
         } catch (err) {
             showToast((err as Error).message || "Failed to create user", "error");
         } finally {
@@ -102,180 +110,159 @@ export function CreateUserModal({ onClose, onCreated, isSuperAdmin, showToast }:
     };
 
     return (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
-            <div
-                className="absolute inset-0 bg-slate-900/60 backdrop-blur-md"
-                onClick={onClose}
-            />
+        <div className="fixed inset-0 z-[100] flex items-center justify-center p-4">
+            <div className="absolute inset-0 bg-slate-900/60 backdrop-blur-md" onClick={onClose} />
+            <div className="relative bg-white rounded-[2rem] shadow-2xl w-full max-w-lg overflow-hidden flex flex-col max-h-[90vh] animate-in zoom-in-95 duration-200">
 
-            <div
-                className="relative bg-white rounded-3xl shadow-2xl w-full max-w-lg overflow-hidden flex flex-col max-h-[90vh]"
-            >
-                {/* Header with Background Gradient */}
-                <div className="relative px-8 pt-8 pb-6 shrink-0 overflow-hidden">
-                    <div className="relative flex items-center justify-between">
+                {/* Header */}
+                <div className="px-10 pt-10 pb-6 shrink-0">
+                    <div className="flex items-center justify-between">
                         <div className="flex items-center gap-4">
-                            <div className="w-12 h-12 rounded-2xl bg-slate-900 flex items-center justify-center shadow-lg">
-                                <UserPlus className="h-6 w-6 text-white" />
+                            <div className="w-14 h-14 rounded-2xl bg-slate-900 flex items-center justify-center shadow-xl shadow-slate-200">
+                                <UserPlus className="h-7 w-7 text-white" />
                             </div>
                             <div>
                                 <h2 className="text-2xl font-black text-slate-900 tracking-tight">Add New User</h2>
-                                <p className="text-sm font-medium text-slate-500 mt-0.5">Fill in the details to create a new user.</p>
+                                <p className="text-xs font-bold text-slate-400 mt-1 uppercase tracking-widest">Team invitation system</p>
                             </div>
                         </div>
-                        <button
-                            onClick={onClose}
-                            className="p-2.5 rounded-xl hover:bg-slate-100 text-slate-400 hover:text-slate-900 transition-all active:scale-90"
-                        >
-                            <X className="h-5 w-5" />
+                        <button onClick={onClose} className="p-3 rounded-2xl hover:bg-slate-100 text-slate-400 transition-all active:scale-90">
+                            <X className="h-6 w-6" />
                         </button>
                     </div>
                 </div>
 
-                {/* Form scrollable area */}
-                <div className="flex-1 overflow-y-auto px-8 py-4 space-y-6 scrollbar-hide">
+                {/* Body */}
+                <div className="flex-1 overflow-y-auto px-10 pb-6 space-y-6">
                     <form id="create-user-form" onSubmit={handleSubmit} noValidate className="space-y-6">
 
-                        {/* Email Field Group */}
+                        {/* Email */}
                         <div className="space-y-2">
-                            <label className="flex items-center gap-2 text-sm font-bold text-slate-700 px-1">
-                                <Mail className="h-4 w-4 text-slate-400" />
-                                Email Address <span className="text-red-500">*</span>
+                            <label className="flex items-center gap-2 text-[10px] font-black text-slate-500 uppercase tracking-widest px-1">
+                                <Mail className="h-3.5 w-3.5" /> Email Address <span className="text-rose-500">*</span>
                             </label>
-                            <div className="relative group">
-                                <input
-                                    type="email"
-                                    value={form.email}
-                                    onChange={(e) => field("email", e.target.value)}
-                                    placeholder="e.g. user@company.com"
-                                    className={`w-full h-12 px-4 rounded-xl border-2 outline-none transition-all duration-200 text-slate-900 font-medium
-                                        ${errors.email
-                                            ? "border-red-200 bg-red-50/30 focus:border-red-500 focus:ring-4 focus:ring-red-100"
-                                            : "border-slate-100 bg-slate-50/50 group-hover:bg-slate-50 focus:border-slate-900 focus:bg-white transition-all"
-                                        }`}
-                                />
-                                {errors.email && (
-                                    <p className="text-xs font-bold text-red-500 mt-1.5 px-1 bg-red-50/50 py-1 rounded w-fit">
-                                        {errors.email}
-                                    </p>
-                                )}
-                            </div>
+                            <input
+                                type="email"
+                                value={form.email}
+                                onChange={e => field("email", e.target.value)}
+                                placeholder="user@company.com"
+                                className={`w-full h-12 px-5 rounded-2xl border-2 outline-none text-sm font-bold transition-all
+                                    ${errors.email ? "border-rose-200 bg-rose-50/30" : "border-slate-100 bg-slate-50/50 focus:border-slate-900 focus:bg-white"}`}
+                            />
+                            {errors.email && <p className="text-[11px] font-bold text-rose-600 px-1">{errors.email}</p>}
                         </div>
 
-                        {/* Role Selection Group */}
+                        {/* Role */}
                         <div className="space-y-2">
-                            <label className="flex items-center gap-2 text-sm font-bold text-slate-700 px-1">
-                                <Shield className="h-4 w-4 text-slate-400" />
-                                User Role <span className="text-red-500">*</span>
+                            <label className="flex items-center gap-2 text-[10px] font-black text-slate-500 uppercase tracking-widest px-1">
+                                <Shield className="h-3.5 w-3.5" /> Assign Role <span className="text-rose-500">*</span>
                             </label>
                             <div className="relative group">
                                 <select
                                     value={form.role_name}
-                                    onChange={(e) => field("role_name", e.target.value)}
-                                    disabled={isLoadingRoles}
-                                    className="w-full h-12 pl-4 pr-12 rounded-xl border-2 border-slate-100 bg-slate-50/50 group-hover:bg-slate-50 focus:border-slate-900 focus:bg-white transition-all appearance-none text-slate-900 font-medium cursor-pointer"
+                                    onChange={e => field("role_name", e.target.value)}
+                                    className="w-full h-12 pl-5 pr-12 rounded-2xl border-2 border-slate-100 bg-slate-50/50 focus:border-slate-900 focus:bg-white text-sm font-bold appearance-none cursor-pointer outline-none transition-all"
                                 >
-                                    {isLoadingRoles ? (
-                                        <option>Loading roles...</option>
-                                    ) : (
-                                        roles.map((r) => (
-                                            <option key={r.id} value={r.name} className="capitalize">{r.name.replace(/_/g, ' ')}</option>
-                                        ))
-                                    )}
+                                    {roles.map(r => <option key={r.id} value={r.name} className="capitalize">{r.name}</option>)}
                                 </select>
-                                <div className="absolute right-4 top-1/2 -translate-y-1/2 pointer-events-none text-slate-400 group-hover:text-slate-900 transition-colors">
-                                    <ChevronDown className="h-5 w-5" />
-                                </div>
+                                <ChevronDown className="absolute right-4 top-1/2 -translate-y-1/2 h-5 w-5 text-slate-400 group-focus-within:text-slate-900 pointer-events-none transition-colors" />
                             </div>
 
-                            {/* Visual Role Preview Card */}
-                            <div className="mt-3 p-3 rounded-2xl bg-indigo-50/30 border border-indigo-100/50 flex items-center justify-between">
-                                <div className="flex items-center gap-3">
-                                    <div className="w-8 h-8 rounded-lg bg-white flex items-center justify-center shadow-sm">
-                                        <CheckCheck className="h-4 w-4 text-indigo-600" />
-                                    </div>
-                                    <div className="text-[11px] font-bold text-indigo-800 tracking-wide uppercase">
-                                        Level {roles.find(r => r.name === form.role_name)?.level ?? '?'} Clearance
-                                    </div>
+                            {/* Role Context Card */}
+                            <div className="flex items-center justify-between p-3.5 rounded-2xl bg-indigo-50/50 border border-indigo-100 shadow-sm">
+                                <div className="flex items-center gap-2.5">
+                                    <div className="w-2 h-2 rounded-full bg-indigo-500 animate-pulse" />
+                                    <span className="text-[10px] font-black text-indigo-800 uppercase tracking-widest">
+                                        Level {roles.find(r => r.name === form.role_name)?.level ?? "0"} Access
+                                    </span>
                                 </div>
-                                <span className={`px-2.5 py-1 rounded-full text-[10px] font-black uppercase tracking-[0.05em] border-2 shadow-sm ${ROLE_BADGE[form.role_name] ?? ROLE_BADGE.employee}`}>
-                                    {form.role_name.replace(/_/g, ' ')}
+                                <span className={`px-2.5 py-0.5 rounded-lg text-[10px] font-black uppercase border shadow-sm ${ROLE_COLORS[form.role_name] || ROLE_COLORS.employee}`}>
+                                    {form.role_name}
                                 </span>
                             </div>
                         </div>
 
-                        {/* Password Field Group */}
+                        {/* Password */}
                         <div className="space-y-2">
-                            <label className="flex items-center gap-2 text-sm font-bold text-slate-700 px-1">
-                                <Lock className="h-4 w-4 text-slate-400" />
-                                Password <span className="text-red-500">*</span>
+                            <label className="flex items-center gap-2 text-[10px] font-black text-slate-500 uppercase tracking-widest px-1">
+                                <Lock className="h-3.5 w-3.5" /> Secure Password {!form.send_invite && <span className="text-rose-500">*</span>}
                             </label>
                             <div className="relative group">
                                 <input
                                     type={showPassword ? "text" : "password"}
                                     value={form.password}
-                                    onChange={(e) => field("password", e.target.value)}
-                                    placeholder="8+ characters"
-                                    className={`w-full h-12 pl-4 pr-12 rounded-xl border-2 outline-none transition-all duration-200 text-slate-900 font-medium
-                                        ${errors.password
-                                            ? "border-red-200 bg-red-50/30 focus:border-red-500 focus:ring-4 focus:ring-red-100"
-                                            : "border-slate-100 bg-slate-50/50 group-hover:bg-slate-50 focus:border-slate-900 focus:bg-white transition-all"
-                                        }`}
+                                    onChange={e => field("password", e.target.value)}
+                                    disabled={form.send_invite}
+                                    placeholder={form.send_invite ? "System generated after invite" : "8+ characters"}
+                                    className={`w-full h-12 pl-5 pr-12 rounded-2xl border-2 outline-none text-sm font-bold transition-all disabled:opacity-40 disabled:bg-slate-50
+                                        ${errors.password ? "border-rose-200 bg-rose-50/30" : "border-slate-100 bg-slate-50/50 focus:border-slate-900 focus:bg-white"}`}
                                 />
-                                <button
-                                    type="button"
-                                    onClick={() => setShowPassword(!showPassword)}
-                                    className="absolute right-4 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-900 transition-colors"
-                                >
+                                <button type="button" onClick={() => setShowPassword(!showPassword)} disabled={form.send_invite}
+                                    className="absolute right-4 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-900 disabled:opacity-0 transition-all">
                                     {showPassword ? <EyeOff className="h-5 w-5" /> : <Eye className="h-5 w-5" />}
                                 </button>
-                                {errors.password && (
-                                    <p className="text-xs font-bold text-red-500 mt-1.5 px-1 bg-red-50/50 py-1 rounded w-fit">
-                                        {errors.password}
-                                    </p>
-                                )}
                             </div>
+
+                            {form.password && !form.send_invite && (
+                                <div className="flex flex-wrap gap-1.5 pt-1 px-1">
+                                    {PASSWORD_REQS.map((req, i) => {
+                                        const met = req.regex.test(form.password);
+                                        return (
+                                            <span key={i} className={`text-[10px] font-black uppercase tracking-wider px-2 py-0.5 rounded-md border transition-all
+                                                ${met ? "bg-emerald-50 text-emerald-600 border-emerald-200 shadow-sm" : "bg-slate-50 text-slate-400 border-slate-100"}`}>
+                                                {req.label}
+                                            </span>
+                                        );
+                                    })}
+                                </div>
+                            )}
+                            {errors.password && <p className="text-[11px] font-bold text-rose-600 px-1">{errors.password}</p>}
                         </div>
 
-                        {/* Status Toggle */}
-                        <div className="pt-2">
-                            <div
-                                onClick={() => field("is_active", !form.is_active)}
-                                className={`flex items-center p-4 rounded-xl border-2 transition-all cursor-pointer select-none
-                                    ${form.is_active ? "border-slate-900 bg-slate-50" : "border-slate-100 bg-white opacity-60"}
-                                `}
-                            >
-                                <div className={`w-6 h-6 rounded-lg flex items-center justify-center mr-3 transition-colors ${form.is_active ? "bg-slate-900 text-white" : "bg-slate-200 text-slate-400"}`}>
-                                    {form.is_active && <CheckCheck className="h-3.5 w-3.5" />}
+                        {/* Toggles */}
+                        <div className="grid grid-cols-1 gap-3">
+                            <button type="button" onClick={() => { field("send_invite", !form.send_invite); if (!form.send_invite) field("password", ""); }}
+                                className={`flex items-center gap-4 p-4 rounded-3xl border-2 transition-all text-left shadow-sm
+                                ${form.send_invite ? "border-indigo-600 bg-indigo-50 shadow-indigo-100" : "border-slate-100 bg-slate-50 hover:border-slate-200"}`}>
+                                <div className={`w-6 h-6 rounded-xl flex items-center justify-center transition-all ${form.send_invite ? "bg-indigo-600 rotate-0" : "bg-slate-200 -rotate-90"}`}>
+                                    {form.send_invite && <Check className="h-3.5 w-3.5 text-white" />}
                                 </div>
-                                <span className="text-sm font-bold text-slate-900">Active User</span>
-                            </div>
+                                <div className="flex flex-col">
+                                    <span className="text-sm font-black text-slate-900">Send Email Invitation</span>
+                                    <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wide">User sets password via email</span>
+                                </div>
+                            </button>
+
+                            <button type="button" onClick={() => field("is_active", !form.is_active)}
+                                className={`flex items-center gap-4 p-4 rounded-3xl border-2 transition-all text-left shadow-sm
+                                ${form.is_active ? "border-slate-900 bg-slate-50 shadow-slate-100" : "border-slate-100 bg-white"}`}>
+                                <div className={`w-6 h-6 rounded-xl flex items-center justify-center transition-all ${form.is_active ? "bg-slate-900" : "bg-slate-200"}`}>
+                                    {form.is_active && <CheckCheck className="h-3.5 w-3.5 text-white" />}
+                                </div>
+                                <div className="flex flex-col">
+                                    <span className="text-sm font-black text-slate-900">Immediate Activation</span>
+                                    <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wide">Grant access immediately</span>
+                                </div>
+                            </button>
                         </div>
                     </form>
                 </div>
 
-                {/* Footer with Gradient Primary Button */}
-                <div className="px-8 py-8 shrink-0 bg-white border-t border-slate-100 flex gap-4">
-                    <button
-                        type="button"
-                        onClick={onClose}
-                        className="flex-1 px-6 py-3.5 rounded-xl border-2 border-slate-200 text-sm font-bold text-slate-600 bg-white hover:bg-slate-50 hover:border-slate-300 transition-all active:scale-95"
-                    >
+                {/* Footer */}
+                <div className="px-10 py-8 bg-white border-t border-slate-100 flex gap-4 shrink-0">
+                    <button type="button" onClick={onClose}
+                        className="flex-1 px-6 py-4 rounded-2xl border-2 border-slate-200 text-sm font-black text-slate-600 hover:bg-slate-50 transition-all active:scale-95 uppercase tracking-widest">
                         Cancel
                     </button>
-                    <button
-                        form="create-user-form"
-                        type="submit"
-                        disabled={loading}
-                        className="flex-[1.5] px-6 py-3.5 rounded-xl bg-white border-2 border-slate-900 text-slate-900 text-sm font-black shadow-[4px_4px_0px_0px_rgba(15,23,42,1)] hover:translate-x-[2px] hover:translate-y-[2px] hover:shadow-none transition-all active:scale-95 flex items-center justify-center gap-3 disabled:opacity-50"
-                    >
-                        {loading ? (
-                            <div className="h-5 w-5 border-2 border-slate-300 border-t-slate-900 rounded-full animate-spin" />
+                    <button form="create-user-form" type="submit" disabled={loading || success}
+                        className={`flex-[1.8] px-6 py-4 rounded-2xl text-white text-sm font-black transition-all flex items-center justify-center gap-3 active:scale-[0.98] shadow-lg
+                        ${success ? "bg-emerald-500 shadow-emerald-200" : "bg-slate-900 shadow-slate-200 hover:bg-slate-800"}`}>
+                        {success ? (
+                            <><Check className="h-5 w-5 animate-in zoom-in" /><span className="uppercase tracking-widest">USER CREATED</span></>
+                        ) : loading ? (
+                            <RefreshCw className="h-5 w-5 animate-spin" />
                         ) : (
-                            <>
-                                <UserPlus className="h-5 w-5" />
-                                <span>CREATE USER</span>
-                            </>
+                            <><UserPlus className="h-5 w-5" /><span className="uppercase tracking-widest">CREATE MEMBER</span></>
                         )}
                     </button>
                 </div>

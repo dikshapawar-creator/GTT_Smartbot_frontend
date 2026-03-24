@@ -4,8 +4,9 @@ import React, { useState, useEffect } from 'react';
 import { Activity, Save, RotateCcw } from 'lucide-react';
 import api from '@/config/api';
 import IntentManager from '@/components/Dashboard/IntentManager';
+import BotConfigSettings from '@/components/Dashboard/BotConfigSettings';
 
-type TabType = 'general' | 'chatbot' | 'leads' | 'security';
+type TabType = 'general' | 'chatbot' | 'branding' | 'leads' | 'security';
 
 // ── LS Keys ────────────────────────────────────────────────────────────
 const LS = {
@@ -112,7 +113,8 @@ export default function SettingsPage() {
 
     const tabs: { key: TabType; label: string; emoji: string }[] = [
         { key: 'general', label: 'General', emoji: '⚙' },
-        { key: 'chatbot', label: 'Chatbot', emoji: '🤖' },
+        { key: 'chatbot', label: 'Intents', emoji: '🤖' },
+        { key: 'branding', label: 'Branding', emoji: '🎨' },
         { key: 'leads', label: 'Lead Rules', emoji: '👥' },
         { key: 'security', label: 'Security', emoji: '🔒' },
     ];
@@ -139,7 +141,7 @@ export default function SettingsPage() {
                         <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" /><polyline points="7 10 12 15 17 10" /><line x1="12" y1="15" x2="12" y2="3" /></svg>
                         Export
                     </button>
-                    {activeTab !== 'chatbot' && (
+                    {activeTab !== 'chatbot' && activeTab !== 'branding' && (
                         <button className="btn-primary" onClick={handleSave}>
                             {isSaving ? (
                                 <><Activity size={13} className="animate-spin" />Saving...</>
@@ -168,6 +170,7 @@ export default function SettingsPage() {
             {/* Content */}
             <div className="content">
                 {activeTab === 'chatbot' && <IntentManager />}
+                {activeTab === 'branding' && <BotConfigSettings />}
                 {activeTab === 'general' && <GeneralTab notify={notify} />}
                 {activeTab === 'leads' && <LeadRulesTab notify={notify} />}
                 {activeTab === 'security' && <SecurityTab notify={notify} />}
@@ -183,7 +186,7 @@ export default function SettingsPage() {
                     <button className="btn-secondary" onClick={() => { localStorage.clear(); window.location.reload(); }}>
                         <RotateCcw size={13} /> Reset All
                     </button>
-                    {activeTab !== 'chatbot' && (
+                    {activeTab !== 'chatbot' && activeTab !== 'branding' && (
                         <button className="btn-primary" onClick={handleSave}>
                             {isSaving ? <Activity size={13} className="animate-spin" /> : <Save size={13} />}
                             {isSaving ? 'Saving...' : 'Save & Sync'}
