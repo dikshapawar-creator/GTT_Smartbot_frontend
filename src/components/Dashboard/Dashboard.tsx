@@ -9,6 +9,7 @@ import styles from './Dashboard.module.css';
 import { auth } from '@/lib/auth';
 import { api } from '@/lib/api';
 import { formatToIST } from '@/lib/time';
+import { useCRMUpdates, CRMUpdateEvent } from '@/hooks/useCRMUpdates';
 
 import {
     LayoutDashboard,
@@ -26,13 +27,23 @@ import {
     Activity,
     UserPlus,
     Moon,
-    Sun
+    Sun,
+    Building
 } from 'lucide-react';
 
-const navItems = [
+interface NavItem {
+    icon: React.ReactNode;
+    label: string;
+    href: string;
+    adminOnly?: boolean;
+    superAdminOnly?: boolean;
+}
+
+const navItems: NavItem[] = [
     { icon: <LayoutDashboard size={20} />, label: 'Overview', href: '/crm/dashboard' },
     { icon: <Contact2 size={20} />, label: 'Captured Leads', href: '/crm/dashboard/leads' },
     { icon: <Users size={20} />, label: 'User Management', href: '/crm/users', adminOnly: true },
+    { icon: <Building size={20} />, label: 'Tenant Management', href: '/crm/tenants', superAdminOnly: true },
     { icon: <Clock size={20} />, label: 'Conversation History', href: '/crm/dashboard/history' },
     { icon: <MessageCircle size={20} />, label: 'Live Conversations', href: '/crm/dashboard/live-chat' },
     { icon: <Settings size={20} />, label: 'Settings', href: '/crm/dashboard/settings' },
@@ -102,6 +113,22 @@ export default function Dashboard({ children }: { children?: React.ReactNode }) 
             setLastReadTime(savedReadTime);
         }
     }, []);
+
+    // 🔄 Real-time CRM Updates
+    useCRMUpdates((event: CRMUpdateEvent) => {
+        console.log('📬 Dashboard received sync event:', event);
+
+        // Refresh stats on any relevant mutation
+        const refreshEvents = [
+            'LEAD_CREATED', 'LEAD_UPDATED', 'LEAD_DELETED',
+            'SESSION_UPDATED', 'NEW_MESSAGE',
+            'USER_CREATED', 'USER_UPDATED', 'USER_DEACTIVATED'
+        ];
+
+        if (refreshEvents.includes(event.type)) {
+            fetchStats();
+        }
+    });
 
     const toggleTheme = () => {
         setIsDarkMode(!isDarkMode);
@@ -183,7 +210,11 @@ export default function Dashboard({ children }: { children?: React.ReactNode }) 
                 </div>
 
                 <nav className={styles.sidebarNav}>
-                    {mounted && navItems.filter(item => !item.adminOnly || auth.isAdmin()).map((item) => {
+                    {mounted && navItems.filter(item => {
+                        if (item.superAdminOnly && !auth.isSuperAdmin()) return false;
+                        if (item.adminOnly && !auth.isAdmin()) return false;
+                        return true;
+                    }).map((item) => {
                         const isActive = pathname === item.href || (item.href !== '/dashboard' && pathname.startsWith(item.href));
                         return (
                             <Link key={item.label} href={item.href} className={`${styles.navItem} ${isActive ? styles.navItemActive : ''}`}>
@@ -250,16 +281,43 @@ export default function Dashboard({ children }: { children?: React.ReactNode }) 
                         </div>
                     </div>
                     <div className={styles.headerRight}>
-                        <div className={styles.orgSwitcher} onClick={() => setOrgOpen(!orgOpen)} style={{ position: 'relative' }}>
-                            <span>{statsLoading ? 'Loading...' : 'GTD Service'}</span>
-                            <ChevronDown size={14} className={`text-slate-400 transition-transform ${orgOpen ? 'rotate-180' : ''}`} />
-                            {orgOpen && (
-                                <div className={styles.orgDropdown}>
-                                    <button className={styles.orgOption}>{statsLoading ? 'Loading...' : 'GTD Service'}</button>
-                                    <button className={styles.orgOption} style={{ color: "var(--color-text-muted)" }}>+ Add Workspace</button>
-                                </div>
-                            )}
-                        </div>
+                        {mounted && auth.getUser() && (auth.getUser()?.tenant_ids?.length || 0) > 1 && (
+                            <div className={styles.orgSwitcher} onClick={() => setOrgOpen(!orgOpen)} style={{ position: 'relative' }}>
+                                <span className="flex items-center gap-2">
+                                    <Activity size={14} className="text-primary" />
+                                    {statsLoading ? 'Loading...' : (
+                                        auth.getUser()?.tenant_access?.find(t => String(t.tenant_id) === (localStorage.getItem('selected_tenant_id') || String(auth.getUser()?.primary_tenant_id)))?.tenant_name || 'Select Tenant'
+                                    )}
+                                </span>
+                                <ChevronDown size={14} className={`text-slate-400 transition-transform ${orgOpen ? 'rotate-180' : ''}`} />
+                                {orgOpen && (
+                                    <div className={styles.orgDropdown}>
+                                        <div className="px-3 py-2 text-[10px] font-semibold text-slate-400 uppercase tracking-wider border-b border-slate-100 mb-1">
+                                            Switch Workspace
+                                        </div>
+                                        {auth.getUser()?.tenant_access?.map((t) => (
+                                            <button
+                                                key={t.tenant_id}
+                                                className={`${styles.orgOption} ${String(t.tenant_id) === (localStorage.getItem('selected_tenant_id') || String(auth.getUser()?.primary_tenant_id)) ? styles.orgOptionActive : ''}`}
+                                                onClick={() => {
+                                                    localStorage.setItem('selected_tenant_id', String(t.tenant_id));
+                                                    window.location.reload();
+                                                }}
+                                            >
+                                                {t.tenant_name}
+                                                {t.is_primary && <span className="ml-auto text-[10px] bg-slate-100 px-1 rounded">Primary</span>}
+                                            </button>
+                                        ))}
+                                    </div>
+                                )}
+                            </div>
+                        )}
+                        {/* Fallback for single tenant users: just show name */}
+                        {mounted && auth.getUser() && (auth.getUser()?.tenant_ids?.length || 0) <= 1 && (
+                            <div className={styles.orgSwitcher} style={{ cursor: 'default' }}>
+                                <span>{auth.getUser()?.tenant_access?.[0]?.tenant_name || 'My Workspace'}</span>
+                            </div>
+                        )}
                         <div className={styles.notifWrap}>
                             <div style={{ display: 'flex', gap: '8px' }}>
                                 <button className={styles.iconBtn} onClick={toggleTheme} title="Toggle Dark Mode">
@@ -300,7 +358,7 @@ export default function Dashboard({ children }: { children?: React.ReactNode }) 
                             <div className={styles.profileInfo}>
                                 {mounted ? (auth.getUser()?.email?.split('@')[0] || 'User') : '...'}
                                 <span className={styles.profileRole}>
-                                    {mounted ? (auth.getUser()?.role || 'Administrator') : 'Administrator'}
+                                    {mounted ? (auth.getUser()?.is_super_admin ? 'Super Admin' : (auth.getUser()?.role || 'Administrator')) : 'Administrator'}
                                 </span>
                             </div>
                             <ChevronDown size={14} className={`text-slate-400 ml-1 transition-transform ${profileOpen ? 'rotate-180' : ''}`} />
@@ -329,7 +387,10 @@ export default function Dashboard({ children }: { children?: React.ReactNode }) 
                             <div className={styles.pageTitle}>
                                 <div>
                                     <h1 className={styles.pageTitleText}>Dashboard</h1>
-                                    <p className={styles.pageTitleSub}>Welcome back, {auth.getUser()?.email?.split('@')[0] || 'User'}. Here is your real-time analytics.</p>
+                                    <p className={styles.pageTitleSub}>
+                                        Welcome back, {auth.getUser()?.email?.split('@')[0] || 'User'}.
+                                        Showing analytics for <strong>{auth.getUser()?.tenant_access?.find(t => String(t.tenant_id) === (localStorage.getItem('selected_tenant_id') || String(auth.getUser()?.primary_tenant_id)))?.tenant_name || 'your workspace'}</strong>.
+                                    </p>
                                 </div>
                                 <div className={styles.pageTitleActions}>
                                     <Button onClick={fetchStats} variant="outline" size="sm" className="gap-2">

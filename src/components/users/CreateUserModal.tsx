@@ -34,13 +34,16 @@ interface CreateUserModalProps {
     showToast: (msg: string, type: "success" | "error") => void;
 }
 
-export function CreateUserModal({ onClose, onCreated, canManage, showToast }: CreateUserModalProps) {
+export function CreateUserModal({ onClose, onCreated, showToast }: Omit<CreateUserModalProps, "canManage">) {
     const [form, setForm] = useState({ ...EMPTY_FORM });
     const [roles, setRoles] = useState<UserRole[]>([]);
     const [errors, setErrors] = useState<FormErrors>({});
     const [loading, setLoading] = useState(false);
     const [showPassword, setShowPassword] = useState(false);
     const [success, setSuccess] = useState(false);
+    const [allTenants, setAllTenants] = useState<{ id: number; name: string }[]>([]);
+    const [selectedTenants, setSelectedTenants] = useState<number[]>([]);
+    const [primaryTenantId, setPrimaryTenantId] = useState<number | null>(null);
 
     const fetchRoles = useCallback(async () => {
         try {
@@ -59,13 +62,27 @@ export function CreateUserModal({ onClose, onCreated, canManage, showToast }: Cr
             }
         } catch {
             showToast("Failed to load roles", "error");
-        } finally {
         }
-    }, [canManage, showToast, form.role_name]);
+    }, [showToast, form.role_name]);
+
+    const fetchTenants = useCallback(async () => {
+        if (!auth.getUser()?.is_super_admin) return;
+        try {
+            const { data } = await api.get("/super-admin/tenants");
+            setAllTenants(data);
+            if (data.length > 0) {
+                setSelectedTenants([data[0].id]);
+                setPrimaryTenantId(data[0].id);
+            }
+        } catch {
+            showToast("Failed to load tenants", "error");
+        }
+    }, [showToast]);
 
     useEffect(() => {
         fetchRoles();
-    }, [fetchRoles]);
+        fetchTenants();
+    }, [fetchRoles, fetchTenants]);
 
     const field = (key: keyof typeof EMPTY_FORM, val: string | boolean) =>
         setForm((f) => ({ ...f, [key]: val }));
@@ -90,13 +107,21 @@ export function CreateUserModal({ onClose, onCreated, canManage, showToast }: Cr
         if (!validate()) return;
         setLoading(true);
         try {
+            const isSuperAdmin = auth.getUser()?.is_super_admin;
+            const endpoint = isSuperAdmin ? "/super-admin/create-user" : "/users/create";
+
             const payload = {
                 email: form.email.trim(),
                 password: form.password || undefined,
                 role_name: form.role_name,
                 is_active: form.is_active,
+                ...(isSuperAdmin && {
+                    tenant_ids: selectedTenants,
+                    primary_tenant_id: primaryTenantId
+                })
             };
-            const { data: created } = await api.post<User>("/users/create", payload);
+
+            const { data: created } = await api.post<User>(endpoint, payload);
             setSuccess(true);
             setTimeout(() => {
                 onCreated(created);
@@ -218,6 +243,44 @@ export function CreateUserModal({ onClose, onCreated, canManage, showToast }: Cr
                             )}
                             {errors.password && <p className="text-[11px] font-bold text-rose-600 px-1">{errors.password}</p>}
                         </div>
+
+                        {/* Workspace Assignment (Super Admin Only) */}
+                        {auth.getUser()?.is_super_admin && allTenants.length > 0 && (
+                            <div className="space-y-3 p-4 bg-slate-50 rounded-3xl border-2 border-slate-100">
+                                <label className="flex items-center gap-2 text-[10px] font-black text-slate-500 uppercase tracking-widest px-1">
+                                    Workspace Access <span className="text-rose-500">*</span>
+                                </label>
+                                <div className="space-y-2 max-h-40 overflow-y-auto pr-2">
+                                    {allTenants.map(tenant => (
+                                        <div key={tenant.id} className="flex items-center justify-between p-2 rounded-xl bg-white border border-slate-100">
+                                            <div className="flex items-center gap-3">
+                                                <input
+                                                    type="checkbox"
+                                                    checked={selectedTenants.includes(tenant.id)}
+                                                    onChange={(e) => {
+                                                        if (e.target.checked) setSelectedTenants([...selectedTenants, tenant.id]);
+                                                        else setSelectedTenants(selectedTenants.filter(id => id !== tenant.id));
+                                                    }}
+                                                    className="w-4 h-4 rounded border-slate-300 text-indigo-600 focus:ring-indigo-500"
+                                                />
+                                                <span className="text-xs font-bold text-slate-700">{tenant.name}</span>
+                                            </div>
+                                            {selectedTenants.includes(tenant.id) && (
+                                                <button
+                                                    type="button"
+                                                    onClick={() => setPrimaryTenantId(tenant.id)}
+                                                    className={`px-2 py-0.5 rounded text-[9px] font-black uppercase tracking-tighter border transition-all
+                                                        ${primaryTenantId === tenant.id ? 'bg-indigo-600 text-white border-indigo-600' : 'bg-slate-50 text-slate-400 border-slate-200 hover:border-indigo-400'}`}
+                                                >
+                                                    {primaryTenantId === tenant.id ? 'Primary' : 'Set Primary'}
+                                                </button>
+                                            )}
+                                        </div>
+                                    ))}
+                                </div>
+                                {selectedTenants.length === 0 && <p className="text-[10px] font-bold text-rose-500 px-1">At least one workspace must be selected</p>}
+                            </div>
+                        )}
 
                         {/* Toggles */}
                         <div className="grid grid-cols-1 gap-3">

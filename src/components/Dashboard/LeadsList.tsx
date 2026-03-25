@@ -12,6 +12,7 @@ import styles from './Dashboard.module.css';
 import api from '@/config/api';
 import { formatToIST } from '@/lib/time';
 import { auth } from '@/lib/auth';
+import { useCRMUpdates, CRMUpdateEvent } from '@/hooks/useCRMUpdates';
 
 // ── Types ────────────────────────────────────────────────────────────────
 
@@ -125,6 +126,14 @@ export default function LeadsList() {
         }, 300); // Debounce search/filters
         return () => clearTimeout(timer);
     }, [fetchLeads]);
+
+    // 🔄 Real-time lead updates
+    useCRMUpdates((event: CRMUpdateEvent) => {
+        if (['LEAD_CREATED', 'LEAD_UPDATED', 'LEAD_DELETED'].includes(event.type)) {
+            console.log('📈 LeadsList received sync event:', event);
+            fetchLeads();
+        }
+    });
 
     const handleStatusUpdate = async (lead: Lead, newStatus: string) => {
         if (lead.status === newStatus) return;

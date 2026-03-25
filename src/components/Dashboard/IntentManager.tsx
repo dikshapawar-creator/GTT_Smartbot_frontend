@@ -1,7 +1,7 @@
-'use client';
-
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useCallback } from 'react';
+import { RotateCcw } from 'lucide-react';
 import api from '@/config/api';
+import { useCRMUpdates, CRMUpdateEvent } from '@/hooks/useCRMUpdates';
 
 // ── Inline SVG Icons ─────────────────────────────────────────────────
 
@@ -73,12 +73,16 @@ const IcSave = () => (
 
 interface Intent {
     id: string;
-    intentKey: string; // stored as #GREETING in frontend, GREETING in backend
+    intentKey: string;
     name: string;
     color: 'purple' | 'blue' | 'teal';
     keywords: string[];
     responseText: string;
     active: boolean;
+    metadata: {
+        cta_label?: string;
+        action?: string;
+    };
 }
 
 const COLOR_MAP: Record<string, 'purple' | 'blue' | 'teal'> = {
@@ -103,37 +107,7 @@ function toDisplayName(key: string): string {
     return key.replace('#', '').split('_').map(s => s.charAt(0).toUpperCase() + s.slice(1).toLowerCase()).join(' ');
 }
 
-// ── Default Fallback Data ─────────────────────────────────────────────
-
-const DEFAULT_INTENTS: Intent[] = [
-    {
-        id: '1',
-        intentKey: '#GREETING',
-        name: 'Greeting',
-        color: 'purple',
-        keywords: ['hi', 'hello', 'hey', 'hii'],
-        responseText: "Welcome to GTD Service! Are you looking to import or export data? I'm here to assist you — please let me know how I can help.",
-        active: true,
-    },
-    {
-        id: '2',
-        intentKey: '#SALES_DEMO',
-        name: 'Sales Demo',
-        color: 'blue',
-        keywords: ['demo', 'book demo', 'more details', 'pricing'],
-        responseText: "I'd be grateful to help with that. Please book a demo so we can guide you properly.",
-        active: true,
-    },
-    {
-        id: '3',
-        intentKey: '#IMPORT_EXPORT',
-        name: 'Import Export',
-        color: 'teal',
-        keywords: ['show import data', 'show export data', 'get trade data'],
-        responseText: "I will help you find the import export data. To assist you better, please share your details. May I know your Full Name?",
-        active: true,
-    }
-];
+// No more default hardcoded intents — only live data from DB.
 
 // ── Component ─────────────────────────────────────────────────────────
 
@@ -222,12 +196,12 @@ const CSS = `
 @media(max-width:640px){.ifp .grid{grid-template-columns:1fr;}.ifp .stats-row{grid-template-columns:repeat(2,1fr);}.ifp .modal{width:95vw;}.ifp .personality-grid{grid-template-columns:1fr;}.ifp .personality-save{grid-column:span 1;}}
 `;
 
-export default function IntentManager() {
+export default function IntentManager({ tenantId }: { tenantId?: number }) {
     const [intents, setIntents] = useState<Intent[]>([]);
     const [loading, setLoading] = useState(true);
     const [search, setSearch] = useState('');
     const [statusFilter, setStatusFilter] = useState<'all' | 'active' | 'inactive'>('all');
-    const [modal, setModal] = useState<{ open: boolean; mode: 'add' | 'edit'; data: Intent | null }>({ open: false, mode: 'add', data: null });
+    const [modal, setModal] = useState<{ open: boolean; mode: 'add' | 'edit' | 'clone'; data: Intent | null }>({ open: false, mode: 'add', data: null });
     const [toast, setToast] = useState<{ msg: string; type: 'success' | 'error' } | null>(null);
     const [botName, setBotName] = useState('GTD Service Bot');
     const [handoffMsg, setHandoffMsg] = useState('Connecting you to a human agent...');
@@ -244,27 +218,50 @@ export default function IntentManager() {
     }, []);
 
     // Load intents from backend
-    useEffect(() => {
-        (async () => {
-            try {
-                const res = await api.get('/intents/');
-                const mapped: Intent[] = res.data.map((i: { id: number | string; intent_key: string; keywords: string[]; response_text: string }) => ({
-                    id: i.id.toString(),
-                    intentKey: '#' + i.intent_key.toUpperCase(),
-                    name: toDisplayName(i.intent_key),
-                    color: getColor(i.intent_key),
-                    keywords: Array.isArray(i.keywords) ? i.keywords : [],
-                    responseText: i.response_text || '',
-                    active: true,
-                }));
-                setIntents(mapped.length > 0 ? mapped : DEFAULT_INTENTS);
-            } catch {
-                setIntents(DEFAULT_INTENTS);
-            } finally {
-                setLoading(false);
+    const fetchIntents = useCallback(async () => {
+        setLoading(true);
+        try {
+            const url = tenantId ? `/intents/?tenant_id=${tenantId}` : '/intents/';
+            const res = await api.get(url);
+
+            interface IntentApiResponse {
+                id: number | string;
+                intent_key: string;
+                keywords: string[];
+                response_text?: string;
+                is_active?: boolean;
+                metadata_json?: Record<string, unknown>;
             }
-        })();
-    }, []);
+
+            const mapped: Intent[] = (res.data as IntentApiResponse[]).map((i) => ({
+                id: i.id.toString(),
+                intentKey: '#' + i.intent_key.toUpperCase(),
+                name: toDisplayName(i.intent_key),
+                color: getColor(i.intent_key),
+                keywords: Array.isArray(i.keywords) ? i.keywords : [],
+                responseText: i.response_text || '',
+                active: i.is_active ?? true,
+                metadata: (i.metadata_json as { cta_label?: string; action?: string }) || {}
+            }));
+            setIntents(mapped);
+        } catch {
+            setIntents([]);
+        } finally {
+            setLoading(false);
+        }
+    }, [tenantId]);
+
+    useEffect(() => {
+        fetchIntents();
+    }, [fetchIntents]);
+
+    // 🔄 Real-time intent updates
+    useCRMUpdates((event: CRMUpdateEvent) => {
+        if (['INTENT_CREATED', 'INTENT_UPDATED', 'INTENT_DELETED'].includes(event.type)) {
+            console.log('🎯 IntentManager received sync event:', event);
+            fetchIntents();
+        }
+    });
 
     const notify = (msg: string, type: 'success' | 'error' = 'success') => {
         setToast({ msg, type });
@@ -280,17 +277,26 @@ export default function IntentManager() {
 
     const activeCount = intents.filter(i => i.active).length;
 
-    const toggleActive = (id: string) => {
+    const toggleActive = async (id: string) => {
         const prev = intents.find(i => i.id === id);
-        setIntents(intents.map(i => i.id === id ? { ...i, active: !i.active } : i));
-        notify(`Intent ${!prev?.active ? 'activated' : 'deactivated'} ✓`);
+        if (!prev) return;
+        try {
+            const apiKey = prev.intentKey.replace('#', '');
+            const url = tenantId ? `/intents/${apiKey}?tenant_id=${tenantId}` : `/intents/${apiKey}`;
+            await api.patch(url, { is_active: !prev.active });
+            setIntents(intents.map(i => i.id === id ? { ...i, active: !i.active } : i));
+            notify(`Intent ${!prev.active ? 'activated' : 'deactivated'} ✓`);
+        } catch {
+            notify('Toggle failed', 'error');
+        }
     };
 
     const handleDelete = async (id: string, key: string) => {
         if (!confirm(`Delete ${key}? This cannot be undone.`)) return;
         try {
             const apiKey = key.replace('#', '');
-            await api.delete(`/intents/${apiKey}`);
+            const url = tenantId ? `/intents/${apiKey}?tenant_id=${tenantId}` : `/intents/${apiKey}`;
+            await api.delete(url);
             setIntents(prev => prev.filter(i => i.id !== id));
             notify('Intent deleted ✓');
         } catch {
@@ -304,6 +310,8 @@ export default function IntentManager() {
         const rawKey = (fd.get('intentKey') as string || '').trim();
         const keywordsRaw = (fd.get('keywords') as string || '').trim();
         const responseText = (fd.get('responseText') as string || '').trim();
+        const ctaLabel = fd.get('ctaLabel') as string;
+        const action = fd.get('action') as string;
 
         if (!rawKey || !keywordsRaw || !responseText) {
             notify('Please fill in all fields', 'error');
@@ -313,10 +321,12 @@ export default function IntentManager() {
         const intentKey = rawKey.startsWith('#') ? rawKey.toUpperCase() : '#' + rawKey.toUpperCase();
         const apiKey = intentKey.replace('#', '');
         const keywords = keywordsRaw.split(',').map(k => k.trim()).filter(Boolean);
+        const metadata_json = ctaLabel || action ? { cta_label: ctaLabel, action } : {};
 
         try {
+            const baseUrl = tenantId ? `/intents/?tenant_id=${tenantId}` : '/intents/';
             if (modal.mode === 'add') {
-                const res = await api.post('/intents/', { intent_key: apiKey, keywords, response_text: responseText });
+                const res = await api.post(baseUrl, { intent_key: apiKey, keywords, response_text: responseText, metadata_json });
                 const newIntent: Intent = {
                     id: res.data.id.toString(),
                     intentKey,
@@ -325,14 +335,16 @@ export default function IntentManager() {
                     keywords,
                     responseText,
                     active: true,
+                    metadata: metadata_json
                 };
                 setIntents(prev => [...prev, newIntent]);
                 notify('Intent created ✓');
             } else if (modal.data) {
                 const oldApiKey = modal.data.intentKey.replace('#', '');
-                await api.patch(`/intents/${oldApiKey}`, { intent_key: apiKey, keywords, response_text: responseText });
+                const patchUrl = tenantId ? `/intents/${oldApiKey}?tenant_id=${tenantId}` : `/intents/${oldApiKey}`;
+                await api.patch(patchUrl, { intent_key: apiKey, keywords, response_text: responseText, metadata_json });
                 setIntents(prev => prev.map(i => i.id === modal.data!.id
-                    ? { ...i, intentKey, name: toDisplayName(apiKey), color: getColor(apiKey), keywords, responseText }
+                    ? { ...i, intentKey, name: toDisplayName(apiKey), color: getColor(apiKey), keywords, responseText, metadata: metadata_json }
                     : i
                 ));
                 notify('Intent updated ✓');
@@ -364,6 +376,10 @@ export default function IntentManager() {
                     </div>
                 </div>
                 <div className="topbar-r">
+                    <button className="btn-secondary" onClick={() => setModal({ open: true, mode: 'clone', data: null })}>
+                        <RotateCcw size={14} />
+                        Clone from Workspace
+                    </button>
                     <button className="btn-secondary" onClick={handleExport}>
                         <IcDownload />
                         Export
@@ -519,57 +535,114 @@ export default function IntentManager() {
                 </section>
             </main>
 
-            {/* ── Add / Edit Modal ─── */}
+            {/* ── Add / Edit / Clone Modal ─── */}
             {modal.open && (
                 <div className="modal-overlay" onClick={() => setModal({ open: false, mode: 'add', data: null })}>
-                    <div className="modal" onClick={e => e.stopPropagation()}>
+                    <div className="modal" style={modal.mode === 'clone' ? { width: 400 } : {}} onClick={e => e.stopPropagation()}>
                         <header className="modal-head">
-                            <h2>{modal.mode === 'add' ? 'Add New Intent' : `Edit ${modal.data?.intentKey}`}</h2>
+                            <h2>
+                                {modal.mode === 'add' ? 'Add New Intent' :
+                                    modal.mode === 'edit' ? `Edit ${modal.data?.intentKey}` :
+                                        'Clone Intelligence'}
+                            </h2>
                             <button className="btn-icon-sm" onClick={() => setModal({ open: false, mode: 'add', data: null })}>
                                 <IcX />
                             </button>
                         </header>
-                        <form onSubmit={handleSave}>
+
+                        {modal.mode === 'clone' ? (
                             <div className="modal-body">
+                                <p style={{ fontSize: 13, color: '#64748b', marginBottom: 15 }}>
+                                    Select a workspace to copy all intents from.
+                                    <strong style={{ color: '#dc2626', display: 'block', marginTop: 8 }}>This will overwrite existing intents for current workspace.</strong>
+                                </p>
                                 <div className="form-group">
-                                    <label className="form-label">Intent ID</label>
-                                    <input
-                                        name="intentKey"
-                                        className="form-input form-mono"
-                                        placeholder="#PRICING"
-                                        defaultValue={modal.data?.intentKey ?? ''}
-                                    />
-                                    <span className="form-hint">Use #PREFIX format, e.g. #BUYER_SEARCH. Stored without # in the database.</span>
+                                    <label className="form-label">Source Workspace ID</label>
+                                    <input id="sourceTenantId" className="form-input" type="number" placeholder="e.g. 1" />
                                 </div>
-                                <div className="form-group">
-                                    <label className="form-label">Primary Keywords</label>
-                                    <input
-                                        name="keywords"
-                                        className="form-input"
-                                        placeholder="price, cost, how much, fees"
-                                        defaultValue={modal.data?.keywords.join(', ') ?? ''}
-                                    />
-                                    <span className="form-hint">Comma-separated. These trigger this intent in user messages.</span>
-                                </div>
-                                <div className="form-group">
-                                    <label className="form-label">AI Response</label>
-                                    <textarea
-                                        name="responseText"
-                                        className="form-textarea"
-                                        placeholder="I'd be happy to help with that..."
-                                        defaultValue={modal.data?.responseText ?? ''}
-                                    />
+                                <div style={{ marginTop: 20, display: 'flex', gap: 10 }}>
+                                    <button className="btn-primary" style={{ flex: 1 }} onClick={async () => {
+                                        const sourceId = (document.getElementById('sourceTenantId') as HTMLInputElement)?.value;
+                                        if (!sourceId) return alert("Enter source ID");
+                                        if (!confirm("Are you sure you want to overwrite?")) return;
+                                        try {
+                                            const res = await api.get(`/intents/?tenant_id=${sourceId}`);
+                                            const sourceData = res.data;
+                                            // Bulk create
+                                            for (const item of sourceData) {
+                                                await api.post(`/intents/?tenant_id=${tenantId}`, {
+                                                    intent_key: item.intent_key,
+                                                    keywords: item.keywords,
+                                                    response_text: item.response_text,
+                                                    metadata_json: item.metadata_json
+                                                });
+                                            }
+                                            window.location.reload();
+                                        } catch { alert("Clone failed"); }
+                                    }}>Sync Now</button>
                                 </div>
                             </div>
-                            <footer className="modal-foot">
-                                <button type="button" className="btn-secondary" onClick={() => setModal({ open: false, mode: 'add', data: null })}>
-                                    Cancel
-                                </button>
-                                <button type="submit" className="btn-primary">
-                                    <IcSave /> Save Intent
-                                </button>
-                            </footer>
-                        </form>
+                        ) : (
+                            <form onSubmit={handleSave}>
+                                <div className="modal-body">
+                                    <div className="form-group">
+                                        <label className="form-label">Intent ID</label>
+                                        <input
+                                            name="intentKey"
+                                            className="form-input form-mono"
+                                            placeholder="#PRICING"
+                                            defaultValue={modal.data?.intentKey ?? ''}
+                                        />
+                                        <span className="form-hint">Use #PREFIX format, e.g. #BUYER_SEARCH. Stored without # in the database.</span>
+                                    </div>
+                                    <div className="form-group">
+                                        <label className="form-label">Primary Keywords</label>
+                                        <input
+                                            name="keywords"
+                                            className="form-input"
+                                            placeholder="price, cost, how much, fees"
+                                            defaultValue={modal.data?.keywords.join(', ') ?? ''}
+                                        />
+                                        <span className="form-hint">Comma-separated. These trigger this intent in user messages.</span>
+                                    </div>
+                                    <div className="form-group">
+                                        <label className="form-label">AI Response</label>
+                                        <textarea
+                                            name="responseText"
+                                            className="form-textarea"
+                                            placeholder="I'd be happy to help with that..."
+                                            defaultValue={modal.data?.responseText ?? ''}
+                                        />
+                                    </div>
+
+                                    <div style={{ padding: '12px', background: '#f8fafc', borderRadius: 10, border: '1px solid #e2e8f0' }}>
+                                        <div style={{ fontSize: 11, fontWeight: 700, color: '#64748b', textTransform: 'uppercase', marginBottom: 12 }}>Interactive Metadata (Optional)</div>
+                                        <div className="form-row" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
+                                            <div className="form-group">
+                                                <label className="form-label">CTA Label</label>
+                                                <input name="ctaLabel" className="form-input" placeholder="e.g. Book Demo" defaultValue={modal.data?.metadata?.cta_label ?? ''} />
+                                            </div>
+                                            <div className="form-group">
+                                                <label className="form-label">Action</label>
+                                                <select name="action" className="form-select" defaultValue={modal.data?.metadata?.action ?? ''}>
+                                                    <option value="">None</option>
+                                                    <option value="OPEN_LEAD_FORM">Open Lead Form</option>
+                                                    <option value="HANDOFF_TO_HUMAN">Handoff to Human</option>
+                                                </select>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                                <footer className="modal-foot">
+                                    <button type="button" className="btn-secondary" onClick={() => setModal({ open: false, mode: 'add', data: null })}>
+                                        Cancel
+                                    </button>
+                                    <button type="submit" className="btn-primary">
+                                        <IcSave /> Save Intent
+                                    </button>
+                                </footer>
+                            </form>
+                        )}
                     </div>
                 </div>
             )}

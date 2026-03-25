@@ -5,14 +5,23 @@ export interface UserRole {
     description?: string;
 }
 
+export interface UserTenantRead {
+    tenant_id: number;
+    tenant_name: string;
+    status: boolean;
+    is_primary: boolean;
+}
+
 export interface User {
     id: number;
     email: string;
     is_active: boolean;
     tenant_id?: number;
+    is_super_admin?: boolean;
     role: UserRole | string | null;
     created_at: string;
     updated_at?: string | null;
+    tenants?: UserTenantRead[];
 }
 
 export type SortKey = "email" | "role" | "is_active" | "created_at" | "id";

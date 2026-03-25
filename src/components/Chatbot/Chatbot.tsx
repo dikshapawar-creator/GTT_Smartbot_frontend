@@ -6,7 +6,8 @@ import dynamic from 'next/dynamic';
 import {
     X,
     Send,
-    LogOut
+    LogOut,
+    Bot
 } from 'lucide-react';
 
 const LeadForm = dynamic(() => import('./LeadForm'), {
@@ -19,6 +20,25 @@ import { wsManager } from '@/lib/wsManager';
 import api, { API_BASE } from '@/config/api';
 import axios from 'axios';
 import { formatToIST, getSyncedNow } from '@/lib/time';
+
+declare global {
+    interface Window {
+        GTT_CHATBOT_CONFIG?: {
+            apiKey?: string;
+            api_key?: string;
+            api_Key?: string;
+            tenantId?: string | number;
+            tenant_id?: string | number;
+        };
+        CHATBOT_CONFIG?: {
+            apiKey?: string;
+            api_key?: string;
+            api_Key?: string;
+            tenantId?: string | number;
+            tenant_id?: string | number;
+        };
+    }
+}
 
 // ── Generic Resilience Helpers ───────────────────────────────────────────
 function generateUUID() {
@@ -111,7 +131,7 @@ interface SessionInitData {
 
 
 
-export default function Chatbot() {
+export default function Chatbot({ tenantIdProp }: { tenantIdProp?: number }) {
     const [open, setOpen] = useState(false);
     const [messages, setMessages] = useState<Message[]>([]);
     const [input, setInput] = useState('');
@@ -123,7 +143,6 @@ export default function Chatbot() {
     const [sessionToken, setSessionToken] = useState<string | null>(null);
     const [visitorUuid, setVisitorUuid] = useState<string | null>(null);
     const [serverOffset, setServerOffset] = useState<number>(0);
-    const [tenantId, setTenantId] = useState<number>(1); // Default tenant
 
     // ── Dynamic Branding (fetched from database) ─────────────────────
     const [botName, setBotName] = useState('AI Assistant');
@@ -146,38 +165,49 @@ export default function Chatbot() {
     // ── Inactivity Timer Removed (Backend handles this now) ──
 
     // ── Chat-specific API helper: sends session UUID as Bearer token ──
-    const chatApi = useCallback((sessionUUID: string) => ({
-        get: (url: string) => {
-            const t0 = Date.now();
-            return axios.get(`${API_BASE}${url}`, {
-                withCredentials: true,
-                headers: { 'Authorization': `Bearer ${sessionUUID}`, 'Content-Type': 'application/json' }
-            }).then(res => ({ ...res, t0, t1: Date.now() }));
-        },
-        post: (url: string, data?: unknown) => {
-            const t0 = Date.now();
-            return axios.post(`${API_BASE}${url}`, data, {
-                withCredentials: true,
-                headers: { 'Authorization': `Bearer ${sessionUUID}`, 'Content-Type': 'application/json' }
-            }).then(res => ({ ...res, t0, t1: Date.now() }));
-        },
-    }), []);
+    const chatApi = useCallback((sessionUUID: string) => {
+        const globalConfig = window.GTT_CHATBOT_CONFIG || window.CHATBOT_CONFIG;
+        const apiKey = globalConfig?.apiKey || globalConfig?.api_key || globalConfig?.api_Key || 'key_local_1';
 
-    // ── Fetch Branding Config on mount ────────────────────────────────
+        return {
+            get: (url: string) => {
+                const t0 = Date.now();
+                return axios.get(`${API_BASE}${url}`, {
+                    withCredentials: true,
+                    headers: {
+                        'Authorization': `Bearer ${sessionUUID}`,
+                        'Content-Type': 'application/json',
+                        'x-api-key': apiKey
+                    }
+                }).then(res => ({ ...res, t0, t1: Date.now() }));
+            },
+            post: (url: string, data?: unknown) => {
+                const t0 = Date.now();
+                return axios.post(`${API_BASE}${url}`, data, {
+                    withCredentials: true,
+                    headers: {
+                        'Authorization': `Bearer ${sessionUUID}`,
+                        'Content-Type': 'application/json',
+                        'x-api-key': apiKey
+                    }
+                }).then(res => ({ ...res, t0, t1: Date.now() }));
+            },
+        };
+    }, []);
+
+    // ── Fetch Branding Config on mount or tenantId change ───────────
     useEffect(() => {
-        // Read tenant from global config if available
-        const globalConfig = (window as unknown as { GTT_CHATBOT_CONFIG?: { tenantId?: number } }).GTT_CHATBOT_CONFIG;
-        const globalTenantId = globalConfig?.tenantId;
-        if (globalTenantId) setTenantId(globalTenantId);
+        // Priority: Prop > Global Config > Default(1)
+        const globalConfig = window.GTT_CHATBOT_CONFIG || window.CHATBOT_CONFIG;
+        const targetTid = tenantIdProp || Number(globalConfig?.tenantId || globalConfig?.tenant_id) || 1;
 
         const fetchBranding = async () => {
             try {
-                const currentTenant = globalTenantId || 1;
-                const res = await api.get(`/bot-config?tenant_id=${currentTenant}`);
+                // Pass tenant_id to get specific branding
+                const res = await api.get('/bot-config', { params: { tenant_id: targetTid } });
                 const cfg = res.data;
                 if (cfg.chatbot_name) setBotName(cfg.chatbot_name);
                 if (cfg.chatbot_logo_url) {
-                    // Backend-served logos (uploaded) need the full API URL
                     const logoUrl = cfg.chatbot_logo_url.startsWith('/static/')
                         ? `${API_BASE}${cfg.chatbot_logo_url}`
                         : cfg.chatbot_logo_url;
@@ -186,11 +216,11 @@ export default function Chatbot() {
                 if (cfg.fab_tooltip) setFabTooltip(cfg.fab_tooltip);
                 if (cfg.welcome_text) setWelcomeText(cfg.welcome_text);
             } catch (err) {
-                console.warn('[Chatbot] Failed to fetch branding config, using defaults', err);
+                console.warn('[Chatbot] Failed to fetch branding config', err);
             }
         };
         fetchBranding();
-    }, []);
+    }, [tenantIdProp]);
 
     const initSession = useCallback(async () => {
         setLoading(true);
@@ -382,7 +412,10 @@ export default function Chatbot() {
 
     // ── WebSocket connect for live agent chat ────────────────────────
     const connectClientWebSocket = useCallback((sessionId: string) => {
-        const url = `${WS_BASE}/live-chat/ws/chat/${sessionId}?role=client&token=${sessionId}`;
+        const globalConfig = window.GTT_CHATBOT_CONFIG || window.CHATBOT_CONFIG;
+        const apiKey = globalConfig?.apiKey || globalConfig?.api_key || globalConfig?.api_Key;
+
+        const url = `${WS_BASE}/live-chat/ws/chat/${sessionId}?role=client&token=${sessionId}${apiKey ? `&api_key=${apiKey}` : ''}`;
         wsManager.connect(url, 'chatbot');
     }, []);
 
@@ -697,7 +730,14 @@ export default function Chatbot() {
                         {msg.role !== 'user' && (
                             <div className={styles.botAvatar}>
                                 {botLogo ? (
-                                    <NextImage src={botLogo} alt={botName} width={22} height={22} className="object-contain rounded-full shadow-sm" />
+                                    <NextImage
+                                        src={botLogo}
+                                        alt={botName}
+                                        width={22}
+                                        height={22}
+                                        unoptimized={true}
+                                        className="object-contain rounded-full shadow-sm"
+                                    />
                                 ) : (
                                     <div className="w-full h-full bg-white/10" />
                                 )}
@@ -721,7 +761,20 @@ export default function Chatbot() {
                 return (
                     <div className={styles.messageRow}>
                         <div className={styles.botAvatar}>
-                            <NextImage src={botLogo} alt={botName} width={22} height={22} className="object-contain rounded-full shadow-sm" />
+                            {botLogo ? (
+                                <NextImage
+                                    src={botLogo}
+                                    alt={botName}
+                                    width={22}
+                                    height={22}
+                                    unoptimized={true}
+                                    className="object-contain rounded-full shadow-sm"
+                                />
+                            ) : (
+                                <div className="w-full h-full bg-white/10 flex items-center justify-center">
+                                    <Bot size={14} className="text-white/40" />
+                                </div>
+                            )}
                         </div>
                         <div className={styles.ctaWrap}>
                             {msg.ctas ? (
@@ -796,6 +849,7 @@ export default function Chatbot() {
                                     alt={botName}
                                     width={40}
                                     height={40}
+                                    unoptimized={true}
                                     className="object-contain rounded-full shadow-sm"
                                 />
                             ) : (
@@ -814,13 +868,20 @@ export default function Chatbot() {
                     <div className={styles.header}>
                         <div className={styles.headerLeft}>
                             <div className={styles.headerAvatar}>
-                                <NextImage
-                                    src={botLogo}
-                                    alt={botName}
-                                    width={40}
-                                    height={40}
-                                    className="object-contain rounded-full bg-white/10"
-                                />
+                                {botLogo ? (
+                                    <NextImage
+                                        src={botLogo}
+                                        alt={botName}
+                                        width={40}
+                                        height={40}
+                                        unoptimized={true}
+                                        className="object-contain rounded-full bg-white/10"
+                                    />
+                                ) : (
+                                    <div className="w-full h-full bg-white/10 flex items-center justify-center rounded-full">
+                                        <Bot size={24} className="text-white/40" />
+                                    </div>
+                                )}
                             </div>
                             <div className={styles.headerInfo}>
                                 <div className={styles.headerTitle}>{botName}</div>
@@ -855,7 +916,20 @@ export default function Chatbot() {
                         {/* Welcome bubble — always shown at top */}
                         <div className={styles.welcomeRow}>
                             <div className={styles.botAvatar}>
-                                <NextImage src={botLogo} alt={botName} width={22} height={22} className="object-contain rounded-full shadow-sm" />
+                                {botLogo ? (
+                                    <NextImage
+                                        src={botLogo}
+                                        alt={botName}
+                                        width={22}
+                                        height={22}
+                                        unoptimized={true}
+                                        className="object-contain rounded-full shadow-sm"
+                                    />
+                                ) : (
+                                    <div className="w-full h-full bg-white/10 flex items-center justify-center">
+                                        <Bot size={14} className="text-white/40" />
+                                    </div>
+                                )}
                             </div>
                             <div style={{ display: 'flex', flexDirection: 'column', gap: '10px', maxWidth: '80%' }}>
                                 <div className={styles.welcomeBubble} style={{ maxWidth: '100%' }}>
@@ -894,7 +968,20 @@ export default function Chatbot() {
                         {isAgentTyping && (
                             <div className={`${styles.messageRow} ${styles.messageRowBot}`}>
                                 <div className={styles.botAvatar}>
-                                    <NextImage src={botLogo} alt={botName} width={22} height={22} className="object-contain rounded-full shadow-sm" />
+                                    {botLogo ? (
+                                        <NextImage
+                                            src={botLogo}
+                                            alt={botName}
+                                            width={22}
+                                            height={22}
+                                            unoptimized={true}
+                                            className="object-contain rounded-full shadow-sm"
+                                        />
+                                    ) : (
+                                        <div className="w-full h-full bg-white/10 flex items-center justify-center">
+                                            <Bot size={14} className="text-white/40" />
+                                        </div>
+                                    )}
                                 </div>
                                 <div className={`${styles.bubble} ${styles.bubbleBot}`}>
                                     <div className={styles.typing}>
@@ -908,7 +995,20 @@ export default function Chatbot() {
                         {loading && !error && (
                             <div className={`${styles.messageRow} ${styles.messageRowBot}`}>
                                 <div className={styles.botAvatar}>
-                                    <NextImage src={botLogo} alt={botName} width={22} height={22} className="object-contain rounded-full shadow-sm" />
+                                    {botLogo ? (
+                                        <NextImage
+                                            src={botLogo}
+                                            alt={botName}
+                                            width={22}
+                                            height={22}
+                                            unoptimized={true}
+                                            className="object-contain rounded-full shadow-sm"
+                                        />
+                                    ) : (
+                                        <div className="w-full h-full bg-white/10 flex items-center justify-center">
+                                            <Bot size={14} className="text-white/40" />
+                                        </div>
+                                    )}
                                 </div>
                                 <div className={`${styles.bubble} ${styles.bubbleBot}`}>
                                     <div className={styles.typing}>

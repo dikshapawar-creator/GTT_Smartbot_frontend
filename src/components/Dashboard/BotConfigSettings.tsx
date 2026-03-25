@@ -1,5 +1,6 @@
 'use client';
 import { useState, useEffect, useRef } from 'react';
+import NextImage from 'next/image';
 import { api } from '@/lib/api';
 import { Palette, Upload, Save, CheckCircle2, AlertCircle, Loader2 } from 'lucide-react';
 
@@ -185,9 +186,12 @@ export default function BotConfigSettings() {
                         <div className="relative group mx-auto mb-6">
                             <div className="w-24 h-24 mx-auto rounded-2xl bg-gray-50 border border-gray-100 overflow-hidden flex items-center justify-center p-4">
                                 {config?.chatbot_logo_url ? (
-                                    <img
+                                    <NextImage
                                         src={config.chatbot_logo_url.startsWith('/static/') ? `${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000'}${config.chatbot_logo_url}` : config.chatbot_logo_url}
                                         alt="Bot Logo"
+                                        width={96}
+                                        height={96}
+                                        unoptimized={true}
                                         style={{ width: '100%', height: '100%', objectFit: 'contain' }}
                                     />
                                 ) : (
@@ -229,9 +233,12 @@ export default function BotConfigSettings() {
                             <div className="flex items-center gap-3 mb-4">
                                 <div className="w-8 h-8 rounded-lg bg-gray-700 flex items-center justify-center p-1.5 overflow-hidden">
                                     {config?.chatbot_logo_url ? (
-                                        <img
-                                            src={config.chatbot_logo_url.startsWith('/static/') ? `${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000'}${config.chatbot_logo_url}` : config.chatbot_logo_url}
+                                        <NextImage
+                                            src={config.chatbot_logo_url.startsWith('/static/') ? `${process.env.NEXT_PUBLIC_API_BASE_URL || 'http://localhost:8000'}${config.chatbot_logo_url}` : config.chatbot_logo_url}
                                             alt="Logo"
+                                            width={32}
+                                            height={32}
+                                            unoptimized={true}
                                             style={{ width: '100%', height: '100%', objectFit: 'contain' }}
                                             className="inverted-logo"
                                         />

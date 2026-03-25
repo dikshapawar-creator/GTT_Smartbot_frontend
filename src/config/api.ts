@@ -1,22 +1,14 @@
-import axios from 'axios';
-
+import axios, { InternalAxiosRequestConfig } from 'axios';
+import { auth } from '@/lib/auth';
 
 /**
  * Centralized API Base URL configuration
- * Works for both local development and production (Vercel)
  */
 export const API_BASE =
     process.env.NEXT_PUBLIC_API_BASE_URL || 'http://localhost:8000';
 
-// WebSocket base URL helper - properly handle both http and https
 export const WS_BASE = API_BASE.replace(/^https?/, (match) => match === 'https' ? 'wss' : 'ws');
 
-/**
- * Centralized Axios instance for Enterprise API communication.
- * - Handles base URL from environment
- * - Enables credential sharing (cookies/JWT)
- * - Standardizes error handling
- */
 const api = axios.create({
     baseURL: API_BASE,
     withCredentials: true,
@@ -26,36 +18,68 @@ const api = axios.create({
     },
 });
 
-// Request interceptor for injecting JWT token (Auth Hardening)
-// NOTE: Chat and public lead endpoints use session UUID auth — never inject Admin JWT
-api.interceptors.request.use((config) => {
+interface ChatbotConfig {
+    apiKey?: string;
+    api_key?: string;
+    api_Key?: string;
+    tenantId?: string | number;
+    tenant_id?: string | number;
+}
+
+api.interceptors.request.use((config: InternalAxiosRequestConfig) => {
     try {
         const isChatOrPublic =
-            config.url?.includes('/chat/') ||
-            config.url?.includes('/leads/submit');
+            (config.url?.includes('/chat/') ||
+                config.url?.includes('/leads/submit') ||
+                config.url?.includes('/bot-config')) &&
+            !config.url?.includes('/admin/');
 
-        if (!isChatOrPublic) {
-            // eslint-disable-next-line @typescript-eslint/no-require-imports
-            const { auth } = require('@/lib/auth');
+        if (isChatOrPublic) {
+            if (typeof window !== 'undefined') {
+                const win = window as unknown as {
+                    GTT_CHATBOT_CONFIG?: ChatbotConfig;
+                    CHATBOT_CONFIG?: ChatbotConfig
+                };
+                const globalConfig = win.GTT_CHATBOT_CONFIG || win.CHATBOT_CONFIG;
+
+                const apiKey = globalConfig?.apiKey || globalConfig?.api_key || globalConfig?.api_Key || 'key_local_1';
+                if (apiKey) {
+                    config.headers['x-api-key'] = apiKey;
+                }
+
+                const tid = globalConfig?.tenantId || globalConfig?.tenant_id;
+                if (tid) {
+                    config.params = { ...config.params, tenant_id: tid };
+                }
+            }
+        } else {
             const token = auth.getAccessToken();
             if (token) {
                 config.headers.Authorization = `Bearer ${token}`;
             }
+
+            const isLogin = config.url?.includes('/auth/login');
+            const user = auth.getUser();
+            if (user && !isLogin) {
+                const selectedTenantId = typeof window !== 'undefined'
+                    ? localStorage.getItem('selected_tenant_id')
+                    : null;
+                const activeTenantId = selectedTenantId || user.primary_tenant_id || user.tenant_id;
+                if (activeTenantId) {
+                    config.headers['X-Tenant-ID'] = String(activeTenantId);
+                }
+            }
         }
     } catch (e) {
-        console.warn('Auth injection failed:', e);
+        console.warn('Request interceptor failed:', e);
     }
     return config;
-});
+}, (error) => Promise.reject(error));
 
-// Response interceptor for consistent error handling and 401 refresh
 api.interceptors.response.use(
     (response) => response,
     async (error) => {
         const originalRequest = error.config;
-
-        // If 401 and not already retrying, attempt refresh
-        // Skip auto-refresh for chat/public endpoints — they use session UUID, not JWT
         const isChatOrPublic =
             originalRequest.url?.includes('/chat/') ||
             originalRequest.url?.includes('/leads/submit');
@@ -63,27 +87,20 @@ api.interceptors.response.use(
         if (error.response?.status === 401 && !originalRequest._retry && !originalRequest.url.includes('/auth/login') && !isChatOrPublic) {
             originalRequest._retry = true;
             try {
-                // eslint-disable-next-line @typescript-eslint/no-require-imports
-                const { auth } = require('@/lib/auth');
                 const refreshToken = auth.getRefreshToken();
-
                 if (refreshToken) {
                     const response = await axios.post(`${API_BASE}/auth/refresh`, {
                         refresh_token: refreshToken
                     });
-
                     const { access_token, refresh_token } = response.data;
                     const user = auth.getUser();
-
                     if (user) {
                         auth.setSession(access_token, refresh_token, user);
                         originalRequest.headers.Authorization = `Bearer ${access_token}`;
                         return api(originalRequest);
                     }
                 }
-            } catch (refreshError) {
-                console.error('Refresh token failed:', refreshError);
-                // Redirect to signin if refresh fails
+            } catch {
                 if (typeof window !== 'undefined') {
                     window.location.href = '/signin';
                 }
@@ -93,18 +110,14 @@ api.interceptors.response.use(
         let message = 'Network Error';
         if (error.response?.data?.detail) {
             const detail = error.response.data.detail;
-            if (typeof detail === 'string') {
-                message = detail;
-            } else if (Array.isArray(detail)) {
-                // Handle FastAPI validation error list
+            if (typeof detail === 'string') message = detail;
+            else if (Array.isArray(detail)) {
                 message = detail.map((d: { msg?: string } | string) => (typeof d === 'string' ? d : d.msg || JSON.stringify(d))).join(', ');
-            } else {
-                message = typeof detail === 'object' ? JSON.stringify(detail) : String(detail);
             }
+            else message = JSON.stringify(detail);
         } else if (error.message) {
             message = error.message;
         }
-
         return Promise.reject(new Error(message));
     }
 );

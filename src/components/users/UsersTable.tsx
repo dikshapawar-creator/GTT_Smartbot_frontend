@@ -4,7 +4,6 @@ import {
     UserX, Check,
     ChevronUp, KeyRound, Edit3, UserCheck
 } from "lucide-react";
-import { auth } from "@/lib/auth";
 import {
     User, UserRole, SortKey, SortDir, getRoleName, getInitials,
     avatarBg, formatDate, ROLE_COLORS
@@ -151,10 +150,10 @@ export function UsersTable({ users, roles, isLoading, onDeactivate, onChangeRole
                                 <input type="checkbox" checked={allSelected} onChange={toggleAll}
                                     className="rounded border-slate-300 text-indigo-600 focus:ring-indigo-500 cursor-pointer" />
                             </th>
-                            {["ID", "USER", "ROLE", "STATUS", "JOINED", "ACTIONS"].map(h => (
-                                <th key={h} className="px-4 py-4 text-left text-[10px] font-bold text-slate-400 tracking-widest uppercase cursor-pointer group" onClick={() => h !== "ACTIONS" && handleSort(h.toLowerCase() as SortKey)}>
+                            {["ID", "USER", "ROLE", "TENANTS", "STATUS", "JOINED", "ACTIONS"].map(h => (
+                                <th key={h} className="px-4 py-4 text-left text-[10px] font-bold text-slate-400 tracking-widest uppercase cursor-pointer group" onClick={() => (h !== "ACTIONS" && h !== "TENANTS") && handleSort(h.toLowerCase() as SortKey)}>
                                     <div className="flex items-center">
-                                        {h} {h !== "ACTIONS" && <SortIcon col={h.toLowerCase() as SortKey} sortKey={sortKey} sortDir={sortDir} />}
+                                        {h} {(h !== "ACTIONS" && h !== "TENANTS") && <SortIcon col={h.toLowerCase() as SortKey} sortKey={sortKey} sortDir={sortDir} />}
                                     </div>
                                 </th>
                             ))}
@@ -202,6 +201,21 @@ export function UsersTable({ users, roles, isLoading, onDeactivate, onChangeRole
                                                 ${ROLE_COLORS[roleName] || "bg-slate-50 text-slate-600 border-slate-100"}`}>
                                                 {roleName}
                                             </span>
+                                        </td>
+                                        <td className="px-4 py-4">
+                                            <div className="flex flex-wrap gap-1 max-w-[200px]">
+                                                {user.is_super_admin ? (
+                                                    <span className="px-2 py-0.5 rounded bg-indigo-100 text-indigo-700 text-[10px] font-bold border border-indigo-200 uppercase">System Wide</span>
+                                                ) : user.tenants && user.tenants.length > 0 ? (
+                                                    user.tenants.map(t => (
+                                                        <span key={t.tenant_id} className={`px-2 py-0.5 rounded text-[10px] font-medium border ${t.is_primary ? 'bg-slate-100 text-slate-700 border-slate-300' : 'bg-white text-slate-500 border-slate-100'}`}>
+                                                            {t.tenant_name}
+                                                        </span>
+                                                    ))
+                                                ) : (
+                                                    <span className="text-slate-300 italic text-[10px]">No tenants</span>
+                                                )}
+                                            </div>
                                         </td>
                                         <td className="px-4 py-4">
                                             <span className="inline-flex items-center gap-2 text-[11px] font-semibold">

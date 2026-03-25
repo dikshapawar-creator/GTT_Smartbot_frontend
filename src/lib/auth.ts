@@ -9,7 +9,16 @@ export interface UserProfile {
     email: string;
     role: string;
     role_level: number;
-    tenant_id: number;
+    tenant_id: number;        // Current/Legacy primary tenant
+    tenant_ids: number[];     // List of all accessible tenants
+    primary_tenant_id: number;
+    is_super_admin: boolean;  // Full system bypass flag
+    tenant_access?: Array<{
+        tenant_id: number;
+        tenant_name: string;
+        status: boolean;
+        is_primary: boolean;
+    }>;
 }
 
 export const auth = {
@@ -74,9 +83,14 @@ export const auth = {
         return !!this.getAccessToken();
     },
 
+    isSuperAdmin() {
+        return this.getUser()?.is_super_admin || false;
+    },
+
     isAdmin() {
         const user = this.getUser();
         if (!user) return false;
+        if (user.is_super_admin) return true; // Super admin bypass
         const role = String(user.role || '').toLowerCase();
         return role === 'administrator' ||
             role === 'super_admin' ||
@@ -86,6 +100,7 @@ export const auth = {
     isManager() {
         const user = this.getUser();
         if (!user) return false;
+        if (user.is_super_admin) return true; // Super admin bypass
         const role = String(user.role || '').toLowerCase();
         return this.isAdmin() ||
             role === 'manager' ||
