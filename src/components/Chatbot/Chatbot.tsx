@@ -7,7 +7,8 @@ import {
     X,
     Send,
     LogOut,
-    Bot
+    Bot,
+    Menu
 } from 'lucide-react';
 
 const LeadForm = dynamic(() => import('./LeadForm'), {
@@ -143,6 +144,7 @@ export default function Chatbot({ tenantIdProp }: { tenantIdProp?: number }) {
     const [sessionToken, setSessionToken] = useState<string | null>(null);
     const [visitorUuid, setVisitorUuid] = useState<string | null>(null);
     const [serverOffset, setServerOffset] = useState<number>(0);
+    const [quickMenuOpen, setQuickMenuOpen] = useState(false);
 
     // ── Dynamic Branding (fetched from database) ─────────────────────
     const [botName, setBotName] = useState('AI Assistant');
@@ -157,10 +159,26 @@ export default function Chatbot({ tenantIdProp }: { tenantIdProp?: number }) {
     const messagesEndRef = useRef<HTMLDivElement>(null);
     const inputRef = useRef<HTMLInputElement>(null);
     const messagesRef = useRef(messages);
+    const quickMenuRef = useRef<HTMLDivElement>(null);
+    const quickMenuBtnRef = useRef<HTMLButtonElement>(null);
 
     useEffect(() => {
         messagesRef.current = messages;
     }, [messages]);
+
+    // Close quick menu on click outside
+    useEffect(() => {
+        if (!quickMenuOpen) return;
+        const handleClickOutside = (e: MouseEvent) => {
+            const isMenu = quickMenuRef.current && quickMenuRef.current.contains(e.target as Node);
+            const isBtn = quickMenuBtnRef.current && quickMenuBtnRef.current.contains(e.target as Node);
+            if (!isMenu && !isBtn) {
+                setQuickMenuOpen(false);
+            }
+        };
+        document.addEventListener('mousedown', handleClickOutside);
+        return () => document.removeEventListener('mousedown', handleClickOutside);
+    }, [quickMenuOpen]);
 
     // ── Inactivity Timer Removed (Backend handles this now) ──
 
@@ -1033,9 +1051,28 @@ export default function Chatbot({ tenantIdProp }: { tenantIdProp?: number }) {
                         <div ref={messagesEndRef} />
                     </div>
 
-                    {/* FOOTER */}
                     <div className={styles.footer}>
+                        {quickMenuOpen && (
+                            <div className={styles.quickMenuOverlay} ref={quickMenuRef}>
+                                <button className={styles.quickMenuItem} onClick={() => { handleAction('OPEN_LEAD_FORM'); setQuickMenuOpen(false); }}>
+                                    <span className={styles.quickMenuIcon}>🚀</span>
+                                    <span className={styles.quickMenuLabel}>Book Demo</span>
+                                </button>
+                                <button className={styles.quickMenuItem} onClick={() => { handleTalkToSales(); setQuickMenuOpen(false); }}>
+                                    <span className={styles.quickMenuIcon}>💬</span>
+                                    <span className={styles.quickMenuLabel}>Connect to Data Expert</span>
+                                </button>
+                            </div>
+                        )}
                         <div className={styles.inputWrap}>
+                            <button
+                                className={styles.quickMenuBtn}
+                                ref={quickMenuBtnRef}
+                                onClick={() => setQuickMenuOpen(!quickMenuOpen)}
+                                aria-label="Quick Actions"
+                            >
+                                <Menu size={20} />
+                            </button>
                             <input
                                 ref={inputRef}
                                 className={styles.chatInput}
