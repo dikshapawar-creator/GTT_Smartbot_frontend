@@ -93,6 +93,16 @@ function toFriendlyError(err: unknown): string {
     return 'Unable to connect to support.';
 }
 
+const getIframeKey = () => {
+    if (typeof window === 'undefined') return '';
+    try {
+        const params = new URLSearchParams(window.location.search);
+        return params.get('key') || params.get('tenant_key') || params.get('tenantKey') || '';
+    } catch {
+        return '';
+    }
+};
+
 type ConversationStatus = 'bot' | 'waiting_for_agent' | 'human' | 'closed';
 
 type BaseMessage = {
@@ -189,7 +199,7 @@ export default function Chatbot({ tenantIdProp, tenantKeyProp }: { tenantIdProp?
     // ── Chat-specific API helper: sends session UUID as Bearer token ──
     const chatApi = useCallback((sessionUUID: string) => {
         const globalConfig = window.GTT_CHATBOT_CONFIG || window.CHATBOT_CONFIG;
-        const apiKey = tenantKeyProp || globalConfig?.tenantKey || globalConfig?.tenant_key || globalConfig?.apiKey || globalConfig?.api_key || globalConfig?.api_Key || 'key_local_1';
+        const apiKey = tenantKeyProp || getIframeKey() || globalConfig?.tenantKey || globalConfig?.tenant_key || globalConfig?.apiKey || globalConfig?.api_key || globalConfig?.api_Key || 'key_local_1';
 
         const appendKey = (url: string) => {
             if (!apiKey) return url;
@@ -276,7 +286,7 @@ export default function Chatbot({ tenantIdProp, tenantKeyProp }: { tenantIdProp?
             }
 
             const globalConfig = window.GTT_CHATBOT_CONFIG || window.CHATBOT_CONFIG;
-            const tKey = tenantKeyProp || globalConfig?.tenantKey || globalConfig?.tenant_key || globalConfig?.apiKey || globalConfig?.api_key || globalConfig?.api_Key || 'key_local_1';
+            const tKey = tenantKeyProp || getIframeKey() || globalConfig?.tenantKey || globalConfig?.tenant_key || globalConfig?.apiKey || globalConfig?.api_key || globalConfig?.api_Key || 'key_local_1';
             const initUrl = tKey ? `/chat/session/init?key=${tKey}` : '/chat/session/init';
             const res = await api.post(initUrl, { visitor_uuid });
             const data = res.data as SessionInitData;
@@ -456,7 +466,7 @@ export default function Chatbot({ tenantIdProp, tenantKeyProp }: { tenantIdProp?
     // ── WebSocket connect for live agent chat ────────────────────────
     const connectClientWebSocket = useCallback((sessionId: string) => {
         const globalConfig = window.GTT_CHATBOT_CONFIG || window.CHATBOT_CONFIG;
-        const apiKey = tenantKeyProp || globalConfig?.tenantKey || globalConfig?.tenant_key || globalConfig?.apiKey || globalConfig?.api_key || globalConfig?.api_Key || 'key_local_1';
+        const apiKey = tenantKeyProp || getIframeKey() || globalConfig?.tenantKey || globalConfig?.tenant_key || globalConfig?.apiKey || globalConfig?.api_key || globalConfig?.api_Key || 'key_local_1';
 
         const url = `${WS_BASE}/live-chat/ws/chat/${sessionId}?role=client&token=${sessionId}&key=${apiKey}`;
         wsManager.connect(url, 'chatbot');
@@ -660,7 +670,7 @@ export default function Chatbot({ tenantIdProp, tenantKeyProp }: { tenantIdProp?
                         safeStorage.set('visitor_uuid', visitor_uuid);
                     }
                     const globalConfig = window.GTT_CHATBOT_CONFIG || window.CHATBOT_CONFIG;
-                    const tKey = tenantKeyProp || globalConfig?.tenantKey || globalConfig?.tenant_key || globalConfig?.apiKey || globalConfig?.api_key || globalConfig?.api_Key || 'key_local_1';
+                    const tKey = tenantKeyProp || getIframeKey() || globalConfig?.tenantKey || globalConfig?.tenant_key || globalConfig?.apiKey || globalConfig?.api_key || globalConfig?.api_Key || 'key_local_1';
                     const initUrl = tKey ? `/chat/session/init?key=${tKey}` : '/chat/session/init';
                     const initRes = await api.post(initUrl, { visitor_uuid });
                     const initData = initRes.data;
@@ -705,7 +715,7 @@ export default function Chatbot({ tenantIdProp, tenantKeyProp }: { tenantIdProp?
         setLoading(true);
         try {
             const globalConfig = window.GTT_CHATBOT_CONFIG || window.CHATBOT_CONFIG;
-            const tKey = tenantKeyProp || globalConfig?.tenantKey || globalConfig?.tenant_key || globalConfig?.apiKey || globalConfig?.api_key || globalConfig?.api_Key || 'key_local_1';
+            const tKey = tenantKeyProp || getIframeKey() || globalConfig?.tenantKey || globalConfig?.tenant_key || globalConfig?.apiKey || globalConfig?.api_key || globalConfig?.api_Key || 'key_local_1';
             const endUrl = tKey ? `/chat/session/end?key=${tKey}` : '/chat/session/end';
             await api.post(endUrl);
         } catch (err) {

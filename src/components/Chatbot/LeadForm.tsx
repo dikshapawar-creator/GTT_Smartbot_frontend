@@ -11,6 +11,16 @@ const WEBSITE_REGEX = /^([a-zA-Z0-9-]+\.)+[a-zA-Z]{2,}(\/.*)?$/;
 
 // ── Pure Logic Helpers ──
 
+const getIframeKey = () => {
+    if (typeof window === 'undefined') return '';
+    try {
+        const params = new URLSearchParams(window.location.search);
+        return params.get('key') || params.get('tenant_key') || params.get('tenantKey') || '';
+    } catch {
+        return '';
+    }
+};
+
 interface LeadFormProps {
     onClose: () => void;
     onSubmitSuccess: (message: string) => void;
@@ -185,7 +195,11 @@ export default function LeadForm({ onSubmitSuccess, visitor_uuid, initialData }:
         };
 
         try {
-            const res = await api.post('/leads/submit', payload);
+            const globalConfig = window.GTT_CHATBOT_CONFIG || window.CHATBOT_CONFIG;
+            const tKey = getIframeKey() || globalConfig?.tenantKey || globalConfig?.tenant_key || globalConfig?.apiKey || globalConfig?.api_key || globalConfig?.api_Key || 'key_local_1';
+            const submitUrl = tKey ? `/leads/submit?key=${tKey}` : '/leads/submit';
+
+            const res = await api.post(submitUrl, payload);
             const data = res.data;
 
             if (data.success) {
