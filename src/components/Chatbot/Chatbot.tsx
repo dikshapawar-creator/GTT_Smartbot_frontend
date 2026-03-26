@@ -189,33 +189,38 @@ export default function Chatbot({ tenantIdProp, tenantKeyProp }: { tenantIdProp?
     // ── Chat-specific API helper: sends session UUID as Bearer token ──
     const chatApi = useCallback((sessionUUID: string) => {
         const globalConfig = window.GTT_CHATBOT_CONFIG || window.CHATBOT_CONFIG;
-        const apiKey = globalConfig?.apiKey || globalConfig?.api_key || globalConfig?.api_Key || 'key_local_1';
+        const apiKey = tenantKeyProp || globalConfig?.tenantKey || globalConfig?.tenant_key || globalConfig?.apiKey || globalConfig?.api_key || globalConfig?.api_Key || 'key_local_1';
+
+        const appendKey = (url: string) => {
+            if (!apiKey) return url;
+            return url.includes('?') ? `${url}&key=${apiKey}` : `${url}?key=${apiKey}`;
+        };
 
         return {
             get: (url: string) => {
                 const t0 = Date.now();
-                return axios.get(`${API_BASE}${url}`, {
+                return axios.get(`${API_BASE}${appendKey(url)}`, {
                     withCredentials: true,
                     headers: {
                         'Authorization': `Bearer ${sessionUUID}`,
                         'Content-Type': 'application/json',
-                        'x-api-key': apiKey
+                        'x-api-key': apiKey // Kept for legacy compatibility
                     }
                 }).then(res => ({ ...res, t0, t1: Date.now() }));
             },
             post: (url: string, data?: unknown) => {
                 const t0 = Date.now();
-                return axios.post(`${API_BASE}${url}`, data, {
+                return axios.post(`${API_BASE}${appendKey(url)}`, data, {
                     withCredentials: true,
                     headers: {
                         'Authorization': `Bearer ${sessionUUID}`,
                         'Content-Type': 'application/json',
-                        'x-api-key': apiKey
+                        'x-api-key': apiKey // Kept for legacy compatibility
                     }
                 }).then(res => ({ ...res, t0, t1: Date.now() }));
             },
         };
-    }, []);
+    }, [tenantKeyProp]);
 
     // ── Fetch Branding Config on mount or tenantId change ───────────
     useEffect(() => {
@@ -270,7 +275,10 @@ export default function Chatbot({ tenantIdProp, tenantKeyProp }: { tenantIdProp?
                 console.log('[Chatbot] Using existing visitor_uuid:', visitor_uuid);
             }
 
-            const res = await api.post('/chat/session/init', { visitor_uuid });
+            const globalConfig = window.GTT_CHATBOT_CONFIG || window.CHATBOT_CONFIG;
+            const tKey = tenantKeyProp || globalConfig?.tenantKey || globalConfig?.tenant_key || globalConfig?.apiKey || globalConfig?.api_key || globalConfig?.api_Key || 'key_local_1';
+            const initUrl = tKey ? `/chat/session/init?key=${tKey}` : '/chat/session/init';
+            const res = await api.post(initUrl, { visitor_uuid });
             const data = res.data as SessionInitData;
             setVisitorUuid(visitor_uuid);
             setIsInitialized(true);
@@ -448,11 +456,11 @@ export default function Chatbot({ tenantIdProp, tenantKeyProp }: { tenantIdProp?
     // ── WebSocket connect for live agent chat ────────────────────────
     const connectClientWebSocket = useCallback((sessionId: string) => {
         const globalConfig = window.GTT_CHATBOT_CONFIG || window.CHATBOT_CONFIG;
-        const apiKey = globalConfig?.apiKey || globalConfig?.api_key || globalConfig?.api_Key;
+        const apiKey = tenantKeyProp || globalConfig?.tenantKey || globalConfig?.tenant_key || globalConfig?.apiKey || globalConfig?.api_key || globalConfig?.api_Key || 'key_local_1';
 
-        const url = `${WS_BASE}/live-chat/ws/chat/${sessionId}?role=client&token=${sessionId}${apiKey ? `&api_key=${apiKey}` : ''}`;
+        const url = `${WS_BASE}/live-chat/ws/chat/${sessionId}?role=client&token=${sessionId}&key=${apiKey}`;
         wsManager.connect(url, 'chatbot');
-    }, []);
+    }, [tenantKeyProp]);
 
     useEffect(() => {
         if (!isInitialized || !sessionToken) return;
@@ -651,7 +659,10 @@ export default function Chatbot({ tenantIdProp, tenantKeyProp }: { tenantIdProp?
                         visitor_uuid = generateUUID();
                         safeStorage.set('visitor_uuid', visitor_uuid);
                     }
-                    const initRes = await api.post('/chat/session/init', { visitor_uuid });
+                    const globalConfig = window.GTT_CHATBOT_CONFIG || window.CHATBOT_CONFIG;
+                    const tKey = tenantKeyProp || globalConfig?.tenantKey || globalConfig?.tenant_key || globalConfig?.apiKey || globalConfig?.api_key || globalConfig?.api_Key || 'key_local_1';
+                    const initUrl = tKey ? `/chat/session/init?key=${tKey}` : '/chat/session/init';
+                    const initRes = await api.post(initUrl, { visitor_uuid });
                     const initData = initRes.data;
 
                     if (initData.session_token) {
@@ -693,7 +704,10 @@ export default function Chatbot({ tenantIdProp, tenantKeyProp }: { tenantIdProp?
     const handleEndChat = async () => {
         setLoading(true);
         try {
-            await api.post('/chat/session/end');
+            const globalConfig = window.GTT_CHATBOT_CONFIG || window.CHATBOT_CONFIG;
+            const tKey = tenantKeyProp || globalConfig?.tenantKey || globalConfig?.tenant_key || globalConfig?.apiKey || globalConfig?.api_key || globalConfig?.api_Key || 'key_local_1';
+            const endUrl = tKey ? `/chat/session/end?key=${tKey}` : '/chat/session/end';
+            await api.post(endUrl);
         } catch (err) {
             console.error('Failed to end session cleanly:', err);
         } finally {
