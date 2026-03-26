@@ -24,6 +24,8 @@ interface ChatbotConfig {
     api_Key?: string;
     tenantId?: string | number;
     tenant_id?: string | number;
+    tenantKey?: string;
+    tenant_key?: string;
 }
 
 api.interceptors.request.use((config: InternalAxiosRequestConfig) => {
@@ -50,6 +52,11 @@ api.interceptors.request.use((config: InternalAxiosRequestConfig) => {
                 const tid = globalConfig?.tenantId || globalConfig?.tenant_id;
                 if (tid) {
                     config.params = { ...config.params, tenant_id: tid };
+                }
+
+                const tKey = globalConfig?.tenantKey || globalConfig?.tenant_key;
+                if (tKey) {
+                    config.headers['tenant-key'] = tKey;
                 }
             }
         } else {

@@ -13,6 +13,7 @@ import api from '@/config/api';
 import { formatToIST } from '@/lib/time';
 import { auth } from '@/lib/auth';
 import { useCRMUpdates, CRMUpdateEvent } from '@/hooks/useCRMUpdates';
+import { useTenant } from '@/context/TenantContext';
 
 // ── Types ────────────────────────────────────────────────────────────────
 
@@ -69,6 +70,7 @@ export default function LeadsList() {
     const [leads, setLeads] = useState<Lead[]>([]);
     const [totalLeads, setTotalLeads] = useState(0);
     const [loading, setLoading] = useState(true);
+    const [isMounted, setIsMounted] = useState(false);
 
     // CRM Filter State
     const [search, setSearch] = useState('');
@@ -79,7 +81,7 @@ export default function LeadsList() {
     const [source, setSource] = useState('ALL');
     const [startDate, setStartDate] = useState('');
     const [endDate, setEndDate] = useState('');
-    const [targetTenantId, setTargetTenantId] = useState<string>('ALL');
+    const { selectedTenantId, setSelectedTenantId } = useTenant();
     const [tenants, setTenants] = useState<{ id: number, name: string }[]>([]);
 
     // Pagination & Sorting State
@@ -113,8 +115,8 @@ export default function LeadsList() {
             if (source !== 'ALL') params.source = source;
             if (startDate) params.start_date = startDate;
             if (endDate) params.end_date = endDate;
-            if (isSuperAdmin && targetTenantId !== 'ALL') {
-                params.target_tenant_id = targetTenantId;
+            if (isSuperAdmin && selectedTenantId) {
+                params.target_tenant_id = selectedTenantId;
             }
 
             const response = await api.get<PaginatedResponse>('/leads/', { params });
@@ -125,9 +127,10 @@ export default function LeadsList() {
         } finally {
             setLoading(false);
         }
-    }, [page, limit, sortBy, sortOrder, search, status, country, tradeType, product, source, startDate, endDate, targetTenantId, isSuperAdmin]);
+    }, [page, limit, sortBy, sortOrder, search, status, country, tradeType, product, source, startDate, endDate, selectedTenantId, isSuperAdmin]);
 
     useEffect(() => {
+        setIsMounted(true);
         const timer = setTimeout(() => {
             fetchLeads();
         }, 300); // Debounce search/filters
@@ -284,13 +287,17 @@ export default function LeadsList() {
                     <input type="date" className={styles.filterInput} value={endDate} max={today} onChange={(e) => { setEndDate(e.target.value); setPage(1); }} />
                 </div>
 
-                {isSuperAdmin && (
+                {isMounted && isSuperAdmin && (
                     <div className={styles.filterGroup}>
                         <label className={styles.filterLabel}>Filter by Website</label>
                         <select
                             className={styles.filterSelect}
-                            value={targetTenantId}
-                            onChange={(e) => { setTargetTenantId(e.target.value); setPage(1); }}
+                            value={selectedTenantId || 'ALL'}
+                            onChange={(e) => {
+                                const val = e.target.value === 'ALL' ? null : parseInt(e.target.value, 10);
+                                setSelectedTenantId(val);
+                                setPage(1);
+                            }}
                             style={{ borderColor: '#6366f1', borderWidth: '2px' }}
                         >
                             <option value="ALL">All Websites (Global)</option>

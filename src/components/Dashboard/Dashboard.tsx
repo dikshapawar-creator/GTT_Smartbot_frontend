@@ -7,9 +7,10 @@ import { Button } from '@/components/ui/Button';
 import styles from './Dashboard.module.css';
 
 import { auth } from '@/lib/auth';
-import { api } from '@/lib/api';
+import api from '@/config/api';
 import { formatToIST } from '@/lib/time';
 import { useCRMUpdates, CRMUpdateEvent } from '@/hooks/useCRMUpdates';
+import { useTenant } from '@/context/TenantContext';
 
 import {
     LayoutDashboard,
@@ -93,11 +94,11 @@ export default function Dashboard({ children }: { children?: React.ReactNode }) 
     const [searchQuery, setSearchQuery] = useState('');
     const [isDarkMode, setIsDarkMode] = useState(false);
     const [lastReadTime, setLastReadTime] = useState<string | null>(null);
+    const { selectedTenantId, setSelectedTenantId, allowedTenants, currentTenantName } = useTenant();
     const pathname = usePathname();
 
     useEffect(() => {
         setMounted(true);
-        fetchStats();
 
         // Load theme and last read time from local storage
         const savedTheme = localStorage.getItem('theme');
@@ -111,6 +112,13 @@ export default function Dashboard({ children }: { children?: React.ReactNode }) 
             setLastReadTime(savedReadTime);
         }
     }, []);
+
+    useEffect(() => {
+        if (mounted) {
+            fetchStats();
+        }
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [mounted, selectedTenantId]);
 
     // 🔄 Real-time CRM Updates
     useCRMUpdates((event: CRMUpdateEvent) => {
@@ -143,8 +151,13 @@ export default function Dashboard({ children }: { children?: React.ReactNode }) 
     };
 
     const fetchStats = async () => {
+        setStatsLoading(true);
         try {
-            const { data } = await api.get<DashboardStats>("/admin/stats");
+            const params: Record<string, string | number> = {};
+            if (selectedTenantId) {
+                params.target_tenant_id = selectedTenantId;
+            }
+            const { data } = await api.get<DashboardStats>("/admin/stats", { params });
             setStats(data);
         } catch (error) {
             console.error("Failed to fetch dashboard stats", error);
@@ -258,12 +271,12 @@ export default function Dashboard({ children }: { children?: React.ReactNode }) 
                         </div>
                     )}
                 </div>
-            </aside >
+            </aside>
 
             {/* Main Content */}
-            < div className={styles.main} >
+            <div className={styles.main}>
                 {/* Top Header */}
-                < header className={styles.header} >
+                <header className={styles.header}>
                     <div className={styles.headerLeft}>
                         <div className={styles.searchWrap}>
                             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" className={styles.searchIcon}>
@@ -279,13 +292,11 @@ export default function Dashboard({ children }: { children?: React.ReactNode }) 
                         </div>
                     </div>
                     <div className={styles.headerRight}>
-                        {mounted && auth.getUser() && (auth.getUser()?.tenant_ids?.length || 0) > 1 && (
+                        {mounted && auth.getUser() && (allowedTenants.length > 1) && (
                             <div className={styles.orgSwitcher} onClick={() => setOrgOpen(!orgOpen)} style={{ position: 'relative' }}>
                                 <span className="flex items-center gap-2">
                                     <Activity size={14} className="text-primary" />
-                                    {statsLoading ? 'Loading...' : (
-                                        auth.getUser()?.tenant_access?.find(t => String(t.tenant_id) === (localStorage.getItem('selected_tenant_id') || String(auth.getUser()?.primary_tenant_id)))?.tenant_name || 'Select Tenant'
-                                    )}
+                                    {statsLoading ? 'Loading...' : currentTenantName}
                                 </span>
                                 <ChevronDown size={14} className={`text-slate-400 transition-transform ${orgOpen ? 'rotate-180' : ''}`} />
                                 {orgOpen && (
@@ -293,17 +304,17 @@ export default function Dashboard({ children }: { children?: React.ReactNode }) 
                                         <div className="px-3 py-2 text-[10px] font-semibold text-slate-400 uppercase tracking-wider border-b border-slate-100 mb-1">
                                             Switch Workspace
                                         </div>
-                                        {auth.getUser()?.tenant_access?.map((t) => (
+                                        {allowedTenants.map((t) => (
                                             <button
-                                                key={t.tenant_id}
-                                                className={`${styles.orgOption} ${String(t.tenant_id) === (localStorage.getItem('selected_tenant_id') || String(auth.getUser()?.primary_tenant_id)) ? styles.orgOptionActive : ''}`}
+                                                key={t.id}
+                                                className={`${styles.orgOption} ${t.id === selectedTenantId ? styles.orgOptionActive : ''}`}
                                                 onClick={() => {
-                                                    localStorage.setItem('selected_tenant_id', String(t.tenant_id));
-                                                    window.location.reload();
+                                                    setSelectedTenantId(t.id);
+                                                    setOrgOpen(false);
                                                 }}
                                             >
-                                                {t.tenant_name}
-                                                {t.is_primary && <span className="ml-auto text-[10px] bg-slate-100 px-1 rounded">Primary</span>}
+                                                {t.name}
+                                                {t.is_primary && <span className="ml-auto text-[10px] bg-indigo-50 text-indigo-600 px-1.5 py-0.5 rounded-full font-medium">Primary</span>}
                                             </button>
                                         ))}
                                     </div>
@@ -311,9 +322,9 @@ export default function Dashboard({ children }: { children?: React.ReactNode }) 
                             </div>
                         )}
                         {/* Fallback for single tenant users: just show name */}
-                        {mounted && auth.getUser() && (auth.getUser()?.tenant_ids?.length || 0) <= 1 && (
+                        {mounted && auth.getUser() && (allowedTenants.length <= 1) && (
                             <div className={styles.orgSwitcher} style={{ cursor: 'default' }}>
-                                <span>{auth.getUser()?.tenant_access?.[0]?.tenant_name || 'My Workspace'}</span>
+                                <span>{currentTenantName}</span>
                             </div>
                         )}
                         <div className={styles.notifWrap}>
@@ -375,10 +386,10 @@ export default function Dashboard({ children }: { children?: React.ReactNode }) 
                             )}
                         </div>
                     </div>
-                </header >
+                </header>
 
                 {/* Page Content */}
-                < div className={styles.content} >
+                <div className={styles.content}>
                     {pathname === '/crm/dashboard' ? (
                         <>
                             {/* Page Title */}
@@ -580,9 +591,9 @@ export default function Dashboard({ children }: { children?: React.ReactNode }) 
                         children
                     )
                     }
-                </div >
-            </div >
-        </div >
+                </div>
+            </div>
+        </div>
     );
 }
 

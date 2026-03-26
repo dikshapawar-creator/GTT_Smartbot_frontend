@@ -13,14 +13,18 @@ import Chatbot from '@/components/Chatbot/Chatbot';
 function Widget() {
   const searchParams = useSearchParams();
   const tid = searchParams.get('tid');
+  const key = searchParams.get('key');
 
   return (
     <div className="widget-root">
       {/* 
-        Pass tid to Chatbot. The Chatbot component will use this 
+        Pass tid and key to Chatbot. The Chatbot component will use this 
         to fetch tenant-specific branding and scope its API calls.
       */}
-      <Chatbot tenantIdProp={tid ? parseInt(tid) : undefined} />
+      <Chatbot
+        tenantIdProp={tid ? parseInt(tid) : undefined}
+        tenantKeyProp={key || undefined}
+      />
     </div>
   );
 }

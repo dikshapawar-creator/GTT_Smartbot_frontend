@@ -1,6 +1,7 @@
 'use client';
 import { useState, useEffect } from 'react';
 import { Save, RefreshCw, CheckCircle2, AlertCircle, Camera, Layout } from 'lucide-react';
+import Image from 'next/image';
 import api from '@/config/api';
 
 interface BotConfig {
@@ -160,6 +161,7 @@ export default function BotConfigSettings() {
                         </div>
                         <div className="section-body" style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', padding: 32 }}>
                             <div style={{
+                                position: 'relative',
                                 width: 120,
                                 height: 120,
                                 borderRadius: 24,
@@ -173,7 +175,7 @@ export default function BotConfigSettings() {
                                 boxShadow: '0 4px 12px rgba(0,0,0,0.05)'
                             }}>
                                 {config.logo_url ? (
-                                    <img src={config.logo_url.startsWith('http') ? config.logo_url : `${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000'}${config.logo_url}`} alt="Logo" style={{ width: '100%', height: '100%', objectFit: 'contain' }} />
+                                    <Image src={config.logo_url.startsWith('http') ? config.logo_url : `${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000'}${config.logo_url}`} alt="Logo" fill style={{ objectFit: 'contain' }} unoptimized={true} />
                                 ) : (
                                     <span style={{ fontSize: '12px', color: 'var(--ctm)' }}>No Logo</span>
                                 )}

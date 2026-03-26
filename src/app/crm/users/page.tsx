@@ -8,7 +8,6 @@ import {
 } from "lucide-react";
 import { api } from "@/lib/api";
 import { auth } from "@/lib/auth";
-import Dashboard from "@/components/Dashboard/Dashboard";
 import IntentManager from "@/components/Dashboard/IntentManager";
 import { useCRMUpdates, CRMUpdateEvent } from "@/hooks/useCRMUpdates";
 
@@ -948,6 +947,7 @@ export default function UserManagementPage() {
     const [showCreateRole, setShowCreateRole] = useState(false);
     const [managingAccess, setManagingAccess] = useState<User | null>(null);
     const [intelTenant, setIntelTenant] = useState<Tenant | null>(null);
+    const [isMounted, setIsMounted] = useState(false);
 
     // Expose openIntel to window for table access
     useEffect(() => {
@@ -975,7 +975,7 @@ export default function UserManagementPage() {
         finally { setLoading(false); }
     }, [toast]);
 
-    useEffect(() => { fetchData(); }, [fetchData]);
+    useEffect(() => { setIsMounted(true); fetchData(); }, [fetchData]);
 
     // 🔄 Real-time user updates
     useCRMUpdates((event: CRMUpdateEvent) => {
@@ -1062,7 +1062,7 @@ export default function UserManagementPage() {
     } as React.CSSProperties;
 
     return (
-        <Dashboard>
+        <>
             <ToastBar toasts={toasts} remove={id => setToasts(t => t.filter(x => x.id !== id))} />
 
             {/* Hero Header */}
@@ -1097,7 +1097,7 @@ export default function UserManagementPage() {
                         { id: "roles", label: "Security Roles", count: roles.length, icon: <Shield size={15} />, superOnly: false },
                         { id: "tenants", label: "Workspaces", count: tenants.length, icon: <Building size={15} />, superOnly: true },
                     ] as const).map(t => {
-                        if (t.superOnly && !auth.isSuperAdmin?.()) return null;
+                        if (t.superOnly && !(isMounted && auth.isSuperAdmin?.())) return null;
                         return (
                             <button key={t.id} onClick={() => setTab(t.id)} style={{
                                 display: "flex", alignItems: "center", gap: 8, padding: "16px 16px",
@@ -1117,7 +1117,7 @@ export default function UserManagementPage() {
                 </div>
 
                 {/* Content */}
-                {tab === "users" && <UsersTable users={users} roles={roles} tenants={tenants} isLoading={loading} isSuperAdmin={auth.isSuperAdmin?.() || false}
+                {tab === "users" && <UsersTable users={users} roles={roles} tenants={tenants} isLoading={loading} isSuperAdmin={isMounted && (auth.isSuperAdmin?.() || false)}
                     selectedFilterTenant={selectedFilterTenant}
                     onDeactivate={u => setConfirm({ type: "deactivate", user: u })}
                     onDelete={u => setConfirm({ type: "delete", user: u })}
@@ -1164,6 +1164,6 @@ export default function UserManagementPage() {
                 />
             )}
             <style>{`@keyframes slideIn{from{opacity:0;transform:translateX(12px)}to{opacity:1;transform:translateX(0)}}`}</style>
-        </Dashboard>
+        </>
     );
 }

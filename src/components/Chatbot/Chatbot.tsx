@@ -30,6 +30,8 @@ declare global {
             api_Key?: string;
             tenantId?: string | number;
             tenant_id?: string | number;
+            tenantKey?: string;
+            tenant_key?: string;
         };
         CHATBOT_CONFIG?: {
             apiKey?: string;
@@ -37,6 +39,8 @@ declare global {
             api_Key?: string;
             tenantId?: string | number;
             tenant_id?: string | number;
+            tenantKey?: string;
+            tenant_key?: string;
         };
     }
 }
@@ -132,7 +136,7 @@ interface SessionInitData {
 
 
 
-export default function Chatbot({ tenantIdProp }: { tenantIdProp?: number }) {
+export default function Chatbot({ tenantIdProp, tenantKeyProp }: { tenantIdProp?: number; tenantKeyProp?: string }) {
     const [open, setOpen] = useState(false);
     const [messages, setMessages] = useState<Message[]>([]);
     const [input, setInput] = useState('');
@@ -217,12 +221,25 @@ export default function Chatbot({ tenantIdProp }: { tenantIdProp?: number }) {
     useEffect(() => {
         // Priority: Prop > Global Config > Default(1)
         const globalConfig = window.GTT_CHATBOT_CONFIG || window.CHATBOT_CONFIG;
-        const targetTid = tenantIdProp || Number(globalConfig?.tenantId || globalConfig?.tenant_id) || 1;
+        const targetTid = tenantIdProp || Number(globalConfig?.tenantId || globalConfig?.tenant_id) || undefined;
+        const targetKey = tenantKeyProp || globalConfig?.tenantKey || globalConfig?.tenant_key;
+
+        // Sync to global config if props are provided (for the axios interceptor)
+        if (tenantIdProp || tenantKeyProp) {
+            window.GTT_CHATBOT_CONFIG = {
+                ...globalConfig,
+                tenantId: targetTid,
+                tenantKey: targetKey
+            };
+        }
 
         const fetchBranding = async () => {
             try {
-                // Pass tenant_id to get specific branding
-                const res = await api.get('/bot-config', { params: { tenant_id: targetTid } });
+                // Pass tenant_id or tenant-key to get specific branding
+                const res = await api.get('/bot-config', {
+                    params: { tenant_id: targetTid },
+                    headers: targetKey ? { 'tenant-key': targetKey } : {}
+                });
                 const cfg = res.data;
                 if (cfg.chatbot_name) setBotName(cfg.chatbot_name);
                 if (cfg.chatbot_logo_url) {
@@ -238,7 +255,7 @@ export default function Chatbot({ tenantIdProp }: { tenantIdProp?: number }) {
             }
         };
         fetchBranding();
-    }, [tenantIdProp]);
+    }, [tenantIdProp, tenantKeyProp]);
 
     const initSession = useCallback(async () => {
         setLoading(true);

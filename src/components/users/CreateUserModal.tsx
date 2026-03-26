@@ -44,6 +44,7 @@ export function CreateUserModal({ onClose, onCreated, showToast }: Omit<CreateUs
     const [allTenants, setAllTenants] = useState<{ id: number; name: string }[]>([]);
     const [selectedTenants, setSelectedTenants] = useState<number[]>([]);
     const [primaryTenantId, setPrimaryTenantId] = useState<number | null>(null);
+    const [isMounted, setIsMounted] = useState(false);
 
     const fetchRoles = useCallback(async () => {
         try {
@@ -80,6 +81,7 @@ export function CreateUserModal({ onClose, onCreated, showToast }: Omit<CreateUs
     }, [showToast]);
 
     useEffect(() => {
+        setIsMounted(true);
         fetchRoles();
         fetchTenants();
     }, [fetchRoles, fetchTenants]);
@@ -245,7 +247,7 @@ export function CreateUserModal({ onClose, onCreated, showToast }: Omit<CreateUs
                         </div>
 
                         {/* Workspace Assignment (Super Admin Only) */}
-                        {auth.getUser()?.is_super_admin && allTenants.length > 0 && (
+                        {isMounted && auth.getUser()?.is_super_admin && allTenants.length > 0 && (
                             <div className="space-y-3 p-4 bg-slate-50 rounded-3xl border-2 border-slate-100">
                                 <label className="flex items-center gap-2 text-[10px] font-black text-slate-500 uppercase tracking-widest px-1">
                                     Workspace Access <span className="text-rose-500">*</span>
