@@ -79,6 +79,8 @@ export default function LeadsList() {
     const [source, setSource] = useState('ALL');
     const [startDate, setStartDate] = useState('');
     const [endDate, setEndDate] = useState('');
+    const [targetTenantId, setTargetTenantId] = useState<string>('ALL');
+    const [tenants, setTenants] = useState<{ id: number, name: string }[]>([]);
 
     // Pagination & Sorting State
     const [page, setPage] = useState(1);
@@ -90,6 +92,8 @@ export default function LeadsList() {
     const [historyLead, setHistoryLead] = useState<Lead | null>(null);
     const [historyData, setHistoryData] = useState<StatusHistory[]>([]);
     const [historyLoading, setHistoryLoading] = useState(false);
+
+    const isSuperAdmin = auth.getUser()?.is_super_admin || false;
 
     const fetchLeads = useCallback(async () => {
         setLoading(true);
@@ -109,6 +113,9 @@ export default function LeadsList() {
             if (source !== 'ALL') params.source = source;
             if (startDate) params.start_date = startDate;
             if (endDate) params.end_date = endDate;
+            if (isSuperAdmin && targetTenantId !== 'ALL') {
+                params.target_tenant_id = targetTenantId;
+            }
 
             const response = await api.get<PaginatedResponse>('/leads/', { params });
             setLeads(response.data.data);
@@ -118,7 +125,7 @@ export default function LeadsList() {
         } finally {
             setLoading(false);
         }
-    }, [page, limit, sortBy, sortOrder, search, status, country, tradeType, product, source, startDate, endDate]);
+    }, [page, limit, sortBy, sortOrder, search, status, country, tradeType, product, source, startDate, endDate, targetTenantId, isSuperAdmin]);
 
     useEffect(() => {
         const timer = setTimeout(() => {
@@ -126,6 +133,17 @@ export default function LeadsList() {
         }, 300); // Debounce search/filters
         return () => clearTimeout(timer);
     }, [fetchLeads]);
+
+    // Fetch tenants for superadmin dropdown
+    useEffect(() => {
+        if (isSuperAdmin) {
+            api.get('/admin/tenants').then(res => {
+                // Adjust based on actual API response structure
+                const data = Array.isArray(res.data) ? res.data : (res.data as { data: { id: number, name: string }[] }).data || [];
+                setTenants(data);
+            }).catch(err => console.error("Failed to fetch tenants:", err));
+        }
+    }, [isSuperAdmin]);
 
     // 🔄 Real-time lead updates
     useCRMUpdates((event: CRMUpdateEvent) => {
@@ -265,6 +283,23 @@ export default function LeadsList() {
                     <label className={styles.filterLabel}>To Date</label>
                     <input type="date" className={styles.filterInput} value={endDate} max={today} onChange={(e) => { setEndDate(e.target.value); setPage(1); }} />
                 </div>
+
+                {isSuperAdmin && (
+                    <div className={styles.filterGroup}>
+                        <label className={styles.filterLabel}>Filter by Website</label>
+                        <select
+                            className={styles.filterSelect}
+                            value={targetTenantId}
+                            onChange={(e) => { setTargetTenantId(e.target.value); setPage(1); }}
+                            style={{ borderColor: '#6366f1', borderWidth: '2px' }}
+                        >
+                            <option value="ALL">All Websites (Global)</option>
+                            {tenants.map(t => (
+                                <option key={t.id} value={t.id}>{t.name}</option>
+                            ))}
+                        </select>
+                    </div>
+                )}
             </div>
 
             {/* ── Leads Table ─────────────────────────────────────────── */}

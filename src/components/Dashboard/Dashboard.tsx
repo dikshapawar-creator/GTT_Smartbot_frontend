@@ -27,8 +27,7 @@ import {
     Activity,
     UserPlus,
     Moon,
-    Sun,
-    Building
+    Sun
 } from 'lucide-react';
 
 interface NavItem {
@@ -43,7 +42,6 @@ const navItems: NavItem[] = [
     { icon: <LayoutDashboard size={20} />, label: 'Overview', href: '/crm/dashboard' },
     { icon: <Contact2 size={20} />, label: 'Captured Leads', href: '/crm/dashboard/leads' },
     { icon: <Users size={20} />, label: 'User Management', href: '/crm/users', adminOnly: true },
-    { icon: <Building size={20} />, label: 'Tenant Management', href: '/crm/tenants', superAdminOnly: true },
     { icon: <Clock size={20} />, label: 'Conversation History', href: '/crm/dashboard/history' },
     { icon: <MessageCircle size={20} />, label: 'Live Conversations', href: '/crm/dashboard/live-chat' },
     { icon: <Settings size={20} />, label: 'Settings', href: '/crm/dashboard/settings' },

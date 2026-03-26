@@ -5,8 +5,10 @@ import { Activity, Save, RotateCcw } from 'lucide-react';
 import api from '@/config/api';
 import IntentManager from '@/components/Dashboard/IntentManager';
 import BotConfigSettings from '@/components/Dashboard/BotConfigSettings';
+import EmailSettings from '@/components/Dashboard/EmailSettings';
+import { auth } from '@/lib/auth';
 
-type TabType = 'general' | 'chatbot' | 'branding' | 'leads' | 'security';
+type TabType = 'general' | 'chatbot' | 'branding' | 'leads' | 'email' | 'security';
 
 // ── LS Keys ────────────────────────────────────────────────────────────
 const LS = {
@@ -116,6 +118,7 @@ export default function SettingsPage() {
         { key: 'chatbot', label: 'Intents', emoji: '🤖' },
         { key: 'branding', label: 'Branding', emoji: '🎨' },
         { key: 'leads', label: 'Lead Rules', emoji: '👥' },
+        ...(auth.isSuperAdmin() ? [{ key: 'email' as TabType, label: 'Email Server', emoji: '✉️' }] : []),
         { key: 'security', label: 'Security', emoji: '🔒' },
     ];
 
@@ -173,6 +176,7 @@ export default function SettingsPage() {
                 {activeTab === 'branding' && <BotConfigSettings />}
                 {activeTab === 'general' && <GeneralTab notify={notify} />}
                 {activeTab === 'leads' && <LeadRulesTab notify={notify} />}
+                {activeTab === 'email' && <EmailSettings />}
                 {activeTab === 'security' && <SecurityTab notify={notify} />}
             </div>
 

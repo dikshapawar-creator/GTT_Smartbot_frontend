@@ -1,269 +1,207 @@
 'use client';
-import { useState, useEffect, useRef } from 'react';
-import NextImage from 'next/image';
-import { api } from '@/lib/api';
-import { Palette, Upload, Save, CheckCircle2, AlertCircle, Loader2 } from 'lucide-react';
+import { useState, useEffect } from 'react';
+import { Save, RefreshCw, CheckCircle2, AlertCircle, Camera, Layout } from 'lucide-react';
+import api from '@/config/api';
 
 interface BotConfig {
-    chatbot_name: string;
-    chatbot_logo_url: string;
-    fab_tooltip: string;
-    welcome_text: string;
-    tenant_id: number;
+    bot_name: string;
+    launcher_tooltip: string;
+    welcome_message: string;
+    logo_url: string;
+    primary_color: string;
 }
 
 export default function BotConfigSettings() {
-    const [config, setConfig] = useState<BotConfig | null>(null);
+    const [config, setConfig] = useState<BotConfig>({
+        bot_name: '',
+        launcher_tooltip: '',
+        welcome_message: '',
+        logo_url: '',
+        primary_color: '#2B2A9B',
+    });
+
     const [loading, setLoading] = useState(true);
     const [saving, setSaving] = useState(false);
-    const [uploading, setUploading] = useState(false);
-    const [toast, setToast] = useState<{ type: 'success' | 'error', text: string } | null>(null);
-    const fileInputRef = useRef<HTMLInputElement>(null);
+    const [message, setMessage] = useState<{ type: 'success' | 'error', text: string } | null>(null);
 
     useEffect(() => {
-        fetchConfig();
+        api.get('/bot-config')
+            .then(res => {
+                setConfig(res.data);
+                setLoading(false);
+            })
+            .catch(err => {
+                console.error("Failed to fetch bot config:", err);
+                setLoading(false);
+            });
     }, []);
 
-    const fetchConfig = async () => {
-        try {
-            setLoading(true);
-            const { data } = await api.get<BotConfig>('/bot-config');
-            setConfig(data);
-        } catch (error) {
-            console.error('Failed to fetch bot config', error);
-            setToast({ type: 'error', text: 'Failed to load configuration.' });
-        } finally {
-            setLoading(false);
-        }
-    };
-
     const handleSave = async () => {
-        if (!config) return;
-
+        setSaving(true);
+        setMessage(null);
         try {
-            setSaving(true);
-            setToast(null);
-            await api.put('/admin/bot-config', {
-                chatbot_name: config.chatbot_name,
-                fab_tooltip: config.fab_tooltip,
-                welcome_text: config.welcome_text
-            });
-            setToast({ type: 'success', text: '✅ Saved successfully' });
-            setTimeout(() => setToast(null), 3000);
-        } catch (error) {
-            console.error('Failed to update bot config', error);
-            setToast({ type: 'error', text: '❌ Error saving config' });
+            await api.put('/bot-config', config);
+            setMessage({ type: 'success', text: 'Branding updated successfully!' });
+            setTimeout(() => setMessage(null), 3000);
+        } catch {
+            setMessage({ type: 'error', text: 'Failed to update branding.' });
         } finally {
             setSaving(false);
         }
     };
 
     const handleLogoUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
-        const file = e.target.files?.[0];
-        if (!file) return;
-
+        if (!e.target.files?.[0]) return;
+        const file = e.target.files[0];
         const formData = new FormData();
         formData.append('file', file);
 
         try {
-            setUploading(true);
-            setToast(null);
-            const { data } = await api.post('/admin/bot-config/upload-logo', formData, {
-                headers: { 'Content-Type': 'multipart/form-data' }
-            });
-
-            if (config) {
-                setConfig({ ...config, chatbot_logo_url: data.logo_url });
-            }
-            setToast({ type: 'success', text: '✅ Logo uploaded successfully!' });
-            setTimeout(() => setToast(null), 3000);
-        } catch (error) {
-            console.error('Logo upload failed', error);
-            setToast({ type: 'error', text: '❌ Error uploading logo' });
-        } finally {
-            setUploading(false);
+            const res = await api.post('/bot-config/logo', formData);
+            setConfig({ ...config, logo_url: res.data.logo_url });
+            setMessage({ type: 'success', text: 'Logo uploaded successfully!' });
+            setTimeout(() => setMessage(null), 3000);
+        } catch {
+            setMessage({ type: 'error', text: 'Logo upload failed.' });
         }
     };
 
     if (loading) {
         return (
-            <div className="flex flex-col items-center justify-center min-h-[400px] gap-4">
-                <Loader2 className="w-8 h-8 animate-spin text-indigo-600" />
-                <p className="text-gray-500 font-medium">Loading personalization settings...</p>
+            <div className="section" style={{ height: 300, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', color: 'var(--ctm)' }}>
+                <RefreshCw className="animate-spin mb-3" size={24} />
+                <span>Loading branding configuration...</span>
             </div>
         );
     }
 
     return (
-        <div className="animate-in fade-in slide-in-from-bottom-2 duration-500">
-            {/* Page Header */}
-            <div className="mb-8">
-                <h1 className="text-2xl font-bold text-gray-800 leading-tight">Chatbot Branding</h1>
-                <p className="text-gray-500 text-sm">Personalize your chatbot&apos;s identity and appearance</p>
+        <div className="section" style={{ padding: 0 }}>
+            {/* Header Area */}
+            <div className="section-card" style={{ marginBottom: 24, background: 'transparent', border: 'none' }}>
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                    <div>
+                        <h2 style={{ fontSize: '18px', fontWeight: 600, color: 'var(--ct)' }}>Chatbot Branding</h2>
+                        <p style={{ fontSize: '13px', color: 'var(--ctm)', marginTop: 4 }}>Personalize your chatbot&apos;s identity, logos, and UI appearance.</p>
+                    </div>
+                    <button className="btn-primary" onClick={handleSave} disabled={saving}>
+                        {saving ? <RefreshCw className="animate-spin" size={13} /> : <Save size={13} />}
+                        {saving ? 'Saving...' : 'Save Branding'}
+                    </button>
+                </div>
             </div>
 
-            {toast && (
-                <div className={`fixed top-6 right-6 z-[60] p-4 rounded-xl flex items-center gap-3 border shadow-lg animate-in fade-in slide-in-from-top-4 duration-300 bg-white ${toast.type === 'success'
-                    ? 'border-emerald-100 text-emerald-700'
-                    : 'border-rose-100 text-rose-700'
-                    }`}>
-                    {toast.type === 'success' ? <CheckCircle2 size={18} className="text-emerald-500" /> : <AlertCircle size={18} className="text-rose-500" />}
-                    <span className="text-sm font-semibold !text-inherit">{toast.text}</span>
+            {message && (
+                <div className={`alert-box ${message.type === 'success' ? 'alert-success' : 'alert-danger'}`} style={{ marginBottom: 24 }}>
+                    {message.type === 'success' ? <CheckCircle2 size={16} /> : <AlertCircle size={16} />}
+                    <div>
+                        <strong>{message.type === 'success' ? 'Success' : 'Error'}</strong>
+                        <span>{message.text}</span>
+                    </div>
                 </div>
             )}
 
-            <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-
-                {/* LEFT CARD - Configuration Form */}
-                <div className="lg:col-span-2 bg-white p-8 rounded-2xl shadow-sm border border-gray-200">
-                    <div className="space-y-6">
-                        {/* Chatbot Name */}
-                        <div>
-                            <label className="block text-sm font-semibold text-gray-700 mb-1.5">
-                                Chatbot Name
-                            </label>
-                            <input
-                                type="text"
-                                value={config?.chatbot_name || ''}
-                                onChange={(e) => setConfig(prev => prev ? { ...prev, chatbot_name: e.target.value } : null)}
-                                className="w-full px-4 py-2.5 rounded-lg border border-gray-300 focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 outline-none transition-all text-sm"
-                                placeholder="e.g. GTD Support"
-                            />
-                            <p className="text-xs text-gray-400 mt-1.5">This name appears in the chat header.</p>
+            <div style={{ display: 'grid', gridTemplateColumns: '1.5fr 1fr', gap: 24 }}>
+                {/* Visual Settings */}
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 24 }}>
+                    <div className="section-card">
+                        <div className="section-head">
+                            <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                                <Layout size={16} />
+                                <h2>Identity & Interface</h2>
+                            </div>
                         </div>
+                        <div className="section-body">
+                            <div className="form-group" style={{ marginBottom: 20 }}>
+                                <label className="form-label">Chatbot Name</label>
+                                <input
+                                    className="form-input"
+                                    value={config.bot_name}
+                                    onChange={e => setConfig({ ...config, bot_name: e.target.value })}
+                                    placeholder="e.g. GTD Support"
+                                />
+                                <span style={{ fontSize: '11px', color: 'var(--ctm)', marginTop: 4 }}>This name appears in the chat header and emails.</span>
+                            </div>
 
-                        {/* Launcher Tooltip */}
-                        <div>
-                            <label className="block text-sm font-semibold text-gray-700 mb-1.5">
-                                Launcher Tooltip
-                            </label>
-                            <input
-                                type="text"
-                                value={config?.fab_tooltip || ''}
-                                onChange={(e) => setConfig(prev => prev ? { ...prev, fab_tooltip: e.target.value } : null)}
-                                className="w-full px-4 py-2.5 rounded-lg border border-gray-300 focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 outline-none transition-all text-sm"
-                                placeholder="e.g. Trade Support"
-                            />
-                            <p className="text-xs text-gray-400 mt-1.5">The message displayed next to the floating chat button.</p>
-                        </div>
+                            <div className="form-group" style={{ marginBottom: 20 }}>
+                                <label className="form-label">Launcher Tooltip</label>
+                                <input
+                                    className="form-input"
+                                    value={config.launcher_tooltip}
+                                    onChange={e => setConfig({ ...config, launcher_tooltip: e.target.value })}
+                                    placeholder="e.g. Trade Support"
+                                />
+                                <span style={{ fontSize: '11px', color: 'var(--ctm)', marginTop: 4 }}>The message displayed next to the floating chat button.</span>
+                            </div>
 
-                        {/* Welcome Message */}
-                        <div>
-                            <label className="block text-sm font-semibold text-gray-700 mb-1.5">
-                                Welcome Message
-                            </label>
-                            <textarea
-                                value={config?.welcome_text || ''}
-                                onChange={(e) => setConfig(prev => prev ? { ...prev, welcome_text: e.target.value } : null)}
-                                rows={4}
-                                className="w-full px-4 py-2.5 rounded-lg border border-gray-300 focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 outline-none transition-all text-sm resize-none"
-                                placeholder="e.g. Welcome to GTD Service. How can I help you today?"
-                            />
-                            <p className="text-xs text-gray-400 mt-1.5">This is the first message the user sees when opening the chat.</p>
-                        </div>
-
-                        {/* Save Button */}
-                        <div className="flex justify-end pt-4 border-t border-gray-100">
-                            <button
-                                onClick={handleSave}
-                                disabled={saving}
-                                className="px-6 py-2.5 rounded-lg bg-indigo-600 !text-white font-bold hover:bg-indigo-700 transition shadow-md shadow-indigo-200 flex items-center gap-2 cursor-pointer disabled:opacity-50"
-                            >
-                                {saving ? <Loader2 size={18} className="animate-spin" /> : <Save size={18} />}
-                                <span className="!text-white">Save Changes</span>
-                            </button>
+                            <div className="form-group">
+                                <label className="form-label">Welcome Message</label>
+                                <textarea
+                                    className="form-textarea"
+                                    value={config.welcome_message}
+                                    onChange={e => setConfig({ ...config, welcome_message: e.target.value })}
+                                    placeholder="e.g. Welcome to GTD Service. How can I help you today?"
+                                    style={{ minHeight: 100 }}
+                                />
+                                <span style={{ fontSize: '11px', color: 'var(--ctm)', marginTop: 4 }}>The first automated message a user sees.</span>
+                            </div>
                         </div>
                     </div>
                 </div>
 
-                {/* RIGHT SIDE - Logo & Preview */}
-                <div className="space-y-6">
-
-                    {/* Logo Card */}
-                    <div className="bg-white p-8 rounded-2xl shadow-sm border border-gray-200 text-center">
-                        <p className="text-sm font-semibold text-gray-700 mb-4">Chatbot Logo</p>
-
-                        <div className="relative group mx-auto mb-6">
-                            <div className="w-24 h-24 mx-auto rounded-2xl bg-gray-50 border border-gray-100 overflow-hidden flex items-center justify-center p-4">
-                                {config?.chatbot_logo_url ? (
-                                    <NextImage
-                                        src={config.chatbot_logo_url.startsWith('/static/') ? `${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000'}${config.chatbot_logo_url}` : config.chatbot_logo_url}
-                                        alt="Bot Logo"
-                                        width={96}
-                                        height={96}
-                                        unoptimized={true}
-                                        style={{ width: '100%', height: '100%', objectFit: 'contain' }}
-                                    />
+                {/* Logo & Preview */}
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 24 }}>
+                    <div className="section-card">
+                        <div className="section-head">
+                            <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                                <Camera size={16} />
+                                <h2>Bot Avatar / Logo</h2>
+                            </div>
+                        </div>
+                        <div className="section-body" style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', padding: 32 }}>
+                            <div style={{
+                                width: 120,
+                                height: 120,
+                                borderRadius: 24,
+                                border: '1px solid var(--cb)',
+                                background: 'white',
+                                display: 'flex',
+                                alignItems: 'center',
+                                justifyContent: 'center',
+                                overflow: 'hidden',
+                                marginBottom: 20,
+                                boxShadow: '0 4px 12px rgba(0,0,0,0.05)'
+                            }}>
+                                {config.logo_url ? (
+                                    <img src={config.logo_url.startsWith('http') ? config.logo_url : `${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000'}${config.logo_url}`} alt="Logo" style={{ width: '100%', height: '100%', objectFit: 'contain' }} />
                                 ) : (
-                                    <Palette className="text-gray-300 w-8 h-8" />
+                                    <span style={{ fontSize: '12px', color: 'var(--ctm)' }}>No Logo</span>
                                 )}
                             </div>
-                            <button
-                                onClick={() => fileInputRef.current?.click()}
-                                className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center rounded-2xl text-white cursor-pointer"
-                                disabled={uploading}
-                            >
-                                {uploading ? <Loader2 size={24} className="animate-spin" /> : <Upload size={24} />}
-                            </button>
+
+                            <label className="btn-secondary" style={{ cursor: 'pointer' }}>
+                                <input type="file" hidden onChange={handleLogoUpload} accept="image/*" />
+                                <Camera size={13} />
+                                Upload New Logo
+                            </label>
+                            <p style={{ fontSize: '11px', color: 'var(--ctm)', marginTop: 12, textAlign: 'center' }}>
+                                Recommended: Square PNG with transparent background.
+                            </p>
                         </div>
-
-                        <input
-                            type="file"
-                            ref={fileInputRef}
-                            onChange={handleLogoUpload}
-                            className="hidden"
-                            accept="image/*"
-                        />
-
-                        <button
-                            className="text-sm font-bold text-indigo-600 hover:text-indigo-800 transition-colors flex items-center gap-2 mx-auto"
-                            onClick={() => fileInputRef.current?.click()}
-                            disabled={uploading}
-                        >
-                            <Upload size={14} />
-                            Upload New Logo
-                        </button>
                     </div>
 
-                    {/* Live Preview Card */}
-                    <div className="bg-gray-900 text-white p-6 rounded-2xl shadow-xl shadow-gray-200/50">
-                        <p className="text-[10px] font-bold uppercase tracking-[0.2em] text-gray-400 mb-4">Live Preview</p>
-
-                        <div className="bg-gray-800/80 rounded-xl p-4 border border-white/5 backdrop-blur-sm">
-                            <div className="flex items-center gap-3 mb-4">
-                                <div className="w-8 h-8 rounded-lg bg-gray-700 flex items-center justify-center p-1.5 overflow-hidden">
-                                    {config?.chatbot_logo_url ? (
-                                        <NextImage
-                                            src={config.chatbot_logo_url.startsWith('/static/') ? `${process.env.NEXT_PUBLIC_API_BASE_URL || 'http://localhost:8000'}${config.chatbot_logo_url}` : config.chatbot_logo_url}
-                                            alt="Logo"
-                                            width={32}
-                                            height={32}
-                                            unoptimized={true}
-                                            style={{ width: '100%', height: '100%', objectFit: 'contain' }}
-                                            className="inverted-logo"
-                                        />
-                                    ) : (
-                                        <div className="w-4 h-4 rounded-full bg-indigo-500" />
-                                    )}
-                                </div>
-                                <div>
-                                    <div className="text-xs font-bold text-gray-100">{config?.chatbot_name || 'Bot Name'}</div>
-                                    <div className="flex items-center gap-1.5">
-                                        <div className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
-                                        <div className="text-[10px] text-gray-400">Online</div>
-                                    </div>
-                                </div>
-                            </div>
-
-                            <div className="space-y-3">
-                                <div className="bg-gray-700/50 rounded-lg rounded-tl-none p-3 text-[11px] leading-relaxed text-gray-200 border border-white/5">
-                                    {config?.welcome_text || 'Welcome message...'}
-                                </div>
-                                <div className="flex justify-end">
-                                    <div className="bg-indigo-600 rounded-lg rounded-tr-none p-3 text-[11px] leading-relaxed text-white shadow-lg shadow-indigo-900/20">
-                                        Hi! I need some help.
-                                    </div>
-                                </div>
+                    {/* Live Preview Mini Preview */}
+                    <div className="section-card" style={{ background: 'var(--cp)', color: 'white', padding: 20, borderRadius: 16 }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+                            <div style={{ width: 8, height: 8, borderRadius: '50%', background: '#4ade80' }} />
+                            <span style={{ fontSize: '13px', fontWeight: 600 }}>{config.bot_name || 'Chatbot'}</span>
+                        </div>
+                        <div style={{ marginTop: 12, padding: 12, borderRadius: 12, background: 'rgba(255,255,255,0.1)', fontSize: '12px', lineHeight: 1.5 }}>
+                            {config.welcome_message || 'Welcome to our service...'}
+                        </div>
+                        <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: 12 }}>
+                            <div style={{ background: 'white', color: 'var(--cp)', fontSize: '11px', fontWeight: 700, padding: '6px 12px', borderRadius: 8 }}>
+                                Hi! I need help
                             </div>
                         </div>
                     </div>

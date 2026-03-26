@@ -217,6 +217,23 @@ export default function IntentManager({ tenantId }: { tenantId?: number }) {
         })();
     }, []);
 
+    // Load personality from backend
+    useEffect(() => {
+        const fetchPersonality = async () => {
+            try {
+                const url = tenantId ? `/bot-config?tenant_id=${tenantId}` : '/bot-config';
+                const res = await api.get(url);
+                if (res.data) {
+                    setBotName(res.data.chatbot_name || 'GTD Service Bot');
+                    setHandoffMsg(res.data.handoff_message || 'Connecting you to a human agent...');
+                }
+            } catch (err) {
+                console.error("Failed to fetch personality", err);
+            }
+        };
+        fetchPersonality();
+    }, [tenantId]);
+
     // Load intents from backend
     const fetchIntents = useCallback(async () => {
         setLoading(true);
@@ -360,6 +377,19 @@ export default function IntentManager({ tenantId }: { tenantId?: number }) {
         const url = URL.createObjectURL(blob);
         Object.assign(document.createElement('a'), { href: url, download: 'intents.json' }).click();
         notify('Exporting intents...');
+    };
+
+    const handleSavePersonality = async () => {
+        try {
+            const url = tenantId ? `/admin/bot-config?tenant_id=${tenantId}` : '/admin/bot-config';
+            await api.put(url, {
+                chatbot_name: botName,
+                handoff_message: handoffMsg
+            });
+            notify('Personality saved ✓');
+        } catch {
+            notify('Failed to save personality', 'error');
+        }
     };
 
     return (
@@ -527,7 +557,7 @@ export default function IntentManager({ tenantId }: { tenantId?: number }) {
                             <textarea className="form-textarea" value={handoffMsg} onChange={e => setHandoffMsg(e.target.value)} />
                         </div>
                         <div className="personality-save">
-                            <button className="btn-primary" onClick={() => notify('Personality saved ✓')}>
+                            <button className="btn-primary" onClick={handleSavePersonality}>
                                 <IcSave /> Save Personality
                             </button>
                         </div>
