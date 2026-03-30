@@ -1,13 +1,24 @@
 'use client';
 
 import React, { useState, useEffect } from 'react';
-import { Activity, Save, RotateCcw } from 'lucide-react';
+import { useRouter } from 'next/navigation';
+import { Activity, Save, RotateCcw, ShieldAlert } from 'lucide-react';
 import api from '@/config/api';
 import IntentManager from '@/components/Dashboard/IntentManager';
 import BotConfigSettings from '@/components/Dashboard/BotConfigSettings';
 import EmailSettings from '@/components/Dashboard/EmailSettings';
 import { auth } from '@/lib/auth';
 import { useTenant } from '@/context/TenantContext';
+
+function AccessDenied() {
+    return (
+        <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', height: '60vh', gap: 16 }}>
+            <ShieldAlert size={48} color="var(--cda)" />
+            <h2 style={{ fontSize: '18px', fontWeight: 600 }}>Access Denied</h2>
+            <p style={{ color: 'var(--ctm)', fontSize: '14px' }}>You do not have permission to access the Settings page.</p>
+        </div>
+    );
+}
 
 type TabType = 'general' | 'chatbot' | 'branding' | 'leads' | 'email' | 'security';
 
@@ -108,12 +119,24 @@ function Toggle({ value, onChange }: { value: boolean; onChange: (v: boolean) =>
 
 export default function SettingsPage() {
     const { currentTenantName } = useTenant();
+    const router = useRouter();
     const [activeTab, setActiveTab] = useState<TabType>('chatbot');
     const [isSaving, setIsSaving] = useState(false);
     const [toast, setToast] = useState<string | null>(null);
+    const [mounted, setMounted] = useState(false);
+
+    useEffect(() => {
+        setMounted(true);
+    }, []);
 
     const notify = (msg: string) => { setToast(msg); setTimeout(() => setToast(null), 2000); };
     const handleSave = () => { setIsSaving(true); setTimeout(() => { setIsSaving(false); notify('Settings saved ✓'); }, 800); };
+
+    if (!mounted) return null;
+
+    if (!auth.isManager()) {
+        return <div className="sp"><style dangerouslySetInnerHTML={{ __html: CSS }} /><AccessDenied /></div>;
+    }
 
     const tabs: { key: TabType; label: string; emoji: string }[] = [
         { key: 'general', label: 'General', emoji: '⚙' },

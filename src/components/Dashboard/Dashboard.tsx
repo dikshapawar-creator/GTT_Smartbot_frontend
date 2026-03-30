@@ -45,7 +45,7 @@ const navItems: NavItem[] = [
     { icon: <Users size={20} />, label: 'User Management', href: '/crm/users', adminOnly: true },
     { icon: <Clock size={20} />, label: 'Conversation History', href: '/crm/dashboard/history' },
     { icon: <MessageCircle size={20} />, label: 'Live Conversations', href: '/crm/dashboard/live-chat' },
-    { icon: <Settings size={20} />, label: 'Settings', href: '/crm/dashboard/settings' },
+    { icon: <Settings size={20} />, label: 'Settings', href: '/crm/dashboard/settings', adminOnly: true },
 ];
 
 const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
@@ -223,7 +223,7 @@ export default function Dashboard({ children }: { children?: React.ReactNode }) 
                 <nav className={styles.sidebarNav}>
                     {mounted && navItems.filter(item => {
                         if (item.superAdminOnly && !auth.isSuperAdmin()) return false;
-                        if (item.adminOnly && !auth.isAdmin()) return false;
+                        if (item.adminOnly && !auth.isManager()) return false;
                         return true;
                     }).map((item) => {
                         const isActive = pathname === item.href || (item.href !== '/dashboard' && pathname.startsWith(item.href));
