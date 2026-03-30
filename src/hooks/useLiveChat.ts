@@ -34,6 +34,14 @@ interface Conversation {
     browser: string | null;
     os: string | null;
     device_type: string | null;
+    assigned_agent_id?: number | null;
+    assigned_agent_email?: string | null;
+    assigned_agent_name?: string | null;
+    agent_joined_at?: string | null;
+    closed_by_agent_id?: number | null;
+    closed_by_agent_email?: string | null;
+    closed_by_agent_name?: string | null;
+    agent_closed_at?: string | null;
     is_online?: boolean; // Real-time status from backend
     created_at_ist?: string;
     last_message_ist?: string;
@@ -45,6 +53,9 @@ interface ChatMessage {
     session_id: string;
     message_type: 'user' | 'bot' | 'agent' | 'system' | 'form';
     message_text: string;
+    sender_user_id?: number | null;
+    sender_name?: string | null;
+    sender_email?: string | null;
     created_at_utc: string;
     created_at_ist?: string;
 }
@@ -86,6 +97,9 @@ interface WsMessage extends Omit<Partial<RawConversation>, 'session_id'> {
     message_text?: string;
     message_type?: string;
     sender?: string;
+    sender_user_id?: number;
+    sender_name?: string;
+    sender_email?: string;
     is_typing?: boolean;
     session_id?: string | number;
     created_at_ist?: string;
@@ -130,6 +144,9 @@ export function useLiveChat() {
                         session_id: String(data.session_id),
                         message_type: (data.sender === 'user' ? 'user' : data.sender === 'agent' ? 'agent' : data.message_type || 'bot') as ChatMessage['message_type'],
                         message_text: data.message || data.message_text || '',
+                        sender_user_id: data.sender_user_id as number,
+                        sender_name: data.sender_name as string,
+                        sender_email: data.sender_email as string,
                         created_at_utc: new Date().toISOString(),
                         created_at_ist: data.created_at_ist || new Date().toLocaleString('en-IN', { timeZone: 'Asia/Kolkata' })
                     };
@@ -329,11 +346,15 @@ export function useLiveChat() {
         }
 
         // Optimistic update
+        const user = auth.getUser();
         const optimisticMsg: ChatMessage = {
             id: Date.now(),
             session_id: selectedSessionId,
             message_type: 'agent',
             message_text: newMessage,
+            sender_user_id: user?.id,
+            sender_name: user?.full_name || user?.email || 'Agent',
+            sender_email: user?.email,
             created_at_utc: new Date().toISOString(),
             created_at_ist: new Date().toLocaleString('en-IN', { timeZone: 'Asia/Kolkata' })
         };

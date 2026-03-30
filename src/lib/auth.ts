@@ -7,6 +7,7 @@ const USER_KEY = 'user_profile';
 export interface UserProfile {
     id: number;
     email: string;
+    full_name: string | null;
     role: string;
     role_level: number;
     tenant_id: number;        // Current/Legacy primary tenant

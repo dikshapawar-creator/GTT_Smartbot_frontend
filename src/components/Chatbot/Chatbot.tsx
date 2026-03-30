@@ -475,6 +475,18 @@ export default function Chatbot({ tenantIdProp, tenantKeyProp }: { tenantIdProp?
     useEffect(() => {
         if (!isInitialized || !sessionToken) return;
 
+        const unsubscribeStatus = wsManager.subscribe('statusChange', (data) => {
+            if (data.purpose === 'chatbot') {
+                console.log(`[ChatbotWS] Status changed to: ${data.state}`);
+            }
+        });
+
+        const unsubscribeError = wsManager.subscribe('error', (data) => {
+            if (data.purpose === 'chatbot') {
+                console.error('[ChatbotWS] connection error:', data.error);
+            }
+        });
+
         const unsubscribeSync = wsManager.subscribe('sync', (syncData) => {
             if (syncData.purpose === 'chatbot') {
                 const { serverTime, t1 } = syncData;
@@ -529,14 +541,12 @@ export default function Chatbot({ tenantIdProp, tenantKeyProp }: { tenantIdProp?
             }
         });
 
-        const unsubscribeError = wsManager.subscribe('error', (err) => {
-            console.error('Chatbot WebSocket error via Manager:', err);
-        });
 
         // Initial connect
         connectClientWebSocket(sessionToken);
 
         return () => {
+            unsubscribeStatus();
             unsubscribeSync();
             unsubscribeMessage();
             unsubscribeOpen();

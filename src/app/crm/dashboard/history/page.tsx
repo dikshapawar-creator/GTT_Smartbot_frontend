@@ -20,7 +20,12 @@ import {
     Send,
     ArrowUp,
     Download,
-    Check
+    Check,
+    Star,
+    ShieldAlert,
+    Ban,
+    Eye,
+    User
 } from 'lucide-react';
 import styles from '../live-chat/LiveChat.module.css';
 import histStyles from './History.module.css';
@@ -71,6 +76,14 @@ interface Conversation {
     lead_phone?: string | null;
     created_at_ist?: string;
     ended_at_utc?: string | null;
+    assigned_agent_id?: number | null;
+    assigned_agent_email?: string | null;
+    assigned_agent_name?: string | null;
+    agent_joined_at?: string | null;
+    closed_by_agent_id?: number | null;
+    closed_by_agent_email?: string | null;
+    closed_by_agent_name?: string | null;
+    agent_closed_at?: string | null;
 }
 
 interface Analytics {
@@ -93,6 +106,10 @@ interface ChatMessage {
     session_id: string;
     message_type: 'user' | 'bot' | 'agent' | 'system';
     message_text: string;
+    sender_user_id?: number | null;
+    sender_name?: string | null;
+    sender_email?: string | null;
+    client_msg_id?: string | null;
     created_at_utc: string;
     created_at_ist?: string;
 }
@@ -128,6 +145,7 @@ export default function HistoryPage() {
 
     const [sessionLiveMode, setSessionLiveMode] = useState(false);
     const [serverOffset, setServerOffset] = useState<number>(0);
+    const [sendError, setSendError] = useState<string | null>(null);
 
     // Edit state
     const [isEditing, setIsEditing] = useState(false);
@@ -206,7 +224,7 @@ export default function HistoryPage() {
     useEffect(() => {
         if (!selectedSession || !sessionLiveMode) return;
 
-        const unsubscribeMsg = wsManager.subscribe('message', (data: { purpose?: string; type?: string; message_text?: string; message?: string; created_at_utc?: string; sender?: string }) => {
+        const unsubscribeMsg = wsManager.subscribe('message', (data: { purpose?: string; type?: string; message_text?: string; message?: string; created_at_utc?: string; sender?: string; id?: number; sender_name?: string; sender_email?: string; client_msg_id?: string }) => {
             if (data.purpose !== 'chat') return;
 
             if (data.type !== 'TYPING_EVENT') {
@@ -214,13 +232,36 @@ export default function HistoryPage() {
                 const messageText = data.message_text || data.message || '';
 
                 const newMsg = normalizeMessages({
-                    id: Date.now(),
+                    id: data.id || Date.now(),
                     session_id: selectedSession.session_uuid,
                     message_type: messageType,
                     message_text: messageText,
+                    sender_name: data.sender_name,
+                    sender_email: data.sender_email,
+                    client_msg_id: data.client_msg_id,
                     created_at_utc: data.created_at_utc || new Date(getSyncedNow(serverOffset)).toISOString()
                 }) as ChatMessage;
-                setMessages((prev) => [...prev, newMsg]);
+
+                setMessages((prev) => {
+                    // Check for duplicate by client_msg_id first
+                    if (newMsg.client_msg_id) {
+                        const existingIdx = prev.findIndex(m => m.client_msg_id === newMsg.client_msg_id);
+                        if (existingIdx !== -1) {
+                            const updated = [...prev];
+                            updated[existingIdx] = newMsg; // Update optimistic message with server data
+                            return updated;
+                        }
+                    }
+
+                    // Fallback to fuzzy deduplication
+                    const isDuplicate = prev.some(m =>
+                        m.message_text === newMsg.message_text &&
+                        m.message_type === newMsg.message_type &&
+                        (m.id === newMsg.id || Math.abs(new Date(m.created_at_utc).getTime() - new Date(newMsg.created_at_utc).getTime()) < 3000)
+                    );
+                    if (isDuplicate) return prev;
+                    return [...prev, newMsg];
+                });
             }
         });
 
@@ -234,7 +275,7 @@ export default function HistoryPage() {
             unsubscribeMsg();
             unsubscribeSync();
         };
-    }, [selectedSession, sessionLiveMode, serverOffset]);
+    }, [selectedSession, serverOffset, sessionLiveMode]);
 
     const handleViewSession = async (session: Conversation) => {
         if (selectedSession?.session_id === session.session_id) return;
@@ -290,18 +331,36 @@ export default function HistoryPage() {
     };
 
     const sendMessage = () => {
-        if (wsManager.getStatus('chat') !== 'OPEN' || !newMessage.trim() || !selectedSession) return;
+        const status = wsManager.getStatus('chat');
+        if (status !== 'OPEN') {
+            if (status === 'CONNECTING') {
+                setSendError('Still connecting to live chat... please wait a moment.');
+            } else {
+                setSendError('Not connected to live chat. Please try clicking Resume Chat again.');
+            }
+            return;
+        }
 
-        wsManager.send({ message: newMessage.trim() }, 'chat');
+        if (!newMessage.trim() || !selectedSession) return;
+
+        const clientMsgId = `cl-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+        wsManager.send({ message: newMessage.trim(), client_msg_id: clientMsgId }, 'chat');
+
+        const user = auth.getUser();
         const optimisticMsg = normalizeMessages({
             id: Date.now(),
             session_id: selectedSession.session_uuid,
             message_type: 'agent' as const,
             message_text: newMessage.trim(),
+            sender_user_id: user?.id,
+            sender_name: user?.full_name || user?.email || 'Agent',
+            sender_email: user?.email,
+            client_msg_id: clientMsgId,
             created_at_utc: new Date(getSyncedNow(serverOffset)).toISOString(),
         }) as ChatMessage;
         setMessages(prev => [...prev, optimisticMsg]);
         setNewMessage('');
+        setSendError(null);
     };
 
     const handleSaveLead = async () => {
@@ -443,17 +502,17 @@ export default function HistoryPage() {
                     <div className={histStyles.filters}>
                         <div className={histStyles.filterRow}>
                             <div className={histStyles.searchWrap}>
-                                <Search size={12} className={histStyles.searchIcon} />
+                                <Search className={histStyles.searchIcon} size={14} />
                                 <input
                                     type="text"
-                                    placeholder="Search visitor, IP, session ID…"
-                                    value={searchTerm}
-                                    onChange={e => setSearchTerm(e.target.value)}
+                                    placeholder="Search visitor, IP, session ID..."
                                     className={histStyles.searchInput}
+                                    value={searchTerm}
+                                    onChange={(e) => setSearchTerm(e.target.value)}
                                 />
                             </div>
                         </div>
-                        <div className={histStyles.filterRow}>
+                        <div className={histStyles.filtersGrid}>
                             <select value={countryFilter} onChange={e => setCountryFilter(e.target.value)} className={histStyles.filterSelect}>
                                 <option value="">All countries</option>
                                 <option value="India">India</option>
@@ -471,8 +530,8 @@ export default function HistoryPage() {
                                 <option value="spam">Spam only</option>
                                 <option value="clean">Clean only</option>
                             </select>
-                        </div >
-                        <div className={histStyles.filterRow}>
+                        </div>
+                        <div className={histStyles.dateRow}>
                             <input type="date" value={dateFrom} onChange={e => setDateFrom(e.target.value)} className={histStyles.dateInput} />
                             <span className={histStyles.dateSep}>to</span>
                             <input type="date" value={dateTo} onChange={e => setDateTo(e.target.value)} className={histStyles.dateInput} />
@@ -512,6 +571,9 @@ export default function HistoryPage() {
                                     const isEnded = conv.session_status?.toLowerCase() === 'ended' || conv.session_status?.toLowerCase() === 'closed';
                                     const isActive = !isEnded;
 
+                                    // Check if display name already contains the ID to avoid "double" header
+                                    const showUuid = !displayName.includes(conv.session_uuid?.slice(-6).toUpperCase());
+
                                     return (
                                         <div
                                             key={conv.session_id}
@@ -525,7 +587,7 @@ export default function HistoryPage() {
                                                     </div>
                                                     <div>
                                                         <div className={histStyles.cardName}>{displayName}</div>
-                                                        <div className={histStyles.cardSub}>#{conv.session_uuid?.slice(-6).toUpperCase()} · {conv.country || 'Unknown'}</div>
+                                                        <div className={histStyles.cardSub}>{showUuid ? `#${conv.session_uuid?.slice(-6).toUpperCase()} · ` : ''}{conv.country || 'Unknown'}</div>
                                                     </div>
                                                 </div>
                                                 <span className={`${histStyles.statusBadge} ${getStatusBadgeClasses(conv.session_status)}`}>
@@ -533,19 +595,25 @@ export default function HistoryPage() {
                                                 </span>
                                             </div>
 
+                                            {conv.assigned_agent_name && (
+                                                <div className={styles.cardAgent} style={{ marginLeft: '30px', marginBottom: '8px', fontSize: '11px', color: '#6366f1', fontWeight: 600 }}>
+                                                    <MessageSquare size={10} /> {conv.assigned_agent_name}
+                                                </div>
+                                            )}
+
                                             <div className={histStyles.cardMeta}>
                                                 <span><MessageSquare size={10} /> {conv.message_count} {conv.message_count === 1 ? 'msg' : 'msgs'}</span>
                                                 <span className={histStyles.metaDot}>·</span>
                                                 <span><Clock size={10} /> {formatDuration(conv.duration_seconds)}</span>
                                                 <span className={histStyles.metaDot}>·</span>
-                                                <span>{conv.browser} / {conv.device_type}</span>
+                                                <span>{conv.browser}</span>
                                             </div>
 
                                             <div className={histStyles.cardActions}>
                                                 {isActive ? (
                                                     <>
                                                         <button className={histStyles.btnPrimary} onClick={e => { e.stopPropagation(); handleResumeChat(conv); }}>
-                                                            <ArrowUp size={10} /> Resume Chat
+                                                            {conv.assigned_agent_name ? `Chat as ${conv.assigned_agent_name.split(' ')[0]}` : 'Resume Chat'}
                                                         </button>
                                                         <button className={histStyles.btnSecondary} onClick={e => { e.stopPropagation(); handleViewSession(conv); }}>View</button>
                                                     </>
@@ -562,7 +630,7 @@ export default function HistoryPage() {
                                                 )}
                                             </div>
 
-                                            <div className={histStyles.cardFooter}>{conv.session_id} · {formatToIST(conv.created_at || '')}</div>
+                                            <div className={histStyles.cardFooter}>{formatToIST(conv.created_at || '')}</div>
                                         </div>
                                     );
                                 })}
@@ -570,16 +638,14 @@ export default function HistoryPage() {
                         )}
                     </div>
 
-                    {
-                        data && data.total > PAGE_SIZE && (
-                            <div className={histStyles.paginationBar} style={{ padding: '12px', borderTop: '1px solid var(--color-border)', display: 'flex', justifyContent: 'center', gap: '8px' }}>
-                                <button className={histStyles.pageBtn} onClick={() => setPage(p => Math.max(1, p - 1))} disabled={page <= 1}><ChevronLeft size={16} /></button>
-                                <span style={{ fontSize: '12px' }}>Page {page} of {totalPages}</span>
-                                <button className={histStyles.pageBtn} onClick={() => setPage(p => Math.min(totalPages, p + 1))} disabled={page >= totalPages}><ChevronRight size={16} /></button>
-                            </div>
-                        )
-                    }
-                </div >
+                    {data && data.total > PAGE_SIZE && (
+                        <div className={histStyles.paginationBar} style={{ padding: '12px', borderTop: '1px solid var(--color-border)', display: 'flex', justifyContent: 'center', gap: '8px' }}>
+                            <button className={histStyles.pageBtn} onClick={() => setPage(p => Math.max(1, p - 1))} disabled={page <= 1}><ChevronLeft size={16} /></button>
+                            <span style={{ fontSize: '12px' }}>Page {page} of {totalPages}</span>
+                            <button className={histStyles.pageBtn} onClick={() => setPage(p => Math.min(totalPages, p + 1))} disabled={page >= totalPages}><ChevronRight size={16} /></button>
+                        </div>
+                    )}
+                </div>
 
                 <div className={styles.chatPanel} style={{ flex: 1 }}>
                     {selectedSession ? (
@@ -587,7 +653,7 @@ export default function HistoryPage() {
                             <div className={styles.chatHeader}>
                                 <div className={styles.chatHeaderInfo} style={{ flex: 1 }}>
                                     <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-                                        <h3 style={{ fontSize: '14px', fontWeight: 700 }}>Session Log — {selectedSession.session_id.slice(0, 8).toUpperCase()}</h3>
+                                        <h3 style={{ fontSize: '14px', fontWeight: 700 }}>{selectedSession.session_uuid.slice(-8).toUpperCase()}</h3>
                                         <div style={{ display: 'flex', gap: '12px', fontSize: '13px', color: 'var(--color-text-primary)', fontWeight: 500 }}>
                                             <span style={{ display: 'flex', alignItems: 'center', gap: '4px' }}><Globe size={14} /> {selectedSession.country}</span>
                                             <span style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
@@ -620,7 +686,13 @@ export default function HistoryPage() {
                                 ) : (
                                     messages.map((msg) => (
                                         <div key={msg.id} className={`${styles.message} ${msg.message_type === 'agent' ? styles.messageAgent : msg.message_type === 'system' ? styles.messageSystem : msg.message_type === 'bot' ? styles.messageBot : styles.messageUser}`}>
-                                            <div className={styles.msgLabel}>{msg.message_type === 'agent' ? 'Agent' : msg.message_type === 'bot' ? 'Bot Assistant' : 'Visitor'}</div>
+                                            <div className={styles.msgLabel}>
+                                                {msg.message_type === 'agent'
+                                                    ? (msg.sender_name || msg.sender_email || 'Agent')
+                                                    : msg.message_type === 'bot'
+                                                        ? 'Bot Assistant'
+                                                        : 'Visitor'}
+                                            </div>
                                             <div className={styles.msgText}>{msg.message_text}</div>
                                             <div className={styles.msgTime}>{msg.created_at_ist}</div>
                                         </div>
@@ -636,14 +708,22 @@ export default function HistoryPage() {
                                         return (
                                             <div className={histStyles.bottomBarActive}>
                                                 <div className={histStyles.bottomIcon}><ArrowUp size={13} color="#16a34a" /></div>
-                                                <div>
-                                                    <div className={histStyles.bottomTitle}>You are connected as agent</div>
-                                                    <div className={histStyles.bottomSub}>Type messages below to chat with the visitor</div>
+                                                <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                                                    <div className={histStyles.agentPill}>
+                                                        <User size={12} />
+                                                        {auth.getUser()?.full_name || auth.getUser()?.email || 'Agent'}
+                                                    </div>
+                                                    <div className={histStyles.bottomSub}>Active in chat</div>
                                                 </div>
                                                 <div className={histStyles.inputWrapper} style={{ marginLeft: 'auto', display: 'flex', gap: '8px', alignItems: 'center' }}>
                                                     <input type="text" value={newMessage} onChange={(e) => setNewMessage(e.target.value)} onKeyDown={(e) => e.key === 'Enter' && sendMessage()} placeholder="Type a message..." style={{ padding: '6px 12px', borderRadius: '6px', border: '1px solid var(--color-border)', fontSize: '12px', minWidth: '200px' }} />
                                                     <button onClick={sendMessage} disabled={!newMessage.trim()} style={{ background: 'var(--color-primary)', color: 'white', border: 'none', borderRadius: '6px', padding: '6px 12px', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '4px', fontSize: '12px' }}><Send size={12} /> Send</button>
                                                 </div>
+                                                {sendError && (
+                                                    <div style={{ position: 'absolute', top: '-25px', right: '10px', color: '#ef4444', fontSize: '11px', background: 'white', padding: '2px 8px', borderRadius: '4px', boxShadow: '0 2px 4px rgba(0,0,0,0.1)', border: '1px solid #fee2e2' }}>
+                                                        {sendError}
+                                                    </div>
+                                                )}
                                             </div>
                                         );
                                     } else {
@@ -664,7 +744,10 @@ export default function HistoryPage() {
                                             <div className={histStyles.bottomIcon}><X size={13} color="#9ca3af" /></div>
                                             <div>
                                                 <div className={histStyles.bottomTitle}>This conversation has ended</div>
-                                                <div className={histStyles.bottomSub}>Ended {formatToIST(selectedSession.ended_at_utc || selectedSession.created_at || '')}</div>
+                                                <div className={histStyles.bottomSub}>
+                                                    Ended {formatToIST(selectedSession.ended_at_utc || selectedSession.created_at || '')}
+                                                    {selectedSession.closed_by_agent_name && ` by ${selectedSession.closed_by_agent_name}`}
+                                                </div>
                                             </div>
                                             <button className={histStyles.btnSecondary}><Download size={11} /> Export transcript</button>
                                         </div>
@@ -679,7 +762,7 @@ export default function HistoryPage() {
                             <p>Select a session to unlock visitor behavioral data and conversation logs.</p>
                         </div>
                     )}
-                </div >
+                </div>
 
                 <div className={histStyles.intelligencePanel}>
                     {!selectedSession ? (
@@ -695,16 +778,16 @@ export default function HistoryPage() {
                                     <button className={histStyles.sectionAction}>History</button>
                                 </div>
                                 <div className={histStyles.scoreRow}>
-                                    <div className={`${histStyles.scoreRing} ${getLeadScoreConfig(selectedSession?.lead_score || 0).ring}`}>{selectedSession?.lead_score || 0}</div>
+                                    <div className={`${histStyles.scoreRing} ${getLeadScoreConfig(selectedSession.lead_score || 0).ring}`}>{selectedSession.lead_score || 0}</div>
                                     <div>
-                                        <div className={histStyles.scoreLabel}>{getLeadScoreConfig(selectedSession?.lead_score || 0).label}</div>
+                                        <div className={histStyles.scoreLabel}>{getLeadScoreConfig(selectedSession.lead_score || 0).label}</div>
                                         <div className={histStyles.scoreSub}>Score at session end</div>
                                     </div>
                                 </div>
                                 <div className={histStyles.scoreBar}>
                                     <div className={histStyles.scoreBarLabel}>Engagement</div>
-                                    <div className={histStyles.scoreBarTrack}><div className={histStyles.scoreBarFill} style={{ width: `${((selectedSession?.lead_score || 0) / 10) * 100}%` }} /></div>
-                                    <span className={histStyles.scoreBarValue}>{selectedSession?.lead_score || 0}/10</span>
+                                    <div className={histStyles.scoreBarTrack}><div className={histStyles.scoreBarFill} style={{ width: `${((selectedSession.lead_score || 0) / 10) * 100}%` }} /></div>
+                                    <span className={histStyles.scoreBarValue}>{selectedSession.lead_score || 0}/10</span>
                                 </div>
                                 <div className={histStyles.scoreBar}>
                                     <div className={histStyles.scoreBarLabel}>Profile completeness</div>
@@ -766,29 +849,59 @@ export default function HistoryPage() {
                                             <span className={selectedSession.country ? histStyles.dataValue : histStyles.dataEmpty}>{selectedSession.country || 'Not provided'}</span>
                                         </div>
                                     </>
-                                )
-                                }
+                                )}
                             </div>
 
+                            {/* SALES ACTIONS */}
                             <div className={histStyles.intelSection}>
-                                <div className={histStyles.sectionHeader}><span>Tech stack</span></div>
-                                <div className={histStyles.dataRow}>
-                                    <span className={histStyles.dataLabel}>Browser / OS</span>
-                                    <span className={histStyles.dataValue}>{selectedSession.browser || 'Unknown'} / {selectedSession.os || 'Unknown'}</span>
+                                <div className={histStyles.sectionHeader}>
+                                    <span>Sales Actions</span>
                                 </div>
-                                <div className={histStyles.dataRow}>
-                                    <span className={histStyles.dataLabel}>Device</span>
-                                    <span className={histStyles.dataValue}>{selectedSession.device_type}</span>
-                                </div>
-                                <div className={histStyles.dataRow}>
-                                    <span className={histStyles.dataLabel}>IP address</span>
-                                    <span className={`${histStyles.dataValue} ${histStyles.dataMono}`}>{selectedSession.initial_ip}</span>
-                                </div>
-                                <div className={histStyles.dataRow}>
-                                    <span className={histStyles.dataLabel}>Session ID</span>
-                                    <span className={`${histStyles.dataValue} ${histStyles.dataMono} ${histStyles.dataMuted}`}>{selectedSession.session_id}</span>
+                                <div className={histStyles.salesActions}>
+                                    <div className={histStyles.actionGrid}>
+                                        <button className={`${histStyles.actionBtn} ${histStyles.actionBtnPrimary}`} title="Mark as Priority">
+                                            <Star size={20} className={histStyles.actionIcon} />
+                                            <span className={histStyles.actionLabel}>Priority</span>
+                                        </button>
+                                        <button className={histStyles.actionBtn} onClick={() => alert('Marked as Spam')}>
+                                            <ShieldAlert size={20} className={histStyles.actionIcon} />
+                                            <span className={histStyles.actionLabel}>Spam</span>
+                                        </button>
+                                        <button className={histStyles.actionBtn} onClick={() => alert('Visitor Blocked')}>
+                                            <Ban size={20} className={histStyles.actionIcon} />
+                                            <span className={histStyles.actionLabel}>Block</span>
+                                        </button>
+                                        <button className={histStyles.actionBtn} onClick={() => alert('Opening Preview')}>
+                                            <Eye size={20} className={histStyles.actionIcon} />
+                                            <span className={histStyles.actionLabel}>Preview</span>
+                                        </button>
+                                    </div>
+                                    <button className={histStyles.fullWidthAction} onClick={() => alert('Ending Chat...')}>
+                                        <X size={16} /> End Chat
+                                    </button>
+                                    <button className={histStyles.secondaryAction} onClick={() => setSelectedSession(null)}>
+                                        <Eye size={16} /> Close View
+                                    </button>
                                 </div>
                             </div>
+
+                            {/* AGENT ATTRIBUTION */}
+                            {selectedSession.assigned_agent_name && (
+                                <div className={histStyles.intelSection} style={{ background: '#f0f9ff', borderLeft: '3px solid #0ea5e9', borderBottom: 'none' }}>
+                                    <div className={histStyles.sectionHeader}>
+                                        <span style={{ color: '#0369a1' }}>Current Handling Agent</span>
+                                    </div>
+                                    <button className={histStyles.agentPill} style={{ width: '100%', justifyContent: 'flex-start', padding: '10px' }}>
+                                        <div style={{ width: '24px', height: '24px', borderRadius: '50%', background: '#0ea5e9', color: 'white', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '10px', fontWeight: 700 }}>
+                                            {getInitials(selectedSession.assigned_agent_name)}
+                                        </div>
+                                        <div style={{ fontSize: '12px', fontWeight: 600, color: '#0369a1', textAlign: 'left' }}>
+                                            {selectedSession.assigned_agent_name}
+                                            <div style={{ fontSize: '10px', fontWeight: 400, opacity: 0.8 }}>Active in session</div>
+                                        </div>
+                                    </button>
+                                </div>
+                            )}
                         </>
                     )}
                 </div>

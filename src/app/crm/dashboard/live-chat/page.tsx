@@ -250,6 +250,12 @@ export default function LiveChatPage() {
                                         </div>
                                     </div>
 
+                                    {conv.assigned_agent_name && (
+                                        <div className={styles.cardAgent}>
+                                            <Headphones size={10} /> {conv.assigned_agent_name}
+                                        </div>
+                                    )}
+
                                     <div className={styles.cardMeta}>
                                         <span>{conv.message_count} msgs • {formatDuration(liveDurations[conv.session_uuid] || 0)} • {conv.browser} / {conv.os}</span>
                                     </div>
@@ -357,7 +363,9 @@ export default function LiveChatPage() {
                                                     ? (selectedSession.lead_name || 'Visitor')
                                                     : msg.message_type === 'form'
                                                         ? 'Lead'
-                                                        : msg.message_type.charAt(0).toUpperCase() + msg.message_type.slice(1)
+                                                        : msg.message_type === 'agent'
+                                                            ? (msg.sender_name || 'Agent')
+                                                            : msg.message_type.charAt(0).toUpperCase() + msg.message_type.slice(1)
                                                 }
                                             </span>
                                             <span className={styles.msgTime}>{msg.created_at_ist}</span>
@@ -689,6 +697,6 @@ export default function LiveChatPage() {
                     </div>
                 )}
             </div>
-        </div>
+        </div >
     );
 }
