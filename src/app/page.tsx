@@ -21,12 +21,9 @@ export default function Home() {
       <CTASection />
       <Footer />
       {/* 
-        DEVELOPER NOTE: This Chatbot is explicitly wrapped to ONLY render during 
-        local development (npm run dev). It will NOT appear or execute on Vercel.
+        Chatbot is now enabled for all environments including production/Vercel.
       */}
-      {process.env.NODE_ENV === 'development' && (
-        <Chatbot tenantKeyProp="tpxkdour" />
-      )}
+      <Chatbot tenantKeyProp="tpxkdour" />
     </main>
   );
 }
