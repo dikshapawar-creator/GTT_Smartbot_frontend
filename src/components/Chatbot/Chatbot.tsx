@@ -820,7 +820,7 @@ export default function Chatbot({ tenantIdProp, tenantKeyProp }: { tenantIdProp?
                                     ? styles.bubbleSystem
                                     : styles.bubbleBot
                             }`}>
-                            {msg.role === 'agent' && <div className={styles.agentLabel}>Sales Agent</div>}
+                            {msg.role === 'agent' && <div className={styles.agentLabel}>Jessica</div>}
                             {linkify(msg.content)}
                             <div className={styles.msgTime}>{msg.created_at_ist}</div>
                         </div>
