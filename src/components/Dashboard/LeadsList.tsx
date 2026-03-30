@@ -5,7 +5,7 @@ import { Modal } from '@/components/ui/Modal';
 import {
     RefreshCw, History, Trash2, CheckCircle2, Clock, MapPin,
     Package, Building2, Search, ChevronLeft, ChevronRight,
-    ArrowUpDown, ArrowUp, ArrowDown, Phone, Mail, Monitor
+    ArrowUpDown, ArrowUp, ArrowDown, Phone, Mail, Monitor, Download
 } from 'lucide-react';
 import styles from './Dashboard.module.css';
 
@@ -59,11 +59,13 @@ interface StatusHistory {
 }
 
 const ALLOWED_TRANSITIONS: Record<string, string[]> = {
-    'NEW': ['IN_PROGRESS', 'CLOSED'],
-    'IN_PROGRESS': ['QUALIFIED', 'CLOSED'],
-    'QUALIFIED': ['CLOSED'],
+    'NEW': ['IN_PROGRESS', 'CLOSED', 'DEAD_LEAD', 'WRONG_LEAD'],
+    'IN_PROGRESS': ['QUALIFIED', 'CLOSED', 'DEAD_LEAD', 'WRONG_LEAD'],
+    'QUALIFIED': ['CLOSED', 'DEAD_LEAD'],
     'CLOSED': ['IN_PROGRESS'],
-    'COMPLETE': ['IN_PROGRESS', 'CLOSED']
+    'COMPLETE': ['IN_PROGRESS', 'CLOSED'],
+    'DEAD_LEAD': ['NEW', 'IN_PROGRESS'],
+    'WRONG_LEAD': ['NEW']
 };
 
 export default function LeadsList() {
@@ -215,6 +217,32 @@ export default function LeadsList() {
 
     const today = new Date().toISOString().split('T')[0];
 
+    const downloadCSV = async () => {
+        try {
+            const params: Record<string, string | number> = {};
+            if (search) params.search = search;
+            if (status !== 'ALL') params.status = status;
+            if (tradeType !== 'ALL') params.trade_type = tradeType;
+            if (source !== 'ALL') params.source = source;
+            if (startDate) params.start_date = startDate;
+            if (endDate) params.end_date = endDate;
+            if (isSuperAdmin && selectedTenantId) params.target_tenant_id = selectedTenantId;
+
+            const response = await api.get('/leads/export', { params, responseType: 'blob' });
+            const url = window.URL.createObjectURL(new Blob([response.data as BlobPart]));
+            const link = document.createElement('a');
+            link.href = url;
+            link.setAttribute('download', `leads_export_${new Date().toISOString().split('T')[0]}.csv`);
+            document.body.appendChild(link);
+            link.click();
+            link.remove();
+            window.URL.revokeObjectURL(url);
+        } catch (error) {
+            console.error('CSV export failed:', error);
+            alert('Failed to export CSV. Please try again.');
+        }
+    };
+
     return (
         <div className={styles.leadsContainer}>
             <div className={styles.pageTitle}>
@@ -223,6 +251,10 @@ export default function LeadsList() {
                     <p className={styles.pageTitleSub}>Scalable CRM module for managing trade data and customer inquiries.</p>
                 </div>
                 <div className={styles.pageTitleActions}>
+                    <Button variant="outline" size="sm" onClick={downloadCSV} className="gap-2">
+                        <Download className="w-4 h-4" />
+                        Export CSV
+                    </Button>
                     <Button variant="outline" size="sm" onClick={fetchLeads} className="gap-2">
                         <RefreshCw className={loading ? "animate-spin w-4 h-4" : "w-4 h-4"} />
                         Sync Data
@@ -250,11 +282,13 @@ export default function LeadsList() {
                     <label className={styles.filterLabel}>Lead Status</label>
                     <select className={styles.filterSelect} value={status} onChange={(e) => { setStatus(e.target.value); setPage(1); }}>
                         <option value="ALL">All Status</option>
-                        <option value="NEW">New</option>
-                        <option value="IN_PROGRESS">In Progress</option>
-                        <option value="QUALIFIED">Qualified</option>
-                        <option value="COMPLETE">Complete</option>
-                        <option value="CLOSED">Closed</option>
+                        <option value="NEW">🆕 New</option>
+                        <option value="IN_PROGRESS">🔄 In Progress</option>
+                        <option value="QUALIFIED">✅ Qualified</option>
+                        <option value="COMPLETE">🏁 Complete</option>
+                        <option value="CLOSED">🔒 Closed</option>
+                        <option value="DEAD_LEAD">💀 Dead Lead</option>
+                        <option value="WRONG_LEAD">❌ Wrong Lead</option>
                     </select>
                 </div>
 
