@@ -1,7 +1,6 @@
 'use client';
 
 import React, { useState, useEffect } from 'react';
-import { useRouter } from 'next/navigation';
 import { Activity, Save, RotateCcw, ShieldAlert } from 'lucide-react';
 import api from '@/config/api';
 import IntentManager from '@/components/Dashboard/IntentManager';
@@ -119,13 +118,13 @@ function Toggle({ value, onChange }: { value: boolean; onChange: (v: boolean) =>
 
 export default function SettingsPage() {
     const { currentTenantName } = useTenant();
-    const router = useRouter();
     const [activeTab, setActiveTab] = useState<TabType>('chatbot');
     const [isSaving, setIsSaving] = useState(false);
     const [toast, setToast] = useState<string | null>(null);
     const [mounted, setMounted] = useState(false);
 
     useEffect(() => {
+        // eslint-disable-next-line react-hooks/set-state-in-effect
         setMounted(true);
     }, []);
 

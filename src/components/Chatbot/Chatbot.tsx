@@ -397,7 +397,7 @@ export default function Chatbot({ tenantIdProp, tenantKeyProp }: { tenantIdProp?
         } finally {
             setLoading(false);
         }
-    }, [chatApi, serverOffset]);
+    }, [chatApi, serverOffset, tenantKeyProp]);
 
     // ── NTP-Sync Handler ─────────────────────────────────────────────
     const syncServerTime = useCallback(async () => {
