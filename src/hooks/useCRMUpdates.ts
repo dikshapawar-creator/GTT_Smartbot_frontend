@@ -28,7 +28,17 @@ export function useCRMUpdates(onEvent?: (event: CRMUpdateEvent) => void) {
         const token = auth.getAccessToken();
         if (!token) return;
 
-        const url = `${WS_BASE}/live-chat/ws/crm/updates?token=${token}`;
+        const user = auth.getUser();
+        const selectedTenantId = typeof window !== 'undefined'
+            ? localStorage.getItem('selected_tenant_id')
+            : null;
+        const activeTenantId = selectedTenantId || user?.primary_tenant_id || user?.tenant_id;
+
+        let url = `${WS_BASE}/live-chat/ws/crm/updates?token=${token}`;
+        if (activeTenantId) {
+            url += `&tenant_id=${activeTenantId}`;
+        }
+
         wsManager.connect(url, 'crm_updates');
     }, []);
 

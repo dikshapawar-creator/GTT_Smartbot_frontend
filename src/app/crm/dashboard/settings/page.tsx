@@ -7,6 +7,7 @@ import IntentManager from '@/components/Dashboard/IntentManager';
 import BotConfigSettings from '@/components/Dashboard/BotConfigSettings';
 import EmailSettings from '@/components/Dashboard/EmailSettings';
 import { auth } from '@/lib/auth';
+import { useTenant } from '@/context/TenantContext';
 
 type TabType = 'general' | 'chatbot' | 'branding' | 'leads' | 'email' | 'security';
 
@@ -106,6 +107,7 @@ function Toggle({ value, onChange }: { value: boolean; onChange: (v: boolean) =>
 // ── Main Page ─────────────────────────────────────────────────────────
 
 export default function SettingsPage() {
+    const { currentTenantName } = useTenant();
     const [activeTab, setActiveTab] = useState<TabType>('chatbot');
     const [isSaving, setIsSaving] = useState(false);
     const [toast, setToast] = useState<string | null>(null);
@@ -136,7 +138,7 @@ export default function SettingsPage() {
                     </div>
                     <div>
                         <h1 className="t-title">Settings & Intelligence</h1>
-                        <span className="t-sub">GTD Service · {tabs.find(t => t.key === activeTab)?.label}</span>
+                        <span className="t-sub">{currentTenantName} · {tabs.find(t => t.key === activeTab)?.label}</span>
                     </div>
                 </div>
                 <div style={{ display: 'flex', gap: 10 }}>
@@ -167,7 +169,7 @@ export default function SettingsPage() {
 
             {/* Breadcrumb */}
             <div className="breadcrumb">
-                GTD Service &gt; {tabs.find(t => t.key === activeTab)?.label}
+                {currentTenantName} &gt; {tabs.find(t => t.key === activeTab)?.label}
             </div>
 
             {/* Content */}

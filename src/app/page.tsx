@@ -20,7 +20,13 @@ export default function Home() {
       <TrustSection />
       <CTASection />
       <Footer />
-      <Chatbot />
+      {/* 
+        DEVELOPER NOTE: This Chatbot is explicitly wrapped to ONLY render during 
+        local development (npm run dev). It will NOT appear or execute on Vercel.
+      */}
+      {process.env.NODE_ENV === 'development' && (
+        <Chatbot tenantKeyProp="tpxkdour" />
+      )}
     </main>
   );
 }

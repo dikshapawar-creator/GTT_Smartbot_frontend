@@ -2,6 +2,7 @@ import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { RotateCcw } from 'lucide-react';
 import api from '@/config/api';
 import { useCRMUpdates, CRMUpdateEvent } from '@/hooks/useCRMUpdates';
+import { useTenant } from '@/context/TenantContext';
 
 // ── Inline SVG Icons ─────────────────────────────────────────────────
 
@@ -197,6 +198,7 @@ const CSS = `
 `;
 
 export default function IntentManager({ tenantId }: { tenantId?: number }) {
+    const { currentTenantName } = useTenant();
     const [intents, setIntents] = useState<Intent[]>([]);
     const [loading, setLoading] = useState(true);
     const [search, setSearch] = useState('');
@@ -402,7 +404,7 @@ export default function IntentManager({ tenantId }: { tenantId?: number }) {
                     <div className="t-icon"><IcTarget /></div>
                     <div>
                         <h1 className="t-title">Settings & Intelligence</h1>
-                        <span className="t-sub">GTD Service · Chatbot · Intent Framework</span>
+                        <span className="t-sub">{currentTenantName} · Chatbot · Intent Framework</span>
                     </div>
                 </div>
                 <div className="topbar-r">

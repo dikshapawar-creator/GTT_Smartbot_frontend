@@ -588,7 +588,9 @@ export default function Dashboard({ children }: { children?: React.ReactNode }) 
                             </div>
                         </>
                     ) : (
-                        children
+                        <div key={selectedTenantId || 'default'}>
+                            {children}
+                        </div>
                     )
                     }
                 </div>
