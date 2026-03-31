@@ -33,6 +33,7 @@ import api from '@/config/api';
 import { WS_BASE } from '@/config/api';
 import { wsManager } from '@/lib/wsManager';
 import { auth } from '@/lib/auth';
+import { useTenant } from '@/context/TenantContext';
 import { normalizeMessages, normalizeSessions, getSyncedNow, formatToIST } from '@/lib/time';
 import {
     formatDuration,
@@ -119,6 +120,7 @@ interface ChatMessage {
 const PAGE_SIZE = 25;
 
 export default function HistoryPage() {
+    const { selectedTenantId } = useTenant();
     const [data, setData] = useState<PaginatedHistory | null>(null);
     const [analytics, setAnalytics] = useState<Analytics | null>(null);
     const [selectedSession, setSelectedSession] = useState<Conversation | null>(null);
@@ -217,9 +219,9 @@ export default function HistoryPage() {
     }, [page, fetchHistory]);
 
     const connectWebSocket = useCallback((sessionId: string, token: string) => {
-        const url = `${WS_BASE}/live-chat/ws/chat/${sessionId}?role=agent&token=${token}`;
+        const url = `${WS_BASE}/live-chat/ws/chat/${sessionId}?role=agent&token=${token}${selectedTenantId ? `&tenant_id=${selectedTenantId}` : ''}`;
         wsManager.connect(url, 'chat');
-    }, []);
+    }, [selectedTenantId]);
 
     useEffect(() => {
         if (!selectedSession || !sessionLiveMode) return;

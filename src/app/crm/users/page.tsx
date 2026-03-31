@@ -10,6 +10,7 @@ import { api } from "@/lib/api";
 import { auth } from "@/lib/auth";
 import IntentManager from "@/components/Dashboard/IntentManager";
 import { useCRMUpdates, CRMUpdateEvent } from "@/hooks/useCRMUpdates";
+import { useTenant } from "@/context/TenantContext";
 
 // ── Types ────────────────────────────────────────────────────────────────────
 type UserRole = { id: number; name: string; level: number; description?: string };
@@ -934,6 +935,87 @@ function CreateUserModal({ roles, onClose, onCreated, showToast }: {
     );
 }
 
+// ── Create Tenant Modal ───────────────────────────────────────────────────────
+function CreateTenantModal({ onClose, onCreated, showToast }: {
+    onClose: () => void; onCreated: (t: Tenant) => void;
+    showToast: (m: string, t: "success" | "error" | "info") => void;
+}) {
+    const [form, setForm] = useState({ name: "", domain: "", api_key: "" });
+    const [loading, setLoading] = useState(false);
+    const [success, setSuccess] = useState(false);
+
+    const handleSubmit = async (e: React.FormEvent) => {
+        e.preventDefault();
+        if (!form.name.trim()) return showToast("Name is required", "error");
+        setLoading(true);
+        try {
+            const { data } = await api.post<Tenant>("/super-admin/create-tenant", {
+                name: form.name.trim(),
+                domain: form.domain.trim() || undefined,
+                api_key: form.api_key.trim() || undefined,
+            });
+            setSuccess(true);
+            setTimeout(() => { onCreated(data); onClose(); }, 700);
+        } catch (err) {
+            showToast((err as Error).message || "Failed to create workspace", "error");
+        } finally {
+            setLoading(false);
+        }
+    };
+
+    const inputStyle = {
+        width: "100%", height: 44, padding: "0 14px", borderRadius: 10,
+        border: "2px solid #e2e8f0", background: "#f8fafc", fontSize: 14,
+        color: "#0f172a", outline: "none", boxSizing: "border-box" as const,
+        fontFamily: "inherit", transition: "border-color .15s",
+    };
+
+    return (
+        <div style={{ position: "fixed", inset: 0, zIndex: 200, display: "flex", alignItems: "center", justifyContent: "center", padding: 16 }}>
+            <div style={{ position: "absolute", inset: 0, background: "rgba(15,23,42,.6)", backdropFilter: "blur(6px)" }} onClick={onClose} />
+            <div style={{ position: "relative", background: "#fff", borderRadius: 20, boxShadow: "0 25px 80px rgba(0,0,0,.2)", width: "100%", maxWidth: 460, display: "flex", flexDirection: "column", overflow: "hidden" }}>
+                <div style={{ padding: "24px 28px 20px", borderBottom: "1px solid #f1f5f9" }}>
+                    <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+                        <div style={{ display: "flex", alignItems: "center", gap: 14 }}>
+                            <div style={{ width: 44, height: 44, borderRadius: 12, background: "#0f172a", display: "flex", alignItems: "center", justifyContent: "center" }}>
+                                <Building size={20} color="#fff" />
+                            </div>
+                            <div>
+                                <h2 style={{ margin: 0, fontSize: 17, fontWeight: 800, color: "#0f172a" }}>Create Workspace</h2>
+                                <p style={{ margin: "3px 0 0", fontSize: 12, color: "#94a3b8" }}>Set up a new tenant environment</p>
+                            </div>
+                        </div>
+                        <button onClick={onClose} style={{ width: 32, height: 32, borderRadius: 8, border: "none", background: "none", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", color: "#94a3b8" }}><X size={16} /></button>
+                    </div>
+                </div>
+                <div style={{ padding: "24px 28px", display: "flex", flexDirection: "column", gap: 20 }}>
+                    <form onSubmit={handleSubmit} style={{ display: "flex", flexDirection: "column", gap: 20 }}>
+                        <div>
+                            <label style={{ display: "block", fontSize: 11, fontWeight: 700, color: "#475569", textTransform: "uppercase", letterSpacing: "0.08em", marginBottom: 8 }}>Workspace Name *</label>
+                            <input value={form.name} onChange={e => setForm({ ...form, name: e.target.value })} placeholder="e.g. Acme Corp" style={inputStyle} />
+                        </div>
+                        <div>
+                            <label style={{ display: "block", fontSize: 11, fontWeight: 700, color: "#475569", textTransform: "uppercase", letterSpacing: "0.08em", marginBottom: 8 }}>Custom Domain (Optional)</label>
+                            <input value={form.domain} onChange={e => setForm({ ...form, domain: e.target.value })} placeholder="acme.example.com" style={inputStyle} />
+                        </div>
+                        <div>
+                            <label style={{ display: "block", fontSize: 11, fontWeight: 700, color: "#475569", textTransform: "uppercase", letterSpacing: "0.08em", marginBottom: 8 }}>Custom API Key (Optional)</label>
+                            <input value={form.api_key} onChange={e => setForm({ ...form, api_key: e.target.value })} placeholder="Leave blank to auto-generate" style={inputStyle} />
+                        </div>
+                        <div style={{ display: "flex", gap: 12, marginTop: 10 }}>
+                            <button type="button" onClick={onClose} style={{ flex: 1, padding: "12px", borderRadius: 12, border: "2px solid #e2e8f0", background: "#fff", fontSize: 13, fontWeight: 700, color: "#475569", cursor: "pointer" }}>Cancel</button>
+                            <button type="submit" disabled={loading || success}
+                                style={{ flex: 1.5, padding: "12px", borderRadius: 12, border: "none", background: success ? "#059669" : "#0f172a", fontSize: 13, fontWeight: 800, color: "#fff", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", gap: 8 }}>
+                                {success ? <><Check size={15} /> Created!</> : loading ? <RefreshCw size={15} className="animate-spin" /> : "Create Workspace"}
+                            </button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
+    );
+}
+
 // ── Page ──────────────────────────────────────────────────────────────────────
 export default function UserManagementPage() {
     const [tab, setTab] = useState<"users" | "roles" | "tenants">("users");
@@ -945,9 +1027,11 @@ export default function UserManagementPage() {
     const [toasts, setToasts] = useState<Toast[]>([]);
     const [showCreate, setShowCreate] = useState(false);
     const [showCreateRole, setShowCreateRole] = useState(false);
+    const [showCreateTenant, setShowCreateTenant] = useState(false);
     const [managingAccess, setManagingAccess] = useState<User | null>(null);
     const [intelTenant, setIntelTenant] = useState<Tenant | null>(null);
     const [isMounted, setIsMounted] = useState(false);
+    const { refreshTenants } = useTenant();
 
     // Expose openIntel to window for table access
     useEffect(() => {
@@ -1084,7 +1168,8 @@ export default function UserManagementPage() {
                 <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
                     <button style={btnOutlined} onClick={() => exportCSV(users)}><Download size={15} /> Export CSV</button>
                     {tab === "roles" && <button style={btnOutlined} onClick={() => setShowCreateRole(true)}><Plus size={15} /> New Role</button>}
-                    <button style={btnPrimary} onClick={() => setShowCreate(true)}><Plus size={15} /> Invite User</button>
+                    {tab === "tenants" && <button style={btnPrimary} onClick={() => setShowCreateTenant(true)}><Plus size={15} /> Create Workspace</button>}
+                    {tab !== "tenants" && <button style={btnPrimary} onClick={() => setShowCreate(true)}><Plus size={15} /> Invite User</button>}
                 </div>
             </div>
 
@@ -1138,6 +1223,12 @@ export default function UserManagementPage() {
                 onCreated={r => { setRoles(p => [...p, r]); toast(`Role "${r.name}" created`); }} />}
             {managingAccess && <ManageAccessModal user={managingAccess} allTenants={tenants} onClose={() => setManagingAccess(null)} isLoading={actLoading}
                 onSave={(ids, pri) => handleManageAccess(managingAccess.id, ids, pri)} />}
+            {showCreateTenant && <CreateTenantModal onClose={() => setShowCreateTenant(false)}
+                onCreated={async (t) => {
+                    setTenants(p => [t, ...p]);
+                    toast(`Workspace "${t.name}" created`);
+                    await refreshTenants(); // 🔄 Sync global switcher
+                }} showToast={toast} />}
 
             {confirm?.type === "deactivate" && <ConfirmModal
                 title={confirm.user.is_active ? "Deactivate User?" : "Reactivate User?"}

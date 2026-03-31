@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { Activity, Save, RotateCcw, ShieldAlert } from 'lucide-react';
 import api from '@/config/api';
 import IntentManager from '@/components/Dashboard/IntentManager';
@@ -119,17 +119,48 @@ function Toggle({ value, onChange }: { value: boolean; onChange: (v: boolean) =>
 export default function SettingsPage() {
     const { currentTenantName } = useTenant();
     const [activeTab, setActiveTab] = useState<TabType>('chatbot');
+    const activeSaveFn = useRef<(() => Promise<void>) | null>(null);
     const [isSaving, setIsSaving] = useState(false);
     const [toast, setToast] = useState<string | null>(null);
     const [mounted, setMounted] = useState(false);
 
     useEffect(() => {
-        // eslint-disable-next-line react-hooks/set-state-in-effect
         setMounted(true);
     }, []);
 
     const notify = (msg: string) => { setToast(msg); setTimeout(() => setToast(null), 2000); };
-    const handleSave = () => { setIsSaving(true); setTimeout(() => { setIsSaving(false); notify('Settings saved ✓'); }, 800); };
+
+    const handleSave = async () => {
+        if (activeSaveFn.current) {
+            setIsSaving(true);
+            try {
+                await activeSaveFn.current();
+                notify('Settings saved ✓');
+            } catch (err) {
+                console.error("Unified save failed:", err);
+                notify('Save failed ❌');
+            } finally {
+                setIsSaving(false);
+            }
+            return;
+        }
+
+        // Fallback for tabs without registered save (if any)
+        setIsSaving(true);
+        setTimeout(() => {
+            setIsSaving(false);
+            notify('Settings saved ✓');
+        }, 600);
+    };
+
+    const registerSave = useCallback((fn: () => Promise<void>) => {
+        activeSaveFn.current = fn;
+    }, []);
+
+    // Clear active save function when switching tabs
+    useEffect(() => {
+        activeSaveFn.current = null;
+    }, [activeTab]);
 
     if (!mounted) return null;
 
@@ -168,15 +199,7 @@ export default function SettingsPage() {
                         <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" /><polyline points="7 10 12 15 17 10" /><line x1="12" y1="15" x2="12" y2="3" /></svg>
                         Export
                     </button>
-                    {activeTab !== 'chatbot' && activeTab !== 'branding' && (
-                        <button className="btn-primary" onClick={handleSave}>
-                            {isSaving ? (
-                                <><Activity size={13} className="animate-spin" />Saving...</>
-                            ) : (
-                                <><Save size={13} />Save Changes</>
-                            )}
-                        </button>
-                    )}
+                    {/* Top save button removed to avoid confusion with the main "Save & Sync" button */}
                 </div>
             </header>
 
@@ -197,11 +220,11 @@ export default function SettingsPage() {
             {/* Content */}
             <div className="content">
                 {activeTab === 'chatbot' && <IntentManager />}
-                {activeTab === 'branding' && <BotConfigSettings />}
-                {activeTab === 'general' && <GeneralTab notify={notify} />}
-                {activeTab === 'leads' && <LeadRulesTab notify={notify} />}
-                {activeTab === 'email' && <EmailSettings />}
-                {activeTab === 'security' && <SecurityTab notify={notify} />}
+                {activeTab === 'branding' && <BotConfigSettings onSaveStateChange={setIsSaving} registerSave={registerSave} />}
+                {activeTab === 'general' && <GeneralTab notify={notify} registerSave={registerSave} />}
+                {activeTab === 'leads' && <LeadRulesTab notify={notify} registerSave={registerSave} />}
+                {activeTab === 'email' && <EmailSettings onSaveStateChange={setIsSaving} registerSave={registerSave} />}
+                {activeTab === 'security' && <SecurityTab notify={notify} registerSave={registerSave} />}
             </div>
 
             {/* Workspace Status Bar */}
@@ -214,12 +237,13 @@ export default function SettingsPage() {
                     <button className="btn-secondary" onClick={() => { localStorage.clear(); window.location.reload(); }}>
                         <RotateCcw size={13} /> Reset All
                     </button>
-                    {activeTab !== 'chatbot' && activeTab !== 'branding' && (
-                        <button className="btn-primary" onClick={handleSave}>
-                            {isSaving ? <Activity size={13} className="animate-spin" /> : <Save size={13} />}
-                            {isSaving ? 'Saving...' : 'Save & Sync'}
-                        </button>
-                    )}
+                    <button className="btn-primary" onClick={handleSave} disabled={isSaving}>
+                        {isSaving ? (
+                            <><Activity size={13} className="animate-spin" />Saving...</>
+                        ) : (
+                            <><Save size={13} />Save & Sync</>
+                        )}
+                    </button>
                 </div>
             </div>
 
@@ -272,15 +296,23 @@ const DEFAULT_NOTIFS: Record<string, boolean> = {
     notif_hot_lead: true, notif_agent_req: true, notif_unmatched: false, notif_weekly: true, notif_system: true,
 };
 
-function GeneralTab({ notify }: { notify: (msg: string) => void }) {
+function GeneralTab({ notify, registerSave }: { notify: (msg: string) => void; registerSave?: (fn: () => Promise<void>) => void }) {
     const [data, setData] = useState<GeneralData>(() => loadLS(LS.general, DEFAULT_GENERAL));
     const [notifs, setNotifs] = useState<Record<string, boolean>>(() => loadLS(LS.notifs, DEFAULT_NOTIFS));
 
-    // Remove the useEffect doing setState since initialization now handles it.
+    const handleSave = useCallback(async () => {
+        saveLS(LS.general, data);
+        saveLS(LS.notifs, notifs);
+        await new Promise(resolve => setTimeout(resolve, 600));
+    }, [data, notifs]);
 
-    const saveGeneral = () => { saveLS(LS.general, data); notify('Workspace identity saved ✓'); };
-    const saveLocalization = () => { saveLS(LS.general, data); notify('Localization saved ✓'); };
-    const saveNotifs = () => { saveLS(LS.notifs, notifs); notify('Notification preferences saved ✓'); };
+    useEffect(() => {
+        registerSave?.(handleSave);
+    }, [registerSave, handleSave]);
+
+    const saveGeneral = () => { handleSave(); notify('Workspace identity saved ✓'); };
+    const saveLocalization = () => { handleSave(); notify('Localization saved ✓'); };
+    const saveNotifs = () => { handleSave(); notify('Notification preferences saved ✓'); };
     const updateField = (key: keyof GeneralData, val: string) => setData(prev => ({ ...prev, [key]: val }));
     const toggleNotif = (key: string) => setNotifs(prev => ({ ...prev, [key]: !prev[key] }));
 
@@ -437,14 +469,22 @@ const LEAD_TOGGLE_ITEMS: LeadToggle[] = [
 ];
 const DEFAULT_LEAD_TOGGLES: Record<string, boolean> = { lt_email_alert: true, lt_crm_sync: true, lt_auto_assign: false, lt_dupe_detect: true };
 
-function LeadRulesTab({ notify }: { notify: (msg: string) => void }) {
+function LeadRulesTab({ notify, registerSave }: { notify: (msg: string) => void; registerSave?: (fn: () => Promise<void>) => void }) {
     const [scoring, setScoring] = useState<LeadScoring>(() => loadLS(LS.leads, DEFAULT_LEAD_SCORING));
     const [toggles, setToggles] = useState<Record<string, boolean>>(() => loadLS(LS.leadToggles, DEFAULT_LEAD_TOGGLES));
 
-    // Initialization handled by the useState initializer.
+    const handleSave = useCallback(async () => {
+        saveLS(LS.leads, scoring);
+        saveLS(LS.leadToggles, toggles);
+        await new Promise(resolve => setTimeout(resolve, 600));
+    }, [scoring, toggles]);
 
-    const saveScoring = () => { saveLS(LS.leads, scoring); notify('Lead scoring rules saved ✓'); };
-    const saveToggles = () => { saveLS(LS.leadToggles, toggles); notify('Automation settings saved ✓'); };
+    useEffect(() => {
+        registerSave?.(handleSave);
+    }, [registerSave, handleSave]);
+
+    const saveScoring = () => { handleSave(); notify('Lead scoring rules saved ✓'); };
+    const saveToggles = () => { handleSave(); notify('Automation settings saved ✓'); };
     const toggleItem = (key: string) => setToggles(prev => ({ ...prev, [key]: !prev[key] }));
 
     return (
@@ -537,7 +577,7 @@ const DEFAULT_SEC_TOGGLES: Record<string, boolean> = {
 
 interface BlockedIP { id?: number; ip: string; reason: string; time: string; }
 
-function SecurityTab({ notify }: { notify: (msg: string) => void }) {
+function SecurityTab({ notify, registerSave }: { notify: (msg: string) => void; registerSave?: (fn: () => Promise<void>) => void }) {
     const [secToggles, setSecToggles] = useState<Record<string, boolean>>(() => loadLS(LS.securityToggles, DEFAULT_SEC_TOGGLES));
     const [blocked, setBlocked] = useState<BlockedIP[]>([]);
     const [ipInput, setIpInput] = useState('');
@@ -560,7 +600,16 @@ function SecurityTab({ notify }: { notify: (msg: string) => void }) {
         init();
     }, []);
 
-    const saveToggles = () => { saveLS(LS.securityToggles, secToggles); notify('Security settings saved ✓'); };
+    const handleSave = useCallback(async () => {
+        saveLS(LS.securityToggles, secToggles);
+        await new Promise(resolve => setTimeout(resolve, 600));
+    }, [secToggles]);
+
+    useEffect(() => {
+        registerSave?.(handleSave);
+    }, [registerSave, handleSave]);
+
+    const saveToggles = () => { handleSave(); notify('Security settings saved ✓'); };
     const toggleItem = (key: string) => setSecToggles(prev => ({ ...prev, [key]: !prev[key] }));
 
     const addIP = async () => {

@@ -1,7 +1,8 @@
 'use client';
 /* eslint-disable react-hooks/set-state-in-effect */
-import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
-import { auth } from '@/lib/auth';
+import React, { createContext, useContext, useState, useEffect, ReactNode, useCallback } from 'react';
+import { auth, UserProfile } from '@/lib/auth';
+import api from '@/config/api';
 
 interface Tenant {
     id: number;
@@ -15,6 +16,7 @@ interface TenantContextType {
     allowedTenants: Tenant[];
     isLoading: boolean;
     currentTenantName: string;
+    refreshTenants: () => Promise<void>;
 }
 
 const TenantContext = createContext<TenantContextType | undefined>(undefined);
@@ -23,6 +25,44 @@ export function TenantProvider({ children }: { children: ReactNode }) {
     const [selectedTenantId, setSelectedTenantIdState] = useState<number | null>(null);
     const [allowedTenants, setAllowedTenants] = useState<Tenant[]>([]);
     const [isLoading, setIsLoading] = useState(true);
+
+    const setSelectedTenantId = useCallback((id: number | null) => {
+        setSelectedTenantIdState(id);
+        if (id !== null) {
+            localStorage.setItem('selected_tenant_id', String(id));
+        } else {
+            localStorage.removeItem('selected_tenant_id');
+        }
+    }, []);
+
+    const refreshTenants = useCallback(async () => {
+        try {
+            // Small delay to ensure DB transaction is fully committed and visible
+            await new Promise(resolve => setTimeout(resolve, 2000));
+            const { data: user } = await api.get<UserProfile>('/auth/me');
+            auth.updateUser(user);
+
+            const tenants = user.tenant_access?.map(t => ({
+                id: t.tenant_id,
+                name: t.tenant_name,
+                is_primary: t.is_primary
+            })) || [];
+
+            setAllowedTenants(tenants);
+
+            // If current selected id is no longer valid, fallback
+            const currentId = localStorage.getItem('selected_tenant_id');
+            const parsedId = currentId ? parseInt(currentId, 10) : null;
+            const isValid = tenants.some(t => t.id === parsedId);
+
+            if (!isValid && tenants.length > 0) {
+                const primary = tenants.find(t => t.is_primary) || tenants[0];
+                setSelectedTenantId(primary.id);
+            }
+        } catch (error) {
+            console.error('Failed to refresh tenants:', error);
+        }
+    }, [setSelectedTenantId]);
 
     useEffect(() => {
         const user = auth.getUser();
@@ -46,26 +86,24 @@ export function TenantProvider({ children }: { children: ReactNode }) {
             if (isValid && parsedId !== null) {
                 setSelectedTenantIdState(parsedId);
             } else if (tenants.length === 1) {
-                // 3. Auto-select if only one tenant
-                setSelectedTenantIdState(tenants[0].id);
-                localStorage.setItem('selected_tenant_id', String(tenants[0].id));
+                setSelectedTenantId(tenants[0].id);
             } else if (user.primary_tenant_id) {
-                // 4. Default to primary
-                setSelectedTenantIdState(user.primary_tenant_id);
-                localStorage.setItem('selected_tenant_id', String(user.primary_tenant_id));
+                setSelectedTenantId(user.primary_tenant_id);
             }
         }
         setIsLoading(false);
-    }, []);
 
-    const setSelectedTenantId = (id: number | null) => {
-        setSelectedTenantIdState(id);
-        if (id !== null) {
-            localStorage.setItem('selected_tenant_id', String(id));
-        } else {
-            localStorage.removeItem('selected_tenant_id');
-        }
-    };
+        // 🔄 Phase 4: Forced Sync & Background Refresh
+        refreshTenants(); // Trigger initial backfill/refresh on mount
+
+        const interval = setInterval(() => {
+            if (auth.isAuthenticated()) {
+                refreshTenants();
+            }
+        }, 60000); // Pulse every 60s
+
+        return () => clearInterval(interval);
+    }, [setSelectedTenantId, refreshTenants]);
 
     const currentTenantName = allowedTenants.find(t => t.id === selectedTenantId)?.name || 'Select Website';
 
@@ -75,7 +113,8 @@ export function TenantProvider({ children }: { children: ReactNode }) {
             setSelectedTenantId,
             allowedTenants,
             isLoading,
-            currentTenantName
+            currentTenantName,
+            refreshTenants
         }}>
             {children}
         </TenantContext.Provider>

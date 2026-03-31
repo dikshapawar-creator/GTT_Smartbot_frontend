@@ -1,7 +1,8 @@
 'use client';
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { Save, Server, Globe, Layout, RefreshCw, CheckCircle2, AlertCircle } from 'lucide-react';
 import api from '@/config/api';
+import { useTenant } from '@/context/TenantContext'; // Import useTenant
 
 interface EmailConfig {
     smtp_host: string;
@@ -21,7 +22,13 @@ interface Tenant {
     name: string;
 }
 
-export default function EmailSettings() {
+interface EmailSettingsProps {
+    onSaveStateChange?: (isSaving: boolean) => void;
+    registerSave?: (saveFn: () => Promise<void>) => void;
+}
+
+export default function EmailSettings({ onSaveStateChange, registerSave }: EmailSettingsProps) {
+    const { selectedTenantId: contextTenantId } = useTenant(); // Get context ID
     const [tenants, setTenants] = useState<Tenant[]>([]);
     const [selectedTenantId, setSelectedTenantId] = useState<number | null>(null);
     const [config, setConfig] = useState<EmailConfig>({
@@ -41,15 +48,24 @@ export default function EmailSettings() {
     const [saving, setSaving] = useState(false);
     const [message, setMessage] = useState<{ type: 'success' | 'error', text: string } | null>(null);
 
+    // Sync saving state to parent
+    useEffect(() => {
+        onSaveStateChange?.(saving);
+    }, [saving, onSaveStateChange]);
+
     useEffect(() => {
         api.get('/admin/tenants').then(res => {
             const data = Array.isArray(res.data) ? res.data : (res.data as { data: Tenant[] }).data || [];
             setTenants(data);
-            if (data.length > 0) {
+
+            // 🔥 Context Sync: If global context has a selected tenant, use it first
+            if (contextTenantId && data.some(t => t.id === contextTenantId)) {
+                setSelectedTenantId(contextTenantId);
+            } else if (data.length > 0) {
                 setSelectedTenantId(data[0].id);
             }
         }).catch(err => console.error("Failed to fetch tenants:", err));
-    }, []);
+    }, [contextTenantId]);
 
     useEffect(() => {
         if (selectedTenantId) {
@@ -66,7 +82,7 @@ export default function EmailSettings() {
         }
     }, [selectedTenantId]);
 
-    const handleSave = async () => {
+    const handleSave = useCallback(async () => {
         if (!selectedTenantId) return;
         setSaving(true);
         setMessage(null);
@@ -74,12 +90,19 @@ export default function EmailSettings() {
             await api.put(`/admin/email-config/${selectedTenantId}`, config);
             setMessage({ type: 'success', text: 'Email configuration saved successfully!' });
             setTimeout(() => setMessage(null), 3000);
-        } catch {
+        } catch (err) {
+            console.error("Save failed:", err);
             setMessage({ type: 'error', text: 'Failed to save configuration.' });
+            throw err;
         } finally {
             setSaving(false);
         }
-    };
+    }, [config, selectedTenantId]);
+
+    // Register save function with parent
+    useEffect(() => {
+        registerSave?.(handleSave);
+    }, [registerSave, handleSave]);
 
     return (
         <div className="section" style={{ padding: 0 }}>

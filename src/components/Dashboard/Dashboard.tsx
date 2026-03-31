@@ -243,7 +243,7 @@ export default function Dashboard({ children }: { children?: React.ReactNode }) 
                             <div className={styles.userInfo}>
                                 {mounted ? (auth.getUser()?.email?.split('@')[0] || 'User') : '...'}
                                 <span className={styles.userRole}>
-                                    {mounted ? (auth.getUser()?.role || 'Admin') : 'Admin'}
+                                    {mounted ? (auth.getUser()?.role?.name || 'Admin') : 'Admin'}
                                 </span>
                             </div>
                             <ChevronDown size={14} className={`ml-auto text-slate-400 transition-transform ${profileOpen ? 'rotate-180' : ''}`} />
@@ -367,7 +367,7 @@ export default function Dashboard({ children }: { children?: React.ReactNode }) 
                             <div className={styles.profileInfo}>
                                 {mounted ? (auth.getUser()?.email?.split('@')[0] || 'User') : '...'}
                                 <span className={styles.profileRole}>
-                                    {mounted ? (auth.getUser()?.is_super_admin ? 'Super Admin' : (auth.getUser()?.role || 'Administrator')) : 'Administrator'}
+                                    {mounted ? (auth.getUser()?.is_super_admin ? 'Super Admin' : (auth.getUser()?.role?.name || 'Administrator')) : 'Administrator'}
                                 </span>
                             </div>
                             <ChevronDown size={14} className={`text-slate-400 ml-1 transition-transform ${profileOpen ? 'rotate-180' : ''}`} />

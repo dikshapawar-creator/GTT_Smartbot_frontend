@@ -4,12 +4,18 @@ const ACCESS_TOKEN_KEY = 'access_token';
 const REFRESH_TOKEN_KEY = 'refresh_token';
 const USER_KEY = 'user_profile';
 
+export interface UserRole {
+    id: number;
+    name: string;
+    level: number;
+}
+
 export interface UserProfile {
     id: number;
     email: string;
     full_name: string | null;
-    role: string;
-    role_level: number;
+    role: UserRole;            // Changed from string to object to match backend
+    role_level?: number;       // Legacy Support
     tenant_id: number;        // Current/Legacy primary tenant
     tenant_ids: number[];     // List of all accessible tenants
     primary_tenant_id: number;
@@ -35,6 +41,14 @@ export const auth = {
         if (typeof window !== 'undefined') {
             localStorage.setItem(ACCESS_TOKEN_KEY, accessToken);
             localStorage.setItem(REFRESH_TOKEN_KEY, refreshToken);
+            localStorage.setItem(USER_KEY, JSON.stringify(user));
+        }
+    },
+
+    updateUser(user: UserProfile) {
+        const isSecure = typeof window !== 'undefined' && window.location.protocol === 'https:';
+        Cookies.set(USER_KEY, JSON.stringify(user), { expires: 30, secure: isSecure, sameSite: 'strict' });
+        if (typeof window !== 'undefined') {
             localStorage.setItem(USER_KEY, JSON.stringify(user));
         }
     },
@@ -92,20 +106,20 @@ export const auth = {
         const user = this.getUser();
         if (!user) return false;
         if (user.is_super_admin) return true; // Super admin bypass
-        const role = String(user.role || '').toLowerCase();
+        const role = String(user.role?.name || '').toLowerCase();
         return role === 'administrator' ||
             role === 'super_admin' ||
-            (user.role_level !== undefined && user.role_level >= 3);
+            (user.role?.level !== undefined && user.role.level >= 3);
     },
 
     isManager() {
         const user = this.getUser();
         if (!user) return false;
         if (user.is_super_admin) return true; // Super admin bypass
-        const role = String(user.role || '').toLowerCase();
+        const role = String(user.role?.name || '').toLowerCase();
         return this.isAdmin() ||
             role === 'manager' ||
             role === 'admin' ||
-            (user.role_level !== undefined && user.role_level >= 2);
+            (user.role?.level !== undefined && user.role.level >= 2);
     }
 };

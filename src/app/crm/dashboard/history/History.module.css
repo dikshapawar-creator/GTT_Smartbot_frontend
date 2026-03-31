@@ -1358,3 +1358,95 @@
         transform: rotate(360deg);
     }
 }
+
+/* ── Sales Actions Bubble Styles ────────────────────────────────────────────── */
+
+.salesActions {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+}
+
+.actionGrid {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 8px;
+}
+
+.actionBtn {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    padding: 8px 12px;
+    background: #ffffff;
+    border: 1.5px solid #e2e8f0;
+    border-radius: 10px;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    box-shadow: 0 1px 2px rgba(0, 0, 0, 0.05);
+}
+
+.actionBtn:hover {
+    border-color: #6366f1;
+    background: #f8fafc;
+    transform: translateY(-1px);
+}
+
+.actionBtnPrimary {
+    background: #6366f1;
+    border-color: #6366f1;
+    color: #ffffff !important;
+}
+
+.actionIcon {
+    flex-shrink: 0;
+}
+
+.actionLabel {
+    font-size: 11px;
+    font-weight: 700;
+}
+
+.fullWidthAction {
+    width: 100%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+    padding: 10px;
+    background: #fee2e2;
+    border: 1.5px solid #fecaca;
+    border-radius: 10px;
+    color: #dc2626;
+    font-size: 11px;
+    font-weight: 700;
+    cursor: pointer;
+    transition: all 0.2s;
+}
+
+.fullWidthAction:hover {
+    background: #fecaca;
+    border-color: #fca5a5;
+}
+
+.secondaryAction {
+    width: 100%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+    padding: 8px;
+    background: transparent;
+    border: 1px solid #e2e8f0;
+    border-radius: 10px;
+    color: #64748b;
+    font-size: 11px;
+    font-weight: 600;
+    cursor: pointer;
+}
+
+.secondaryAction:hover {
+    background: #f8fafc;
+    border-color: #cbd5e1;
+}
