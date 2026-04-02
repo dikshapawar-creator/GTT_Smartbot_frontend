@@ -205,7 +205,7 @@ export default function IntentManager({ tenantId }: { tenantId?: number }) {
     const [statusFilter, setStatusFilter] = useState<'all' | 'active' | 'inactive'>('all');
     const [modal, setModal] = useState<{ open: boolean; mode: 'add' | 'edit' | 'clone'; data: Intent | null }>({ open: false, mode: 'add', data: null });
     const [toast, setToast] = useState<{ msg: string; type: 'success' | 'error' } | null>(null);
-    const [botName, setBotName] = useState('GTD Service Bot');
+    const [botName, setBotName] = useState('Smart Chatbot');
     const [handoffMsg, setHandoffMsg] = useState('Connecting you to a human agent...');
     const [liveStats, setLiveStats] = useState<{ active_visitors: number; agent_chats: number; spam_visitors: number }>({ active_visitors: 0, agent_chats: 0, spam_visitors: 0 });
 
@@ -226,7 +226,7 @@ export default function IntentManager({ tenantId }: { tenantId?: number }) {
                 const url = tenantId ? `/bot-config?tenant_id=${tenantId}` : '/bot-config';
                 const res = await api.get(url);
                 if (res.data) {
-                    setBotName(res.data.chatbot_name || 'GTD Service Bot');
+                    setBotName(res.data.chatbot_name || 'Smart Chatbot');
                     setHandoffMsg(res.data.handoff_message || 'Connecting you to a human agent...');
                 }
             } catch (err) {

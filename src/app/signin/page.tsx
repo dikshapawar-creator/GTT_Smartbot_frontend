@@ -163,7 +163,7 @@ function SignInContent() {
 
                 <div style={{ marginTop: '8px' }}>
                     <GradientButton type="submit" isLoading={isLoading}>
-                        Sign In to GTD Service
+                        Sign In to Smart Chatbot
                     </GradientButton>
                 </div>
 

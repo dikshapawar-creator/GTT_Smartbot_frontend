@@ -12,7 +12,7 @@ export default function CTASection() {
                             Ready to Modernise Your Trade Operations?
                         </h2>
                         <p className={styles.subtitle}>
-                            GTD Service is trusted by logistics companies, freight forwarders, and exporters across 200+ countries. Access the GTIS database and modernise your trade intelligence today.
+                            Smart Chatbot is trusted by enterprises and sales teams across 200+ countries. Access the AI-powered communication suite and modernise your operations today.
                         </p>
                         <div className={styles.ctas}>
                             <Button size="lg" className="h-14 px-10 text-base font-bold rounded-xl shadow-xl shadow-primary/30">

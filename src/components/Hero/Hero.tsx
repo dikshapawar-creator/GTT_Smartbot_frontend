@@ -16,7 +16,7 @@ export default function Hero() {
                     </div>
                     <h1 className={styles.headline}>
                         Intelligence for Global Trade,<br />
-                        Powered by GTD Service
+                        Powered by Smart Chatbot
                     </h1>
                     <p className={styles.subheading}>
                         Access verified buyers, suppliers, and market trends across global trade routes from a single enterprise intelligence system.
@@ -58,7 +58,7 @@ export default function Hero() {
                             <div className={styles.previewDots}>
                                 <span></span><span></span><span></span>
                             </div>
-                            <span className={styles.previewTitle}>GTD Service — Operations Dashboard</span>
+                            <span className={styles.previewTitle}>Smart Chatbot — Operations Dashboard</span>
                         </div>
                         <div className={styles.previewBody}>
                             {/* KPI Row */}

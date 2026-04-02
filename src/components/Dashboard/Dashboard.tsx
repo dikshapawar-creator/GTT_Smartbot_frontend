@@ -207,7 +207,7 @@ export default function Dashboard({ children }: { children?: React.ReactNode }) 
                     <div className={styles.sidebarLogo}>
                         <Image
                             src="/logo.png"
-                            alt="GTD Service"
+                            alt="Smart Chatbot"
                             width={collapsed ? 36 : 140}
                             height={36}
                             className="object-contain inverted-logo"

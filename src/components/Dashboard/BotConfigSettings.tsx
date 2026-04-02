@@ -188,7 +188,7 @@ export default function BotConfigSettings({ onSaveStateChange, registerSave }: B
                                     className="form-input"
                                     value={config.chatbot_name}
                                     onChange={e => setConfig({ ...config, chatbot_name: e.target.value })}
-                                    placeholder="e.g. GTD Support"
+                                    placeholder="e.g. Smart Chatbot Support"
                                 />
                                 <span style={{ fontSize: '11px', color: 'var(--ctm)', marginTop: 4 }}>This name appears in the chat header and emails.</span>
                             </div>
@@ -210,7 +210,7 @@ export default function BotConfigSettings({ onSaveStateChange, registerSave }: B
                                     className="form-textarea"
                                     value={config.welcome_text}
                                     onChange={e => setConfig({ ...config, welcome_text: e.target.value })}
-                                    placeholder="e.g. Welcome to GTD Service. How can I help you today?"
+                                    placeholder="e.g. Welcome to Smart Chatbot. How can I help you today?"
                                     style={{ minHeight: 100 }}
                                 />
                                 <span style={{ fontSize: '11px', color: 'var(--ctm)', marginTop: 4 }}>The first automated message a user sees.</span>

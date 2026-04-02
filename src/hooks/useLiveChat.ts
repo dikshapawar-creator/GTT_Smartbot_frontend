@@ -182,7 +182,17 @@ export function useLiveChat() {
                     setConversations(prev =>
                         prev.map(conv =>
                             conv.session_uuid === data.session_uuid
-                                ? { ...conv, ...data as unknown as RawConversation }
+                                ? {
+                                    ...conv,
+                                    lead_name: data.lead_name || conv.lead_name,
+                                    lead_email: data.lead_email || conv.lead_email,
+                                    lead_phone: data.lead_phone || conv.lead_phone,
+                                    lead_company: data.lead_company || conv.lead_company,
+                                    lead_score: data.lead_score ?? conv.lead_score,
+                                    lead_status: data.lead_status || conv.lead_status,
+                                    lead_insights: data.lead_insights || conv.lead_insights,
+                                    is_lead: true
+                                }
                                 : conv
                         )
                     );

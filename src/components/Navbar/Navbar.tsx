@@ -21,7 +21,7 @@ export default function Navbar() {
         <Link href="/" className={styles.logo}>
           <Image
             src="/logo.png"
-            alt="GTD Service"
+            alt="Smart Chatbot"
             width={64}
             height={64}
             className="object-contain"

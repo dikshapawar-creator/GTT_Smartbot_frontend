@@ -18,7 +18,7 @@ export default function Footer() {
                         <div className={styles.logo}>
                             <Image
                                 src="/logo.png"
-                                alt="GTD Service"
+                                alt="Smart Chatbot"
                                 width={140}
                                 height={40}
                                 className="object-contain"
@@ -28,8 +28,8 @@ export default function Footer() {
                             Enterprise Trade Data Intelligence Platform. Precision insights for global trade partners across 200+ countries.
                         </p>
                         <div className={styles.contact}>
-                            <span>enterprise@gtdservice.com</span>
-                            <span>+1 (800) GTD-TRADE</span>
+                            <span>enterprise@smartchatbot.com</span>
+                            <span>+1 (800) SMART-CHAT</span>
                         </div>
                     </div>
 
@@ -50,7 +50,7 @@ export default function Footer() {
 
                 <div className={styles.bottom}>
                     <p className={styles.copyright}>
-                        © 2026 GTD Service. All rights reserved.
+                        © 2026 Smart Chatbot. All rights reserved.
                     </p>
                     <div className={styles.bottomLinks}>
                         <a href="#" className={styles.bottomLink}>Privacy</a>

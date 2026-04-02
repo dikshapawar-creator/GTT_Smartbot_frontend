@@ -1,6 +1,6 @@
 export const metadata = {
-    title: 'Dashboard — GTD Service',
-    description: 'Enterprise CRM dashboard for global trade operations.',
+    title: 'Dashboard — Smart Chatbot',
+    description: 'Enterprise CRM dashboard for AI-powered chatbot operations.',
 };
 
 export default function DashboardPage() {

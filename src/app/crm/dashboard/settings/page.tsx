@@ -273,11 +273,11 @@ interface GeneralData {
 }
 
 const DEFAULT_GENERAL: GeneralData = {
-    companyName: 'GTD Service',
-    supportEmail: 'support@gtdservice.com',
+    companyName: 'Smart Chatbot',
+    supportEmail: 'support@smartchatbot.com',
     contactNum: '+1 (555) 000-0000',
-    website: 'https://gtdservice.com',
-    description: 'GTD Service specializes in global trade data intelligence and B2B import-export analytics.',
+    website: 'https://smartchatbot.com',
+    description: 'Smart Chatbot specializes in global enterprise AI conversation and B2B automation.',
     timezone: 'IST',
     language: 'en-us',
     dateFormat: 'DD/MM/YYYY',

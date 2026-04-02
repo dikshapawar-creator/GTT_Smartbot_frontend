@@ -27,7 +27,7 @@ export default function AuthLayout({ children, rightPanelContent }: AuthLayoutPr
                     <Link href="/" style={{ display: 'inline-flex', alignItems: 'center' }}>
                         <Image
                             src="/logo.png"
-                            alt="GTD Service"
+                            alt="Smart Chatbot"
                             width={140}
                             height={40}
                             style={{ height: '40px', width: 'auto', objectFit: 'contain' }}
@@ -55,7 +55,7 @@ export default function AuthLayout({ children, rightPanelContent }: AuthLayoutPr
                         textTransform: 'uppercase',
                         textAlign: 'center',
                     }}>
-                        © 2026 GTD Service • Enterprise Trade Data Intelligence
+                        © 2026 Smart Chatbot • Enterprise AI Chatbot Platform
                     </p>
                 </div>
             </div>

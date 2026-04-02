@@ -2,8 +2,8 @@ import type { Metadata } from 'next';
 import './globals.css';
 
 export const metadata: Metadata = {
-  title: 'GTD Service — Enterprise Import & Export Management Platform',
-  description: 'Manage global trade operations, shipments, and intelligence with the GTD Service ecosystem.',
+  title: 'Smart Chatbot',
+  description: 'Manage AI-powered chatbot operations, lead generation, and intelligence with the Smart Chatbot platform.',
 };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
