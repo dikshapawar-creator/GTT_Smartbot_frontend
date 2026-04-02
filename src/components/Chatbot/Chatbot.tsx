@@ -111,6 +111,7 @@ type BaseMessage = {
     created_at_ist?: string;
     message?: string; // History data from backend uses 'message'
     type?: string;
+    is_read?: boolean;
 };
 
 type TextMessage = BaseMessage & {
@@ -175,6 +176,7 @@ export default function Chatbot({ tenantIdProp, tenantKeyProp }: { tenantIdProp?
     const messagesRef = useRef(messages);
     const quickMenuRef = useRef<HTMLDivElement>(null);
     const quickMenuBtnRef = useRef<HTMLButtonElement>(null);
+    const isSendingRef = useRef(false);
 
     useEffect(() => {
         messagesRef.current = messages;
@@ -348,7 +350,7 @@ export default function Chatbot({ tenantIdProp, tenantKeyProp }: { tenantIdProp?
                 });
 
                 // Visual separator for returning visitor history
-                if (data.message === "Welcome back 👋 How can I help today?") {
+                if (data.message?.includes("Welcome back") || data.message?.includes("trade operations")) {
                     finalMessages.push({
                         id: Date.now().toString() + '-sep',
                         role: 'system',
@@ -359,7 +361,7 @@ export default function Chatbot({ tenantIdProp, tenantKeyProp }: { tenantIdProp?
             }
 
             // Always push the init message if it's a brand new session or a returning visitor
-            if (finalMessages.length === 0 || data.message === "Welcome back 👋 How can I help today?") {
+            if (finalMessages.length === 0 || data.message?.includes("Welcome back") || data.message?.includes("trade operations")) {
                 if (data.message) {
                     const welcomeMsg: Message = {
                         id: Date.now().toString() + '-init',
@@ -578,7 +580,8 @@ export default function Chatbot({ tenantIdProp, tenantKeyProp }: { tenantIdProp?
     };
 
     const sendMessage = async (text: string) => {
-        if (!text.trim() || !isInitialized) return;
+        if (!text.trim() || !isInitialized || loading || isSendingRef.current) return;
+        isSendingRef.current = true;
 
         sendTypingStatus(false);
         const userMsg: Message = {
@@ -595,6 +598,7 @@ export default function Chatbot({ tenantIdProp, tenantKeyProp }: { tenantIdProp?
         if (conversationStatus !== 'bot' && wsManager.getStatus('chatbot') === 'OPEN') {
             console.log('[Chatbot] Sending message via WebSocket:', text);
             wsManager.send({ message: text }, 'chatbot');
+            isSendingRef.current = false;
             return;
         }
 
@@ -713,6 +717,7 @@ export default function Chatbot({ tenantIdProp, tenantKeyProp }: { tenantIdProp?
             }
         } finally {
             setLoading(false);
+            isSendingRef.current = false;
         }
     };
 
@@ -822,7 +827,23 @@ export default function Chatbot({ tenantIdProp, tenantKeyProp }: { tenantIdProp?
                             }`}>
                             {msg.role === 'agent' && <div className={styles.agentLabel}>Jessica</div>}
                             {linkify(msg.content)}
-                            <div className={styles.msgTime}>{msg.created_at_ist}</div>
+                            <div className={styles.msgTime}>
+                                {msg.created_at_ist}
+                                {msg.role === 'user' && (
+                                    <span className={styles.readTick}>
+                                        {msg.is_read ? (
+                                            <svg width="16" height="11" viewBox="0 0 16 11" fill="none" xmlns="http://www.w3.org/2000/svg">
+                                                <path d="M1 5.5L4.5 9L11 1" stroke="#34B7F1" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />
+                                                <path d="M5.5 5.5L9 9L15.5 1" stroke="#34B7F1" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />
+                                            </svg>
+                                        ) : (
+                                            <svg width="11" height="11" viewBox="0 0 11 11" fill="none" xmlns="http://www.w3.org/2000/svg">
+                                                <path d="M1 5.5L4.5 9L10 1" stroke="#8696a0" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />
+                                            </svg>
+                                        )}
+                                    </span>
+                                )}
+                            </div>
                         </div>
                     </div>
                 );
@@ -1136,7 +1157,11 @@ export default function Chatbot({ tenantIdProp, tenantKeyProp }: { tenantIdProp?
                                 value={input}
                                 disabled={!isInitialized || loading || statusText === 'Enquiry Submitted'}
                                 onChange={handleInputChange}
-                                onKeyDown={(e) => e.key === 'Enter' && sendMessage(input)}
+                                onKeyDown={(e) => {
+                                    if (e.key === 'Enter' && !loading && input.trim() && isInitialized) {
+                                        sendMessage(input);
+                                    }
+                                }}
                             />
                             <button
                                 className={styles.sendBtn}

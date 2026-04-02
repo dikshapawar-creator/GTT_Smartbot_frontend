@@ -5,9 +5,14 @@ import { auth } from '@/lib/auth';
  * Centralized API Base URL configuration
  */
 export const API_BASE =
-    process.env.NEXT_PUBLIC_API_BASE_URL || 'http://localhost:8000';
+    (process.env.NEXT_PUBLIC_API_BASE_URL && process.env.NEXT_PUBLIC_API_BASE_URL !== 'undefined')
+        ? process.env.NEXT_PUBLIC_API_BASE_URL
+        : 'https://api-test.gtdservice.com';
 
-export const WS_BASE = API_BASE.replace(/^https?/, (match) => match === 'https' ? 'wss' : 'ws');
+export const WS_BASE =
+    (process.env.NEXT_PUBLIC_WS_URL && process.env.NEXT_PUBLIC_WS_URL !== 'undefined')
+        ? process.env.NEXT_PUBLIC_WS_URL
+        : API_BASE.replace(/^https?/, (match) => match === 'https' ? 'wss' : 'ws');
 
 const api = axios.create({
     baseURL: API_BASE,

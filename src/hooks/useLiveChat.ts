@@ -2,7 +2,8 @@
 
 import { useState, useCallback, useEffect, useRef } from 'react'
 import { auth } from '@/lib/auth'
-import api from '@/config/api'
+import api, { WS_BASE } from '@/config/api'
+import { wsManager, WSMessage } from '@/lib/wsManager'
 
 export type ChatViewState = 'pretakeover' | 'active' | 'ended'
 export type FilterType = 'ALL' | 'ACTIVE' | 'BOT' | 'WAITING' | 'PRIORITY' | 'SPAM'
@@ -58,6 +59,7 @@ interface ChatMessage {
     sender_email?: string | null;
     created_at_utc: string;
     created_at_ist?: string;
+    message_status?: 'sent' | 'delivered' | 'read';
 }
 
 interface Analytics {
@@ -91,6 +93,15 @@ interface RawConversation {
     lead_insights?: string;
 }
 
+// Message history item interface
+interface MessageHistoryItem {
+    id: number;
+    message_type: string;
+    message_text: string;
+    created_at_ist: string;
+    sender_name?: string;
+    is_read?: boolean;
+}
 interface WsMessage extends Omit<Partial<RawConversation>, 'session_id'> {
     type: string;
     message?: string;
@@ -103,6 +114,12 @@ interface WsMessage extends Omit<Partial<RawConversation>, 'session_id'> {
     is_typing?: boolean;
     session_id?: string | number;
     created_at_ist?: string;
+    msg_id?: string | number;
+    purpose?: string;
+    state?: string;
+    message_history?: MessageHistoryItem[];
+    session_uuid?: string;
+    status?: 'sent' | 'delivered' | 'read';
 }
 
 export function useLiveChat() {
@@ -123,14 +140,12 @@ export function useLiveChat() {
     const [chatViewState, setChatViewState] = useState<ChatViewState>('pretakeover');
     const [isConnected, setIsConnected] = useState(false);
     const [typingSessions, setTypingSessions] = useState<Record<string, boolean>>({});
+    const [refreshTrigger, setRefreshTrigger] = useState(0);
 
-    const wsRef = useRef<WebSocket | null>(null);
-    const pingRef = useRef<ReturnType<typeof setInterval> | null>(null);
     const typingTimeoutRef = useRef<Record<string, NodeJS.Timeout>>({});
+    const sentMsgIds = useRef<Set<string>>(new Set());
 
     const selectedSession = conversations.find(c => c.session_uuid === selectedSessionId) || null;
-
-    // ── WebSocket Connection using existing infrastructure ──────────────────
 
     // ── Handle WebSocket Messages ───────────────────────────────────────────
 
@@ -138,6 +153,11 @@ export function useLiveChat() {
         switch (data.type) {
             case 'NEW_MESSAGE':
                 // New message received
+                if (data.msg_id && sentMsgIds.current.has(String(data.msg_id))) {
+                    // console.log('Ignoring echoed message:', data.msg_id);
+                    return;
+                }
+
                 if (data.session_id && String(data.session_id) === selectedSessionId) {
                     const newMsg: ChatMessage = {
                         id: Date.now(), // Temporary ID
@@ -150,8 +170,35 @@ export function useLiveChat() {
                         created_at_utc: new Date().toISOString(),
                         created_at_ist: data.created_at_ist || new Date().toLocaleString('en-IN', { timeZone: 'Asia/Kolkata' })
                     };
-                    setMessages(prev => [...prev, newMsg]);
+
+                    setMessages(prev => {
+                        // Extra safety: check if message text + timestamp combo already exists
+                        const isDuplicate = prev.some(m =>
+                            m.message_text === newMsg.message_text &&
+                            Math.abs(new Date(m.created_at_utc).getTime() - new Date(newMsg.created_at_utc).getTime()) < 2000
+                        );
+                        if (isDuplicate) return prev;
+                        return [...prev, newMsg];
+                    });
                 }
+
+                // Update the conversation preview in the sidebar regardless of selection
+                setConversations(prev => prev.map(conv => {
+                    if (conv.session_uuid === data.session_id) {
+                        return {
+                            ...conv,
+                            message_count: (conv.message_count || 0) + 1,
+                            last_message_at: new Date().toISOString(),
+                            last_message_ist: data.created_at_ist || new Date().toLocaleString('en-IN', { timeZone: 'Asia/Kolkata' })
+                        };
+                    }
+                    return conv;
+                }));
+                break;
+
+            case 'NEW_CONVERSATION':
+                // A new visitor started a chat - trigger refresh
+                setRefreshTrigger(prev => prev + 1);
                 break;
 
             case 'TYPING_STATUS':
@@ -205,6 +252,39 @@ export function useLiveChat() {
                 }
                 break;
 
+            case 'AGENT_TAKEOVER':
+                // Agent takeover with message history
+                if (data.session_uuid === selectedSessionId && data.message_history) {
+                    // Update messages with history from server
+                    const historyMessages = data.message_history.map((msg: MessageHistoryItem) => ({
+                        id: msg.id,
+                        session_id: data.session_id as string,
+                        message_type: msg.message_type as ChatMessage['message_type'],
+                        message_text: msg.message_text,
+                        created_at_utc: new Date().toISOString(),
+                        created_at_ist: msg.created_at_ist,
+                        sender_name: msg.sender_name,
+                        message_status: (msg.is_read ? 'read' : 'delivered') as ChatMessage['message_status']
+                    }));
+                    setMessages(historyMessages);
+                    setChatViewState('active');
+                    console.log('Agent takeover completed, loaded message history');
+                }
+                break;
+
+            case 'MESSAGE_STATUS_UPDATE':
+                // Update message status (delivered/read)
+                if (data.msg_id && data.status) {
+                    setMessages(prev => 
+                        prev.map(msg => 
+                            msg.id === Number(data.msg_id)
+                                ? { ...msg, message_status: data.status }
+                                : msg
+                        )
+                    );
+                }
+                break;
+
             case 'pong':
                 // Keepalive response
                 break;
@@ -214,54 +294,62 @@ export function useLiveChat() {
         }
     }, [selectedSessionId]);
 
-    // ── WebSocket Connection using existing infrastructure ──────────────────
+    // ── WebSocket Connection using WSManager (UNIFIED SYSTEM) ───────────────
 
     const connectWebSocket = useCallback((sessionId: string) => {
         const token = auth.getAccessToken();
-        if (!token) return;
+        if (!token) {
+            console.warn('No auth token available for session WebSocket');
+            return;
+        }
 
-        // Use your existing WebSocket endpoint
-        const wsUrl = `${process.env.NEXT_PUBLIC_WS_URL?.replace('http', 'ws')}/live-chat/ws/chat/${sessionId}?role=agent&token=${token}`;
+        const user = auth.getUser();
+        const selectedTenantId = typeof window !== 'undefined'
+            ? localStorage.getItem('selected_tenant_id')
+            : null;
+        
+        // CRITICAL FIX: Use the session's tenant context, not agent's default tenant
+        // For super admin, we need to determine the correct tenant from the session
+        const activeTenantId = selectedTenantId || user?.primary_tenant_id || user?.tenant_id;
+        
+        // If we have a selected session, try to get its tenant context
+        const session = conversations.find(c => c.session_uuid === sessionId);
+        if (session && user?.is_super_admin) {
+            // For super admin, we should connect to the session's tenant
+            // This will be handled by the backend based on session lookup
+            console.log(`🔑 Super admin connecting to session ${sessionId}`);
+        }
 
-        const ws = new WebSocket(wsUrl);
-        wsRef.current = ws;
+        const wsUrl = `${WS_BASE}/live-chat/ws/chat/${sessionId}?role=agent&token=${token}${activeTenantId ? `&tenant_id=${activeTenantId}` : ''}`;
+        console.log('Connecting to session WebSocket:', wsUrl);
 
-        ws.onopen = () => {
-            setIsConnected(true);
-            setError(null);
+        // Use WSManager for unified connection handling
+        wsManager.connect(wsUrl, `session_${sessionId}`);
+        setIsConnected(true);
+        setError(null);
+    }, [conversations]);
 
-            // Keepalive ping every 30s
-            pingRef.current = setInterval(() => {
-                if (ws.readyState === WebSocket.OPEN) {
-                    ws.send(JSON.stringify({ type: 'ping' }));
-                }
-            }, 30000);
-        };
+    const connectGlobalWebSocket = useCallback(() => {
+        const token = auth.getAccessToken();
+        if (!token) {
+            console.warn('No auth token available for WebSocket connection');
+            return;
+        }
 
-        ws.onclose = () => {
-            setIsConnected(false);
-            if (pingRef.current) {
-                clearInterval(pingRef.current);
-                pingRef.current = null;
-            }
-        };
+        const user = auth.getUser();
+        const selectedTenantId = typeof window !== 'undefined'
+            ? localStorage.getItem('selected_tenant_id')
+            : null;
+        const activeTenantId = selectedTenantId || user?.primary_tenant_id || user?.tenant_id;
 
-        ws.onerror = (err) => {
-            console.error('WebSocket error:', err);
-            setError('WebSocket connection failed');
-        };
+        let url = `${WS_BASE}/live-chat/ws/crm/updates?token=${token}`;
+        if (activeTenantId) {
+            url += `&tenant_id=${activeTenantId}`;
+        }
 
-        ws.onmessage = (event) => {
-            try {
-                const data = JSON.parse(event.data);
-                handleWebSocketMessage(data);
-            } catch (err) {
-                console.error('Failed to parse WebSocket message:', err);
-            }
-        };
-
-        return ws;
-    }, [handleWebSocketMessage]);
+        console.log('Connecting to global CRM WebSocket via WSManager:', url);
+        wsManager.connect(url, 'crm_updates');
+    }, []);
 
     // ── REST API Functions ──────────────────────────────────────────────────
 
@@ -327,8 +415,24 @@ export function useLiveChat() {
 
     const intervene = useCallback(async (sessionId: string) => {
         try {
-            await api.post(`/live-chat/intervene/${sessionId}`);
+            const response = await api.post(`/live-chat/intervene/${sessionId}`);
             setChatViewState('active');
+            
+            // If response includes message history, update messages
+            if (response.data.message_history) {
+                const historyMessages = response.data.message_history.map((msg: MessageHistoryItem) => ({
+                    id: msg.id,
+                    session_id: response.data.session_id,
+                    message_type: msg.message_type as ChatMessage['message_type'],
+                    message_text: msg.message_text,
+                    created_at_utc: new Date().toISOString(),
+                    created_at_ist: msg.created_at_ist,
+                    sender_name: msg.sender_name,
+                    message_status: (msg.is_read ? 'read' : 'delivered') as ChatMessage['message_status']
+                }));
+                setMessages(historyMessages);
+            }
+            
             fetchConversations(); // Refresh the queue
         } catch (err: unknown) {
             const errorMsg = (err as { response?: { data?: { detail?: string } } })?.response?.data?.detail || 'Intervene failed';
@@ -339,21 +443,15 @@ export function useLiveChat() {
     const sendMessage = useCallback(() => {
         if (!newMessage.trim() || !selectedSessionId || chatViewState !== 'active') return;
 
-        // Send via WebSocket if connected
-        if (wsRef.current?.readyState === WebSocket.OPEN) {
-            wsRef.current.send(JSON.stringify({
-                type: 'message',
-                message: newMessage.trim()
-            }));
-        } else {
-            // Fallback to REST API
-            api.post(`/live-chat/message/${selectedSessionId}`, {
-                message: newMessage.trim()
-            }).catch(err => {
-                console.error("REST message send failed:", err);
-                setError("Failed to send message");
-            });
-        }
+        const clientMsgId = `agent_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+        sentMsgIds.current.add(clientMsgId);
+
+        // Send via WSManager unified system
+        wsManager.send({
+            type: 'message',
+            message: newMessage.trim(),
+            client_msg_id: clientMsgId
+        }, `session_${selectedSessionId}`);
 
         // Optimistic update
         const user = auth.getUser();
@@ -366,18 +464,19 @@ export function useLiveChat() {
             sender_name: user?.full_name || user?.email || 'Agent',
             sender_email: user?.email,
             created_at_utc: new Date().toISOString(),
-            created_at_ist: new Date().toLocaleString('en-IN', { timeZone: 'Asia/Kolkata' })
+            created_at_ist: new Date().toLocaleString('en-IN', { timeZone: 'Asia/Kolkata' }),
+            message_status: 'sent'
         };
         setMessages(prev => [...prev, optimisticMsg]);
         setNewMessage('');
     }, [newMessage, selectedSessionId, chatViewState]);
 
     const sendTypingStatus = useCallback((isTyping: boolean) => {
-        if (selectedSessionId && wsRef.current?.readyState === WebSocket.OPEN) {
-            wsRef.current.send(JSON.stringify({
+        if (selectedSessionId) {
+            wsManager.send({
                 type: 'typing',
                 is_typing: isTyping
-            }));
+            }, `session_${selectedSessionId}`);
         }
     }, [selectedSessionId]);
 
@@ -398,11 +497,8 @@ export function useLiveChat() {
             setChatViewState('ended');
             fetchConversations();
 
-            // Close WebSocket
-            if (wsRef.current) {
-                wsRef.current.close();
-                wsRef.current = null;
-            }
+            // Disconnect session WebSocket via WSManager
+            wsManager.disconnect(`session_${sessionId}`);
         } catch (err) {
             console.error("Close failed:", err);
             setError("Failed to close conversation");
@@ -440,30 +536,85 @@ export function useLiveChat() {
 
     // ── Effects ──────────────────────────────────────────────────────────────
 
+    // Handle refresh trigger from NEW_CONVERSATION events
     useEffect(() => {
-        fetchConversations();
-        fetchAnalytics();
-
-        // Poll for updates every 10 seconds
-        const pollInterval = setInterval(() => {
+        if (refreshTrigger > 0) {
             fetchConversations();
             fetchAnalytics();
+        }
+    }, [refreshTrigger, fetchConversations, fetchAnalytics]);
+
+    useEffect(() => {
+        console.log('🚀 Initializing Live Chat Hook');
+        fetchConversations();
+        fetchAnalytics();
+        
+        // Connect to global CRM WebSocket via WSManager
+        connectGlobalWebSocket();
+
+        // Subscribe to WSManager events for both CRM updates and session messages
+        const unsubscribeCRM = wsManager.subscribe('message', (data: WSMessage) => {
+            if (data.purpose === 'crm_updates') {
+                console.log('📨 Received CRM update:', data);
+                handleWebSocketMessage(data as WsMessage);
+            }
+        });
+
+        const unsubscribeSession = wsManager.subscribe('message', (data: WSMessage) => {
+            if (data.purpose && data.purpose.startsWith('session_')) {
+                console.log('📨 Received session message:', data);
+                handleWebSocketMessage(data as WsMessage);
+            }
+        });
+
+        // Keep 10s polling as a fallback
+        const pollInterval = setInterval(() => {
+            const wsStatus = wsManager.getStatus('crm_updates');
+            if (wsStatus !== 'OPEN') {
+                console.log('📡 WebSocket not connected, using polling fallback');
+                // Use the stable functions directly
+                fetchConversations();
+                fetchAnalytics();
+            }
         }, 10000);
 
         // Copy ref to variable for safe cleanup
         const currentTypingTimeouts = typingTimeoutRef.current;
 
         return () => {
+            unsubscribeCRM();
+            unsubscribeSession();
             clearInterval(pollInterval);
-            if (wsRef.current) {
-                wsRef.current.close();
-            }
-            if (pingRef.current) {
-                clearInterval(pingRef.current);
-            }
             Object.values(currentTypingTimeouts).forEach(clearTimeout);
         };
-    }, [fetchConversations, fetchAnalytics]);
+    }, [connectGlobalWebSocket, handleWebSocketMessage, fetchConversations, fetchAnalytics]);
+
+    // Monitor WSManager connection status
+    useEffect(() => {
+        const checkConnection = () => {
+            const crmStatus = wsManager.getStatus('crm_updates');
+            const sessionStatus = selectedSessionId ? wsManager.getStatus(`session_${selectedSessionId}`) : 'IDLE';
+            setIsConnected(crmStatus === 'OPEN' || sessionStatus === 'OPEN');
+        };
+
+        // Check immediately
+        checkConnection();
+
+        // Subscribe to status changes
+        const unsubscribe = wsManager.subscribe('statusChange', (data: WSMessage) => {
+            if (data.purpose === 'crm_updates' || (data.purpose && data.purpose.startsWith('session_'))) {
+                setIsConnected(data.state === 'OPEN');
+            }
+        });
+
+        // Check periodically
+        const interval = setInterval(checkConnection, 5000);
+
+        return () => {
+            unsubscribe();
+            clearInterval(interval);
+        };
+    }, [selectedSessionId]);
 
     // ── Filtered Conversations ──────────────────────────────────────────────
 

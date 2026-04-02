@@ -369,6 +369,20 @@ export default function LiveChatPage() {
                                                 }
                                             </span>
                                             <span className={styles.msgTime}>{msg.created_at_ist}</span>
+                                            {/* Message Status Indicators */}
+                                            {msg.message_type === 'agent' && msg.message_status && (
+                                                <div className={styles.msgStatus}>
+                                                    {msg.message_status === 'sent' && (
+                                                        <div className={styles.statusSingle} title="Sent">✓</div>
+                                                    )}
+                                                    {msg.message_status === 'delivered' && (
+                                                        <div className={styles.statusDouble} title="Delivered">✓✓</div>
+                                                    )}
+                                                    {msg.message_status === 'read' && (
+                                                        <div className={styles.statusRead} title="Read">✓✓</div>
+                                                    )}
+                                                </div>
+                                            )}
                                         </div>
                                         <div className={styles.msgBubble}>
                                             {msg.message_type === 'form' ? (

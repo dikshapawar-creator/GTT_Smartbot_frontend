@@ -51,6 +51,7 @@ export function useCRMUpdates(onEvent?: (event: CRMUpdateEvent) => void) {
 
         const unsubscribe = wsManager.subscribe('message', (data: Record<string, unknown>) => {
             if (data.purpose === 'crm_updates' && onEventRef.current) {
+                console.log('📬 CRM Update received:', data);
                 onEventRef.current(data as unknown as CRMUpdateEvent);
             }
         });
