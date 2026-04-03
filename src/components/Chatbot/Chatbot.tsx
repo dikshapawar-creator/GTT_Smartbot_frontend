@@ -776,8 +776,43 @@ export default function Chatbot({ tenantIdProp, tenantKeyProp }: { tenantIdProp?
 
     const linkify = (text: string) => {
         if (!text) return text;
+        
+        // Smart text cleaning - fix UTF-16 encoding and character spacing issues
+        let cleanText = text;
+        
+        // First, fix UTF-16 encoding issues (null bytes between characters)
+        if (cleanText.includes('\x00') || cleanText.includes('\u0000')) {
+            cleanText = cleanText.replace(/\x00/g, '').replace(/\u0000/g, '');
+        }
+        
+        // Check for specific problematic patterns that need fixing
+        const hasSpacedCharacters = /\b[a-zA-Z]\s+[a-zA-Z]\s+[a-zA-Z]/.test(cleanText);
+        
+        if (hasSpacedCharacters) {
+            // Only fix specific spaced words, not all text
+            cleanText = cleanText
+                // Fix common spaced words
+                .replace(/\bH\s+e\s+l\s+l\s+o\s*(?=\s*[!?.,])/gi, 'Hello')
+                .replace(/\bH\s+e\s+l\s+l\s+o\b/gi, 'Hello')
+                .replace(/\bH\s+o\s+w\b/gi, 'How')
+                .replace(/\bc\s+a\s+n\b/gi, 'can')
+                .replace(/\bI\s+h\s+e\s+l\s+p\b/gi, 'I help')
+                .replace(/\bh\s+e\s+l\s+p\b/gi, 'help')
+                .replace(/\by\s+o\s+u\b/gi, 'you')
+                .replace(/\bt\s+o\s+d\s+a\s+y\b/gi, 'today')
+                .replace(/\bW\s+e\s+l\s+c\s+o\s+m\s+e\b/gi, 'Welcome')
+                .replace(/\bw\s+i\s+t\s+h\b/gi, 'with')
+                .replace(/\ba\s+s\s+s\s+i\s+s\s+t\b/gi, 'assist')
+                // Clean up any excessive whitespace but preserve normal word spacing
+                .replace(/\s{2,}/g, ' ')
+                .trim();
+        } else {
+            // Normal text - only clean excessive whitespace, preserve normal spacing
+            cleanText = cleanText.replace(/\s{2,}/g, ' ').trim();
+        }
+        
         const urlRegex = /(https?:\/\/[^\s]+)/g;
-        return text.split(urlRegex).map((part, i) => {
+        return cleanText.split(urlRegex).map((part, i) => {
             if (part.match(urlRegex)) {
                 return (
                     <a

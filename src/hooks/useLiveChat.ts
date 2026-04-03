@@ -255,21 +255,32 @@ export function useLiveChat() {
 
             case 'AGENT_TAKEOVER':
                 // Agent takeover with message history
-                if (data.session_uuid === selectedSessionId && data.message_history) {
-                    // Update messages with history from server
-                    const historyMessages = data.message_history.map((msg: MessageHistoryItem) => ({
-                        id: msg.id,
-                        session_id: data.session_id as string,
-                        message_type: msg.message_type as ChatMessage['message_type'],
-                        message_text: msg.message_text,
-                        created_at_utc: new Date().toISOString(),
-                        created_at_ist: msg.created_at_ist,
-                        sender_name: msg.sender_name,
-                        message_status: (msg.is_read ? 'read' : 'delivered') as ChatMessage['message_status']
-                    }));
-                    setMessages(historyMessages);
+                if (data.session_uuid === selectedSessionId) {
+                    if (data.message_history && data.message_history.length > 0) {
+                        // Update messages with history from server
+                        const historyMessages = data.message_history.map((msg: MessageHistoryItem) => ({
+                            id: msg.id,
+                            session_id: data.session_uuid as string,
+                            message_type: msg.message_type as ChatMessage['message_type'],
+                            message_text: msg.message_text,
+                            created_at_utc: msg.created_at_utc || new Date().toISOString(),
+                            created_at_ist: msg.created_at_ist,
+                            sender_name: msg.sender_name,
+                            sender_email: msg.sender_email,
+                            sender_user_id: msg.sender_user_id,
+                            is_read: msg.is_read || false,
+                            message_status: (msg.is_read ? 'read' : 'delivered') as ChatMessage['message_status']
+                        }));
+                        setMessages(historyMessages);
+                        console.log('✅ Agent takeover completed, loaded message history:', historyMessages.length, 'messages');
+                    } else {
+                        console.log('⚠️ Agent takeover received but no message history, fetching manually...');
+                        // Use non-async call to avoid syntax error
+                        fetchMessages(selectedSessionId).catch(fetchError => {
+                            console.error('Failed to fetch messages after WebSocket takeover:', fetchError);
+                        });
+                    }
                     setChatViewState('active');
-                    console.log('Agent takeover completed, loaded message history');
                 }
                 break;
 
@@ -457,26 +468,45 @@ export function useLiveChat() {
             setChatViewState('active');
             
             // If response includes message history, update messages
-            if (response.data.message_history) {
+            if (response.data.message_history && response.data.message_history.length > 0) {
                 const historyMessages = response.data.message_history.map((msg: MessageHistoryItem) => ({
                     id: msg.id,
                     session_id: response.data.session_id,
                     message_type: msg.message_type as ChatMessage['message_type'],
                     message_text: msg.message_text,
-                    created_at_utc: new Date().toISOString(),
+                    created_at_utc: msg.created_at_utc || new Date().toISOString(),
                     created_at_ist: msg.created_at_ist,
                     sender_name: msg.sender_name,
+                    sender_email: msg.sender_email,
+                    sender_user_id: msg.sender_user_id,
+                    is_read: msg.is_read || false,
                     message_status: (msg.is_read ? 'read' : 'delivered') as ChatMessage['message_status']
                 }));
                 setMessages(historyMessages);
+                console.log('✅ Loaded message history after takeover:', historyMessages.length, 'messages');
+            } else {
+                // Fallback: fetch messages if not included in response
+                console.log('⚠️ No message history in takeover response, fetching manually...');
+                fetchMessages(sessionId).catch(fetchError => {
+                    console.error('Failed to fetch messages after takeover:', fetchError);
+                    // Set empty messages if fetch fails
+                    setMessages([]);
+                });
             }
+            
+            // Update conversation status in the list
+            setConversations(prev => prev.map(conv => 
+                conv.session_uuid === sessionId 
+                    ? { ...conv, current_mode: 'HUMAN', session_status: 'ACTIVE' }
+                    : conv
+            ));
             
             fetchConversations(); // Refresh the queue
         } catch (err: unknown) {
             const errorMsg = (err as { response?: { data?: { detail?: string } } })?.response?.data?.detail || 'Intervene failed';
             setError(errorMsg);
         }
-    }, [fetchConversations]);
+    }, [fetchConversations, fetchMessages]);
 
     const sendMessage = useCallback(() => {
         if (!newMessage.trim() || !selectedSessionId || chatViewState !== 'active') return;
