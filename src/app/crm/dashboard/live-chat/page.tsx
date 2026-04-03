@@ -4,10 +4,11 @@ import React, { useState, useEffect, useRef } from 'react';
 import {
     MessageCircle, Send, X, RefreshCw, Clock, User, Headphones, CheckCircle2,
     ShieldAlert, Star, Ban, Monitor, Zap, Activity, Shield, Settings, Search,
-    Paperclip, Smile, AlertCircle, Eye
+    Paperclip, Smile, AlertCircle, Eye, Building2
 } from 'lucide-react';
 import styles from './LiveChat.module.css';
 import { useLiveChat } from '@/hooks/useLiveChat';
+import { auth } from '@/lib/auth';
 
 export default function LiveChatPage() {
     const {
@@ -21,6 +22,22 @@ export default function LiveChatPage() {
     const [liveDurations, setLiveDurations] = useState<Record<string, number>>({});
     const durationIntervalRef = useRef<NodeJS.Timeout | null>(null);
     const messagesEndRef = useRef<HTMLDivElement>(null);
+
+    // Get current tenant context
+    const getCurrentTenantInfo = () => {
+        const user = auth.getUser();
+        const selectedTenantId = typeof window !== 'undefined'
+            ? localStorage.getItem('selected_tenant_id')
+            : null;
+        const activeTenantId = selectedTenantId || user?.primary_tenant_id || user?.tenant_id;
+        
+        // Find tenant name from user's tenant access
+        const tenantName = user?.tenant_access?.find(t => t.tenant_id === Number(activeTenantId))?.tenant_name || 'Unknown Tenant';
+        
+        return { activeTenantId, tenantName };
+    };
+
+    const { activeTenantId, tenantName } = getCurrentTenantInfo();
 
     const selectedSessionId = selectedSession?.session_uuid || null;
     // ── Helper Functions ─────────────────────────────────────────────────────
@@ -118,7 +135,15 @@ export default function LiveChatPage() {
                     </div>
                     <div>
                         <h1 className={styles.heroTitle}>Live Conversations</h1>
-                        <p className={styles.heroSubtitle}>Monitor and manage real-time visitor sessions</p>
+                        <p className={styles.heroSubtitle}>
+                            Monitor and manage real-time visitor sessions
+                            {auth.getUser()?.is_super_admin && (
+                                <span className={styles.tenantIndicator}>
+                                    <Building2 size={12} />
+                                    {tenantName} (ID: {activeTenantId})
+                                </span>
+                            )}
+                        </p>
                     </div>
                 </div>
                 <div className={styles.heroStats}>
@@ -220,7 +245,12 @@ export default function LiveChatPage() {
                             <div className={styles.emptyState}>
                                 <MessageCircle size={32} className={styles.emptyIcon} />
                                 <p>No conversations found</p>
-                                <span>Conversations will appear here when visitors start chatting.</span>
+                                <span>
+                                    No active conversations for <strong>{tenantName}</strong>.
+                                    {auth.getUser()?.is_super_admin && (
+                                        <span> Switch tenants from the main dashboard to view other workspaces.</span>
+                                    )}
+                                </span>
                             </div>
                         ) : (
                             conversations.map((conv) => (

@@ -144,6 +144,7 @@ export function useLiveChat() {
 
     const typingTimeoutRef = useRef<Record<string, NodeJS.Timeout>>({});
     const sentMsgIds = useRef<Set<string>>(new Set());
+    const lastTenantIdRef = useRef<string | null>(null);
 
     const selectedSession = conversations.find(c => c.session_uuid === selectedSessionId) || null;
 
@@ -321,7 +322,8 @@ export function useLiveChat() {
         }
 
         const wsUrl = `${WS_BASE}/live-chat/ws/chat/${sessionId}?role=agent&token=${token}${activeTenantId ? `&tenant_id=${activeTenantId}` : ''}`;
-        console.log('Connecting to session WebSocket:', wsUrl);
+        console.log(`🔗 Connecting to session WebSocket: ${wsUrl}`);
+        console.log(`🏢 Tenant context: activeTenantId=${activeTenantId}, user.tenant_id=${user?.tenant_id}, user.primary_tenant_id=${user?.primary_tenant_id}`);
 
         // Use WSManager for unified connection handling
         wsManager.connect(wsUrl, `session_${sessionId}`);
@@ -356,7 +358,15 @@ export function useLiveChat() {
     const fetchConversations = useCallback(async () => {
         try {
             const res = await api.get('/live-chat/conversations');
-            setConversations(res.data || []);
+            const fetchedConversations = res.data || [];
+            
+            // Debug: Log tenant context and session count
+            const currentTenantId = typeof window !== 'undefined'
+                ? localStorage.getItem('selected_tenant_id')
+                : null;
+            console.log(`📊 Fetched ${fetchedConversations.length} conversations for tenant ${currentTenantId}`);
+            
+            setConversations(fetchedConversations);
             setError(null);
         } catch (err: unknown) {
             console.error('Failed to fetch conversations:', err);
@@ -409,9 +419,37 @@ export function useLiveChat() {
 
         await fetchMessages(sessionId);
 
+        // CRITICAL FIX: For super admin, automatically switch tenant context if needed
+        const user = auth.getUser();
+        if (user?.is_super_admin && session) {
+            // Try to determine session's tenant from the session data or make an API call
+            try {
+                // First, try to get session details to determine its tenant
+                const sessionResponse = await api.get(`/live-chat/session-details/${sessionId}`);
+                const sessionTenantId = sessionResponse.data.tenant_id;
+                
+                const currentTenantId = typeof window !== 'undefined'
+                    ? localStorage.getItem('selected_tenant_id')
+                    : null;
+                
+                if (sessionTenantId && String(sessionTenantId) !== currentTenantId) {
+                    console.log(`🔄 Super admin switching tenant context from ${currentTenantId} to ${sessionTenantId} for session ${sessionId}`);
+                    localStorage.setItem('selected_tenant_id', String(sessionTenantId));
+                    
+                    // Reconnect WebSocket with correct tenant context
+                    wsManager.disconnect('crm_updates');
+                    setTimeout(() => {
+                        connectGlobalWebSocket();
+                    }, 100);
+                }
+            } catch (error) {
+                console.warn('Could not determine session tenant, using current context:', error);
+            }
+        }
+
         // Connect WebSocket for this session
         connectWebSocket(sessionId);
-    }, [conversations, fetchMessages, connectWebSocket]);
+    }, [conversations, fetchMessages, connectWebSocket, connectGlobalWebSocket]);
 
     const intervene = useCallback(async (sessionId: string) => {
         try {
@@ -543,6 +581,35 @@ export function useLiveChat() {
             fetchAnalytics();
         }
     }, [refreshTrigger, fetchConversations, fetchAnalytics]);
+
+    // Monitor tenant context changes and refresh data
+    useEffect(() => {
+        const handleTenantChange = () => {
+            console.log('🔄 Tenant context changed, refreshing conversations...');
+            fetchConversations();
+            fetchAnalytics();
+            
+            // Reconnect global WebSocket with new tenant context
+            wsManager.disconnect('crm_updates');
+            setTimeout(() => {
+                connectGlobalWebSocket();
+            }, 100);
+        };
+
+        // Listen for tenant context changes
+        const checkTenantChange = setInterval(() => {
+            const currentTenantId = typeof window !== 'undefined'
+                ? localStorage.getItem('selected_tenant_id')
+                : null;
+            
+            if (currentTenantId !== lastTenantIdRef.current) {
+                lastTenantIdRef.current = currentTenantId;
+                handleTenantChange();
+            }
+        }, 1000);
+
+        return () => clearInterval(checkTenantChange);
+    }, [fetchConversations, fetchAnalytics, connectGlobalWebSocket]);
 
     useEffect(() => {
         console.log('🚀 Initializing Live Chat Hook');
