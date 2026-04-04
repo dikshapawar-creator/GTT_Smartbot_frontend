@@ -360,36 +360,32 @@ export default function Chatbot({ tenantIdProp, tenantKeyProp }: { tenantIdProp?
                 }
             }
 
-            // Always push the init message if it's a brand new session or a returning visitor
-            if (finalMessages.length === 0 || data.message?.includes("Welcome back") || data.message?.includes("trade operations")) {
-                if (data.message) {
-                    const welcomeMsg: Message = {
-                        id: Date.now().toString() + '-init',
-                        role: 'bot',
-                        type: 'text',
-                        content: data.message,
-                        created_at_ist: formatToIST(new Date(getSyncedNow(serverOffset)))
-                    };
-
-                    if (data.type === 'CTA' && data.ctas) {
-                        finalMessages.push({
-                            id: Date.now().toString() + '-init-cta',
-                            role: 'bot',
-                            type: 'cta',
-                            ctas: data.ctas
-                        } as Message);
-                    } else if (data.type === 'CTA' && data.cta_label && data.action) {
-                        finalMessages.push({
-                            id: Date.now().toString() + '-init-cta',
-                            role: 'bot',
-                            type: 'cta',
-                            label: data.cta_label,
-                            action: data.action
-                        } as Message);
-                    } else {
-                        finalMessages.push(welcomeMsg);
-                    }
-                }
+            // Always push the init CTAs so the user has the buttons at the bottom.
+            // (The welcome text itself is fetched from the /history call, so we don't push welcomeMsg text explicitly here)
+            if (data.type === 'CTA' && data.ctas) {
+                finalMessages.push({
+                    id: Date.now().toString() + '-init-cta',
+                    role: 'bot',
+                    type: 'cta',
+                    ctas: data.ctas
+                } as Message);
+            } else if (data.type === 'CTA' && data.cta_label && data.action) {
+                finalMessages.push({
+                    id: Date.now().toString() + '-init-cta',
+                    role: 'bot',
+                    type: 'cta',
+                    label: data.cta_label,
+                    action: data.action
+                } as Message);
+            } else if (finalMessages.length === 0 && data.message) {
+                // Fallback for brand new sessions if history fetch failed
+                finalMessages.push({
+                    id: Date.now().toString() + '-init',
+                    role: 'bot',
+                    type: 'text',
+                    content: data.message,
+                    created_at_ist: formatToIST(new Date(getSyncedNow(serverOffset)))
+                });
             }
 
             setMessages(finalMessages);
@@ -776,18 +772,18 @@ export default function Chatbot({ tenantIdProp, tenantKeyProp }: { tenantIdProp?
 
     const linkify = (text: string) => {
         if (!text) return text;
-        
+
         // Smart text cleaning - fix UTF-16 encoding and character spacing issues
         let cleanText = text;
-        
+
         // First, fix UTF-16 encoding issues (null bytes between characters)
         if (cleanText.includes('\x00') || cleanText.includes('\u0000')) {
             cleanText = cleanText.replace(/\x00/g, '').replace(/\u0000/g, '');
         }
-        
+
         // Check for specific problematic patterns that need fixing
         const hasSpacedCharacters = /\b[a-zA-Z]\s+[a-zA-Z]\s+[a-zA-Z]/.test(cleanText);
-        
+
         if (hasSpacedCharacters) {
             // Only fix specific spaced words, not all text
             cleanText = cleanText
@@ -810,7 +806,7 @@ export default function Chatbot({ tenantIdProp, tenantKeyProp }: { tenantIdProp?
             // Normal text - only clean excessive whitespace, preserve normal spacing
             cleanText = cleanText.replace(/\s{2,}/g, ' ').trim();
         }
-        
+
         const urlRegex = /(https?:\/\/[^\s]+)/g;
         return cleanText.split(urlRegex).map((part, i) => {
             if (part.match(urlRegex)) {
@@ -1067,18 +1063,6 @@ export default function Chatbot({ tenantIdProp, tenantKeyProp }: { tenantIdProp?
                                         </>
                                     )}
                                 </div>
-                                {conversationStatus === 'bot' && (
-                                    <div className={styles.quickGrid}>
-                                        <button className={styles.quickBtn} onClick={() => handleAction('OPEN_LEAD_FORM')}>
-                                            <span className={styles.quickIcon}>🚀</span>
-                                            <span className={styles.quickLabel}>Book Demo</span>
-                                        </button>
-                                        <button className={styles.quickBtn} onClick={() => handleTalkToSales()}>
-                                            <span className={styles.quickIcon}>💬</span>
-                                            <span className={styles.quickLabel}>Connect To Data Expert</span>
-                                        </button>
-                                    </div>
-                                )}
                             </div>
                         </div>
 
