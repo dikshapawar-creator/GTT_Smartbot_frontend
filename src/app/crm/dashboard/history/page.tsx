@@ -75,6 +75,11 @@ interface Conversation {
     initial_ip: string | null;
     lead_email?: string | null;
     lead_phone?: string | null;
+    trade_type?: string | null;
+    country_interested?: string | null;
+    product?: string | null;
+    requirement_type?: string | null;
+    website?: string | null;
     created_at_ist?: string;
     ended_at_utc?: string | null;
     assigned_agent_id?: number | null;
@@ -105,7 +110,7 @@ interface PaginatedHistory {
 interface ChatMessage {
     id: number;
     session_id: string;
-    message_type: 'user' | 'bot' | 'agent' | 'system';
+    message_type: 'user' | 'bot' | 'agent' | 'system' | 'form';
     message_text: string;
     sender_user_id?: number | null;
     sender_name?: string | null;
@@ -135,6 +140,7 @@ export default function HistoryPage() {
     const [activeTab, setActiveTab] = useState<'all' | 'active' | 'closed'>('all');
     const [dateFrom, setDateFrom] = useState('');
     const [dateTo, setDateTo] = useState('');
+    const [activeRange, setActiveRange] = useState<'all' | 'today' | 'yesterday' | '7d' | '30d' | 'custom'>('all');
 
     // Advanced Filters
     const [countryFilter, setCountryFilter] = useState('');
@@ -155,9 +161,52 @@ export default function HistoryPage() {
         name: '',
         email: '',
         phone: '',
-        company: ''
+        company: '',
+        trade_type: '',
+        country_interested: '',
+        product: '',
+        requirement_type: '',
+        website: ''
     });
     const [updating, setUpdating] = useState(false);
+
+    // 🕒 Time Range Presets
+    const setQuickRange = (range: 'today' | 'yesterday' | '7d' | '30d' | 'all') => {
+        const now = new Date();
+        const start = new Date();
+        const end = new Date();
+
+        if (range === 'all') {
+            setDateFrom('');
+            setDateTo('');
+            setActiveRange('all');
+            return;
+        }
+
+        if (range === 'today') {
+            start.setHours(0, 0, 0, 0);
+            end.setHours(23, 59, 59, 999);
+        } else if (range === 'yesterday') {
+            start.setDate(now.getDate() - 1);
+            start.setHours(0, 0, 0, 0);
+            end.setDate(now.getDate() - 1);
+            end.setHours(23, 59, 59, 999);
+        } else if (range === '7d') {
+            start.setDate(now.getDate() - 7);
+        } else if (range === '30d') {
+            start.setDate(now.getDate() - 30);
+        }
+
+        // Use local ISO format for datetime-local inputs
+        const toLocalISO = (d: Date) => {
+            const z = d.getTimezoneOffset() * 60000;
+            return new Date(d.getTime() - z).toISOString().slice(0, 16);
+        };
+
+        setDateFrom(toLocalISO(start));
+        setDateTo(toLocalISO(end));
+        setActiveRange(range);
+    };
 
     const fetchAnalytics = async () => {
         try {
@@ -189,7 +238,8 @@ export default function HistoryPage() {
         if (activeTab === 'active') params.status_filter = 'active';
         if (activeTab === 'closed') params.status_filter = 'ended';
         if (dateFrom) params.date_from = new Date(dateFrom).toISOString();
-        if (dateTo) params.date_to = new Date(dateTo + 'T23:59:59').toISOString();
+        if (dateTo) params.date_to = new Date(dateTo).toISOString();
+        if (countryFilter) params.country = countryFilter;
 
         try {
             const res = await api.get('/live-chat/history', { params });
@@ -204,7 +254,7 @@ export default function HistoryPage() {
         } finally {
             setLoading(false);
         }
-    }, [activeTab, dateFrom, dateTo]);
+    }, [activeTab, dateFrom, dateTo, countryFilter]);
 
     useEffect(() => {
         setPage(1);
@@ -212,7 +262,7 @@ export default function HistoryPage() {
         setMessages([]);
         fetchHistory(1);
         fetchAnalytics();
-    }, [activeTab, dateFrom, dateTo, fetchHistory]);
+    }, [activeTab, dateFrom, dateTo, countryFilter, fetchHistory]);
 
     useEffect(() => {
         fetchHistory(page);
@@ -370,13 +420,30 @@ export default function HistoryPage() {
         setUpdating(true);
         try {
             await api.post(`/live-chat/update-lead/${selectedSession.session_uuid}`, editData);
-            setSelectedSession(prev => prev ? {
-                ...prev,
+
+            const updatedSession = {
+                ...selectedSession,
                 lead_name: editData.name,
                 lead_email: editData.email,
                 lead_phone: editData.phone,
-                lead_company: editData.company
+                lead_company: editData.company,
+                trade_type: editData.trade_type,
+                country_interested: editData.country_interested,
+                product: editData.product,
+                requirement_type: editData.requirement_type,
+                website: editData.website
+            };
+
+            setSelectedSession(updatedSession);
+
+            // Also update the main list manually for immediate UI response
+            setData(d => d ? {
+                ...d,
+                items: d.items.map(item =>
+                    item.session_uuid === updatedSession.session_uuid ? updatedSession : item
+                )
             } : null);
+
             fetchHistory(page);
             setIsEditing(false);
         } catch (err) {
@@ -394,7 +461,12 @@ export default function HistoryPage() {
                 name: selectedSession.lead_name || '',
                 email: selectedSession.lead_email || '',
                 phone: selectedSession.lead_phone || '',
-                company: selectedSession.lead_company || ''
+                company: selectedSession.lead_company || '',
+                trade_type: selectedSession.trade_type || '',
+                country_interested: selectedSession.country_interested || '',
+                product: selectedSession.product || '',
+                requirement_type: selectedSession.requirement_type || '',
+                website: selectedSession.website || ''
             });
         }
         setIsEditing(!isEditing);
@@ -426,15 +498,14 @@ export default function HistoryPage() {
                     c.session_uuid
                 ].some(v => v?.toLowerCase().includes(searchTerm.toLowerCase()));
 
-                const matchesCountry = !countryFilter || c.country === countryFilter;
                 const matchesDevice = !deviceFilter || c.device_type === deviceFilter;
                 const matchesSpam = spamFilter === 'all' || (spamFilter === 'spam' ? c.spam_flag : !c.spam_flag);
 
-                return matchesSearch && matchesCountry && matchesDevice && matchesSpam;
+                return matchesSearch && matchesDevice && matchesSpam;
             })
             .filter((s, i, arr) => arr.findIndex(x => x.session_uuid === s.session_uuid) === i)
             .sort((a, b) => new Date(b.created_at || '').getTime() - new Date(a.created_at || '').getTime());
-    }, [data?.items, activeTab, searchTerm, countryFilter, deviceFilter, spamFilter]);
+    }, [data?.items, activeTab, searchTerm, deviceFilter, spamFilter]);
 
     const getTabCount = (tab: 'all' | 'active' | 'closed') => {
         if (!data?.items) return 0;
@@ -451,13 +522,33 @@ export default function HistoryPage() {
         setActiveTab('all');
         setDateFrom('');
         setDateTo('');
+        setActiveRange('all');
         setSearchTerm('');
         setCountryFilter('');
         setDeviceFilter('');
         setSpamFilter('all');
     };
 
-    const hasActiveFilters = activeTab !== 'all' || dateFrom || dateTo || searchTerm || countryFilter || deviceFilter || spamFilter !== 'all';
+    const getLocalNowISO = () => {
+        const d = new Date();
+        const z = d.getTimezoneOffset() * 60000;
+        return new Date(d.getTime() - z).toISOString().slice(0, 16);
+    };
+
+    const handleDateChange = (type: 'from' | 'to', val: string) => {
+        const now = getLocalNowISO();
+        if (val > now) {
+            // Prevent future dates by capping at now
+            if (type === 'from') setDateFrom(now);
+            else setDateTo(now);
+        } else {
+            if (type === 'from') setDateFrom(val);
+            else setDateTo(val);
+        }
+        setActiveRange('custom');
+    };
+
+    const hasActiveFilters = activeTab !== 'all' || !!dateFrom || !!dateTo || !!searchTerm || !!countryFilter || !!deviceFilter || spamFilter !== 'all';
 
     return (
         <div className={histStyles.dashboardWrapper}>
@@ -513,30 +604,72 @@ export default function HistoryPage() {
                                     onChange={(e) => setSearchTerm(e.target.value)}
                                 />
                             </div>
+                            {hasActiveFilters && (
+                                <button
+                                    className={histStyles.clearFiltersBtn}
+                                    onClick={clearFilters}
+                                    title="Reset all filters"
+                                >
+                                    <X size={14} /> Clear All
+                                </button>
+                            )}
                         </div>
                         <div className={histStyles.filtersGrid}>
-                            <select value={countryFilter} onChange={e => setCountryFilter(e.target.value)} className={histStyles.filterSelect}>
-                                <option value="">All countries</option>
-                                <option value="India">India</option>
-                                <option value="United States">USA</option>
-                                <option value="United Kingdom">UK</option>
+                            <select
+                                value={countryFilter}
+                                onChange={e => setCountryFilter(e.target.value)}
+                                className={histStyles.filterSelect}
+                            >
+                                <option value="">All Countries</option>
+                                <option value="Local Develop">Local Develop</option>
+                                <option value="Unknown">Unknown</option>
+                                <option value="Afghanistan">Afghanistan</option> <option value="Albania">Albania</option> <option value="Algeria">Algeria</option> <option value="Andorra">Andorra</option> <option value="Angola">Angola</option> <option value="Antigua and Barbuda">Antigua and Barbuda</option> <option value="Argentina">Argentina</option> <option value="Armenia">Armenia</option> <option value="Australia">Australia</option> <option value="Austria">Austria</option> <option value="Azerbaijan">Azerbaijan</option> <option value="Bahamas">Bahamas</option> <option value="Bahrain">Bahrain</option> <option value="Bangladesh">Bangladesh</option> <option value="Barbados">Barbados</option> <option value="Belarus">Belarus</option> <option value="Belgium">Belgium</option> <option value="Belize">Belize</option> <option value="Benin">Benin</option> <option value="Bhutan">Bhutan</option> <option value="Bolivia">Bolivia</option> <option value="Bosnia and Herzegovina">Bosnia and Herzegovina</option> <option value="Botswana">Botswana</option> <option value="Brazil">Brazil</option> <option value="Brunei">Brunei</option> <option value="Bulgaria">Bulgaria</option> <option value="Burkina Faso">Burkina Faso</option> <option value="Burundi">Burundi</option> <option value="Cabo Verde">Cabo Verde</option> <option value="Cambodia">Cambodia</option> <option value="Cameroon">Cameroon</option> <option value="Canada">Canada</option> <option value="Central African Republic">Central African Republic</option> <option value="Chad">Chad</option> <option value="Chile">Chile</option> <option value="China">China</option> <option value="Colombia">Colombia</option> <option value="Comoros">Comoros</option> <option value="Congo">Congo</option> <option value="Costa Rica">Costa Rica</option> <option value="Croatia">Croatia</option> <option value="Cuba">Cuba</option> <option value="Cyprus">Cyprus</option> <option value="Czech Republic">Czech Republic</option> <option value="Denmark">Denmark</option> <option value="Djibouti">Djibouti</option> <option value="Dominica">Dominica</option> <option value="Dominican Republic">Dominican Republic</option> <option value="Ecuador">Ecuador</option> <option value="Egypt">Egypt</option> <option value="El Salvador">El Salvador</option> <option value="Equatorial Guinea">Equatorial Guinea</option> <option value="Eritrea">Eritrea</option> <option value="Estonia">Estonia</option> <option value="Eswatini">Eswatini</option> <option value="Ethiopia">Ethiopia</option> <option value="Fiji">Fiji</option> <option value="Finland">Finland</option> <option value="France">France</option> <option value="Gabon">Gabon</option> <option value="Gambia">Gambia</option> <option value="Georgia">Georgia</option> <option value="Germany">Germany</option> <option value="Ghana">Ghana</option> <option value="Greece">Greece</option> <option value="Grenada">Grenada</option> <option value="Guatemala">Guatemala</option> <option value="Guinea">Guinea</option> <option value="Guinea-Bissau">Guinea-Bissau</option> <option value="Guyana">Guyana</option> <option value="Haiti">Haiti</option> <option value="Honduras">Honduras</option> <option value="Hungary">Hungary</option> <option value="Iceland">Iceland</option> <option value="India">India</option> <option value="Indonesia">Indonesia</option> <option value="Iran">Iran</option> <option value="Iraq">Iraq</option> <option value="Ireland">Ireland</option> <option value="Israel">Israel</option> <option value="Italy">Italy</option> <option value="Jamaica">Jamaica</option> <option value="Japan">Japan</option> <option value="Jordan">Jordan</option> <option value="Kazakhstan">Kazakhstan</option> <option value="Kenya">Kenya</option> <option value="Kiribati">Kiribati</option> <option value="Korea, North">Korea, North</option> <option value="Korea, South">Korea, South</option> <option value="Kosovo">Kosovo</option> <option value="Kuwait">Kuwait</option> <option value="Kyrgyzstan">Kyrgyzstan</option> <option value="Laos">Laos</option> <option value="Latvia">Latvia</option> <option value="Lebanon">Lebanon</option> <option value="Lesotho">Lesotho</option> <option value="Liberia">Liberia</option> <option value="Libya">Libya</option> <option value="Liechtenstein">Liechtenstein</option> <option value="Lithuania">Lithuania</option> <option value="Luxembourg">Luxembourg</option> <option value="Madagascar">Madagascar</option> <option value="Malawi">Malawi</option> <option value="Malaysia">Malaysia</option> <option value="Maldives">Maldives</option> <option value="Mali">Mali</option> <option value="Malta">Malta</option> <option value="Marshall Islands">Marshall Islands</option> <option value="Mauritania">Mauritania</option> <option value="Mauritius">Mauritius</option> <option value="Mexico">Mexico</option> <option value="Micronesia">Micronesia</option> <option value="Moldova">Moldova</option> <option value="Monaco">Monaco</option> <option value="Mongolia">Mongolia</option> <option value="Montenegro">Montenegro</option> <option value="Morocco">Morocco</option> <option value="Mozambique">Mozambique</option> <option value="Myanmar">Myanmar</option> <option value="Namibia">Namibia</option> <option value="Nauru">Nauru</option> <option value="Nepal">Nepal</option> <option value="Netherlands">Netherlands</option> <option value="New Zealand">New Zealand</option> <option value="Nicaragua">Nicaragua</option> <option value="Niger">Niger</option> <option value="Nigeria">Nigeria</option> <option value="North Macedonia">North Macedonia</option> <option value="Norway">Norway</option> <option value="Oman">Oman</option> <option value="Pakistan">Pakistan</option> <option value="Palau">Palau</option> <option value="Palestine">Palestine</option> <option value="Panama">Panama</option> <option value="Papua New Guinea">Papua New Guinea</option> <option value="Paraguay">Paraguay</option> <option value="Peru">Peru</option> <option value="Philippines">Philippines</option> <option value="Poland">Poland</option> <option value="Portugal">Portugal</option> <option value="Qatar">Qatar</option> <option value="Romania">Romania</option> <option value="Russia">Russia</option> <option value="Rwanda">Rwanda</option> <option value="Saint Kitts and Nevis">Saint Kitts and Nevis</option> <option value="Saint Lucia">Saint Lucia</option> <option value="Saint Vincent">Saint Vincent</option> <option value="Samoa">Samoa</option> <option value="San Marino">San Marino</option> <option value="Sao Tome and Principe">Sao Tome and Principe</option> <option value="Saudi Arabia">Saudi Arabia</option> <option value="Senegal">Senegal</option> <option value="Serbia">Serbia</option> <option value="Seychelles">Seychelles</option> <option value="Sierra Leone">Sierra Leone</option> <option value="Singapore">Singapore</option> <option value="Slovakia">Slovakia</option> <option value="Slovenia">Slovenia</option> <option value="Solomon Islands">Solomon Islands</option> <option value="Somalia">Somalia</option> <option value="South Africa">South Africa</option> <option value="South Sudan">South Sudan</option> <option value="Spain">Spain</option> <option value="Sri Lanka">Sri Lanka</option> <option value="Sudan">Sudan</option> <option value="Suriname">Suriname</option> <option value="Sweden">Sweden</option> <option value="Switzerland">Switzerland</option> <option value="Syria">Syria</option> <option value="Taiwan">Taiwan</option> <option value="Tajikistan">Tajikistan</option> <option value="Tanzania">Tanzania</option> <option value="Thailand">Thailand</option> <option value="Timor-Leste">Timor-Leste</option> <option value="Togo">Togo</option> <option value="Tonga">Tonga</option> <option value="Trinidad and Tobago">Trinidad and Tobago</option> <option value="Tunisia">Tunisia</option> <option value="Turkey">Turkey</option> <option value="Turkmenistan">Turkmenistan</option> <option value="Tuvalu">Tuvalu</option> <option value="Uganda">Uganda</option> <option value="Ukraine">Ukraine</option> <option value="United Arab Emirates">United Arab Emirates</option> <option value="United Kingdom">United Kingdom</option> <option value="United States">United States</option> <option value="Uruguay">Uruguay</option> <option value="Uzbekistan">Uzbekistan</option> <option value="Vanuatu">Vanuatu</option> <option value="Vatican City">Vatican City</option> <option value="Venezuela">Venezuela</option> <option value="Vietnam">Vietnam</option> <option value="Yemen">Yemen</option> <option value="Zambia">Zambia</option> <option value="Zimbabwe">Zimbabwe</option>
                             </select>
                             <select value={deviceFilter} onChange={e => setDeviceFilter(e.target.value)} className={histStyles.filterSelect}>
-                                <option value="">All devices</option>
+                                <option value="">All Devices</option>
                                 <option value="Desktop">Desktop</option>
                                 <option value="Mobile">Mobile</option>
                                 <option value="Tablet">Tablet</option>
                             </select>
                             <select value={spamFilter} onChange={e => setSpamFilter(e.target.value as 'all' | 'spam' | 'clean')} className={histStyles.filterSelect}>
-                                <option value="all">All</option>
+                                <option value="all">Spam/All Leads</option>
                                 <option value="spam">Spam only</option>
                                 <option value="clean">Clean only</option>
                             </select>
                         </div>
-                        <div className={histStyles.dateRow}>
-                            <input type="date" value={dateFrom} onChange={e => setDateFrom(e.target.value)} className={histStyles.dateInput} />
-                            <span className={histStyles.dateSep}>to</span>
-                            <input type="date" value={dateTo} onChange={e => setDateTo(e.target.value)} className={histStyles.dateInput} />
+                        <div className={histStyles.timeFilterWrap}>
+                            <div className={histStyles.quickRanges}>
+                                <button className={`${histStyles.quickBtn} ${activeRange === 'all' ? histStyles.quickBtnActive : ''}`} onClick={() => setQuickRange('all')}>All Time</button>
+                                <button className={`${histStyles.quickBtn} ${activeRange === 'today' ? histStyles.quickBtnActive : ''}`} onClick={() => setQuickRange('today')}>Today</button>
+                                <button className={`${histStyles.quickBtn} ${activeRange === 'yesterday' ? histStyles.quickBtnActive : ''}`} onClick={() => setQuickRange('yesterday')}>Yesterday</button>
+                                <button className={`${histStyles.quickBtn} ${activeRange === '7d' ? histStyles.quickBtnActive : ''}`} onClick={() => setQuickRange('7d')}>Last 7 Days</button>
+                                <button className={`${histStyles.quickBtn} ${activeRange === '30d' ? histStyles.quickBtnActive : ''}`} onClick={() => setQuickRange('30d')}>Last 30 Days</button>
+                            </div>
+                            <div className={histStyles.dateRowEnterprise}>
+                                <div className={histStyles.dateInputWrap}>
+                                    <Clock size={12} className={histStyles.inputIcon} />
+                                    <input
+                                        type="datetime-local"
+                                        value={dateFrom}
+                                        max={getLocalNowISO()}
+                                        onChange={e => handleDateChange('from', e.target.value)}
+                                        className={histStyles.dateInput}
+                                        title="From Date/Time"
+                                    />
+                                </div>
+                                <span className={histStyles.dateSep}>to</span>
+                                <div className={histStyles.dateInputWrap}>
+                                    <Clock size={12} className={histStyles.inputIcon} />
+                                    <input
+                                        type="datetime-local"
+                                        value={dateTo}
+                                        max={getLocalNowISO()}
+                                        onChange={e => handleDateChange('to', e.target.value)}
+                                        className={histStyles.dateInput}
+                                        title="To Date/Time"
+                                    />
+                                </div>
+                            </div>
                         </div>
                     </div>
 
@@ -593,7 +726,7 @@ export default function HistoryPage() {
                                                     </div>
                                                 </div>
                                                 <span className={`${histStyles.statusBadge} ${getStatusBadgeClasses(conv.session_status)}`}>
-                                                    {isActive ? 'Active' : 'Closed'}
+                                                    {isActive ? (conv.current_mode === 'BOT' ? 'Active (Bot)' : 'Active (Agent)') : 'Closed'}
                                                 </span>
                                             </div>
 
@@ -695,7 +828,30 @@ export default function HistoryPage() {
                                                         ? 'Bot Assistant'
                                                         : 'Visitor'}
                                             </div>
-                                            <div className={styles.msgText}>{msg.message_text}</div>
+                                            <div className={styles.msgText}>
+                                                {msg.message_type === 'form' ? (
+                                                    <div className={styles.formSummary}>
+                                                        <div className={styles.formSummaryTitle}>Enquiry Submission</div>
+                                                        {(() => {
+                                                            try {
+                                                                const data = JSON.parse(msg.message_text);
+                                                                return (
+                                                                    <div className={styles.formSummaryGrid}>
+                                                                        <div className={styles.formField}><span>Name:</span> {data.full_name || data.name}</div>
+                                                                        <div className={styles.formField}><span>Email:</span> {data.business_email || data.email}</div>
+                                                                        <div className={styles.formField}><span>Phone:</span> {data.contact_number || data.phone}</div>
+                                                                        <div className={styles.formField}><span>Company:</span> {data.company_name || data.company}</div>
+                                                                    </div>
+                                                                );
+                                                            } catch {
+                                                                return msg.message_text;
+                                                            }
+                                                        })()}
+                                                    </div>
+                                                ) : (
+                                                    msg.message_text
+                                                )}
+                                            </div>
                                             <div className={styles.msgTime}>{msg.created_at_ist}</div>
                                         </div>
                                     ))
@@ -826,6 +982,26 @@ export default function HistoryPage() {
                                             <label>Company</label>
                                             <input value={editData.company} onChange={e => setEditData({ ...editData, company: e.target.value })} placeholder="Enter company" />
                                         </div>
+                                        <div className={histStyles.editGroup}>
+                                            <label>Website</label>
+                                            <input value={editData.website} onChange={e => setEditData({ ...editData, website: e.target.value })} placeholder="Enter website" />
+                                        </div>
+                                        <div className={histStyles.editGroup}>
+                                            <label>Trade Type</label>
+                                            <input value={editData.trade_type} onChange={e => setEditData({ ...editData, trade_type: e.target.value })} placeholder="IMPORT/EXPORT" />
+                                        </div>
+                                        <div className={histStyles.editGroup}>
+                                            <label>Interested Country</label>
+                                            <input value={editData.country_interested} onChange={e => setEditData({ ...editData, country_interested: e.target.value })} placeholder="Enter country" />
+                                        </div>
+                                        <div className={histStyles.editGroup}>
+                                            <label>Product</label>
+                                            <input value={editData.product} onChange={e => setEditData({ ...editData, product: e.target.value })} placeholder="Enter product" />
+                                        </div>
+                                        <div className={histStyles.editGroup}>
+                                            <label>Requirement</label>
+                                            <input value={editData.requirement_type} onChange={e => setEditData({ ...editData, requirement_type: e.target.value })} placeholder="Enter requirement" />
+                                        </div>
                                         <button className={histStyles.saveBtn} onClick={handleSaveLead} disabled={updating}>{updating ? 'Saving...' : 'Save Changes'}</button>
                                     </div>
                                 ) : (
@@ -847,8 +1023,28 @@ export default function HistoryPage() {
                                             <span className={selectedSession.lead_company ? histStyles.dataValue : histStyles.dataEmpty}>{selectedSession.lead_company || 'Not provided'}</span>
                                         </div>
                                         <div className={histStyles.dataRow}>
+                                            <span className={histStyles.dataLabel}>Website</span>
+                                            <span className={selectedSession.website ? histStyles.dataValue : histStyles.dataEmpty}>{selectedSession.website || 'Not provided'}</span>
+                                        </div>
+                                        <div className={histStyles.dataRow}>
+                                            <span className={histStyles.dataLabel}>Trade Type</span>
+                                            <span className={selectedSession.trade_type ? histStyles.dataValue : histStyles.dataEmpty}>{selectedSession.trade_type || 'Not provided'}</span>
+                                        </div>
+                                        <div className={histStyles.dataRow}>
                                             <span className={histStyles.dataLabel}>Country</span>
-                                            <span className={selectedSession.country ? histStyles.dataValue : histStyles.dataEmpty}>{selectedSession.country || 'Not provided'}</span>
+                                            <span className={selectedSession.country_interested ? histStyles.dataValue : histStyles.dataEmpty}>{selectedSession.country_interested || 'Not provided'}</span>
+                                        </div>
+                                        <div className={histStyles.dataRow}>
+                                            <span className={histStyles.dataLabel}>Product</span>
+                                            <span className={selectedSession.product ? histStyles.dataValue : histStyles.dataEmpty}>{selectedSession.product || 'Not provided'}</span>
+                                        </div>
+                                        <div className={histStyles.dataRow}>
+                                            <span className={histStyles.dataLabel}>Requirement</span>
+                                            <span className={selectedSession.requirement_type ? histStyles.dataValue : histStyles.dataEmpty}>{selectedSession.requirement_type || 'Not provided'}</span>
+                                        </div>
+                                        <div className={histStyles.dataRow}>
+                                            <span className={histStyles.dataLabel}>Visitor Location</span>
+                                            <span className={selectedSession.country ? histStyles.dataValue : histStyles.dataEmpty}>{selectedSession.country || 'Unknown'}</span>
                                         </div>
                                     </>
                                 )}
@@ -908,6 +1104,6 @@ export default function HistoryPage() {
                     )}
                 </div>
             </div>
-        </div>
+        </div >
     );
 }

@@ -2059,6 +2059,7 @@
     border-radius: 3px;
     transition: width 0.5s cubic-bezier(0.4, 0, 0.2, 1);
 }
+
 /* ── Message Status Indicators ──────────────────────────────────────────── */
 
 .msgStatus {
@@ -2117,4 +2118,133 @@
     position: absolute;
     left: 2px;
     top: 0;
+}
+
+/* ── Sound Toggle ─────────────────────────────────────────────────── */
+.soundToggle {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 6px 12px;
+    border-radius: 99px;
+    background: rgba(255, 255, 255, 0.05);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    color: #94a3b8;
+    font-size: 11px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.2s;
+    margin-right: 12px;
+}
+
+.soundToggle:hover {
+    background: rgba(255, 255, 255, 0.1);
+    border-color: rgba(255, 255, 255, 0.2);
+    color: #f1f5f9;
+}
+
+.soundToggleActive {
+    background: rgba(16, 185, 129, 0.1);
+    border-color: rgba(16, 185, 129, 0.2);
+    color: #10b981;
+}
+
+.soundToggleActive .soundDot {
+    background: #10b981;
+    box-shadow: 0 0 8px #10b981;
+}
+
+.soundDot {
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+    background: #475569;
+    transition: all 0.2s;
+}
+
+/* ── Enquiry Form Summary ─────────────────────────────────────────── */
+
+.msgForm {
+    align-self: center !important;
+    background: #f8fafc !important;
+    border: 1.5px solid #e2e8f0 !important;
+    max-width: 90% !important;
+    width: 100%;
+    padding: 20px !important;
+    box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.05), 0 2px 4px -1px rgba(0, 0, 0, 0.06) !important;
+}
+
+.formSummary {
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+}
+
+.formSummaryTitle {
+    font-size: 15px;
+    font-weight: 700;
+    color: #1e293b;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding-bottom: 12px;
+    border-bottom: 1px solid #e2e8f0;
+}
+
+.formSummaryTitle::before {
+    content: '📋';
+}
+
+.formSummaryGrid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 16px;
+}
+
+.formField {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+}
+
+.formField span {
+    color: #94a3b8;
+    font-weight: 500;
+}
+
+.messagesLoader {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    height: 100%;
+    gap: 12px;
+    color: #64748b;
+    font-size: 0.9rem;
+}
+
+.spinIcon {
+    animation: spin 1s linear infinite;
+    color: #3b82f6;
+}
+
+.noMessagesText {
+    opacity: 0.6;
+    font-style: italic;
+}
+
+@keyframes spin {
+    from {
+        transform: rotate(0deg);
+    }
+
+    to {
+        transform: rotate(360deg);
+    }
+}
+
+.formField {
+    font-size: 13px;
+    font-weight: 600;
+    color: #334155;
 }

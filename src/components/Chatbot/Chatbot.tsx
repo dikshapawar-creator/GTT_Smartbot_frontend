@@ -1169,12 +1169,12 @@ export default function Chatbot({ tenantIdProp, tenantKeyProp }: { tenantIdProp?
                                 className={styles.chatInput}
                                 type="text"
                                 placeholder={
-                                    statusText === 'Enquiry Submitted'
-                                        ? 'Thank you!'
+                                    statusText === 'Enquiry Submitted' || conversationStatus === 'waiting_for_agent'
+                                        ? 'Ask more or wait for agent...'
                                         : 'Type your message...'
                                 }
                                 value={input}
-                                disabled={!isInitialized || loading || statusText === 'Enquiry Submitted'}
+                                disabled={!isInitialized || loading}
                                 onChange={handleInputChange}
                                 onKeyDown={(e) => {
                                     if (e.key === 'Enter' && !loading && input.trim() && isInitialized) {

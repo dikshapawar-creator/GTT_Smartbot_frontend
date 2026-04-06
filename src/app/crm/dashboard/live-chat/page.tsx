@@ -7,21 +7,27 @@ import {
     Paperclip, Smile, AlertCircle, Eye, Building2
 } from 'lucide-react';
 import styles from './LiveChat.module.css';
-import { useLiveChat } from '@/hooks/useLiveChat';
+import { useLiveChat, Conversation } from '@/hooks/useLiveChat';
 import { auth } from '@/lib/auth';
+import api from '@/config/api';
 
 export default function LiveChatPage() {
     const {
-        conversations, selectedSession, messages, newMessage, loading, error, analytics,
+        conversations, selectedSession, messages, messagesLoading, newMessage, loading, error, analytics,
         filter, searchQuery, chatViewState, typingSessions,
         setFilter, setSearchQuery, openChat, intervene, sendMessage, handleInputChange,
-        closeConversation, togglePriority, toggleSpam, blockVisitor, setSelectedSessionId, fetchConversations
+        closeConversation, togglePriority, toggleSpam, blockVisitor, setSelectedSessionId, fetchConversations,
+        playTestSound, audioEnabled, setConversations
     } = useLiveChat();
 
     const [fontSize, setFontSize] = useState<'small' | 'medium' | 'large' | 'xlarge'>('medium');
     const [liveDurations, setLiveDurations] = useState<Record<string, number>>({});
     const durationIntervalRef = useRef<NodeJS.Timeout | null>(null);
     const messagesEndRef = useRef<HTMLDivElement>(null);
+
+    const [isEditingLead, setIsEditingLead] = useState(false);
+    const [editLeadData, setEditLeadData] = useState<Record<string, string>>({});
+    const [isSavingLead, setIsSavingLead] = useState(false);
 
     // Get current tenant context
     const getCurrentTenantInfo = () => {
@@ -30,10 +36,10 @@ export default function LiveChatPage() {
             ? localStorage.getItem('selected_tenant_id')
             : null;
         const activeTenantId = selectedTenantId || user?.primary_tenant_id || user?.tenant_id;
-        
+
         // Find tenant name from user's tenant access
         const tenantName = user?.tenant_access?.find(t => t.tenant_id === Number(activeTenantId))?.tenant_name || 'Unknown Tenant';
-        
+
         return { activeTenantId, tenantName };
     };
 
@@ -52,6 +58,57 @@ export default function LiveChatPage() {
             toast.classList.remove(styles.toastShow);
             setTimeout(() => document.body.removeChild(toast), 250);
         }, 2500);
+    };
+
+    useEffect(() => {
+        if (selectedSession && !isEditingLead) {
+            setEditLeadData({
+                name: selectedSession.lead_name || '',
+                email: selectedSession.lead_email || '',
+                phone: selectedSession.lead_phone || '',
+                company: selectedSession.lead_company || '',
+                trade_type: selectedSession.trade_type || '',
+                country_interested: selectedSession.country_interested || '',
+                product: selectedSession.product || '',
+                requirement_type: selectedSession.requirement_type || '',
+                website: selectedSession.website || '',
+                status: selectedSession.lead_status || ''
+            });
+        }
+    }, [selectedSession, isEditingLead]);
+
+    useEffect(() => {
+        if (messagesEndRef.current) {
+            messagesEndRef.current.scrollIntoView({ behavior: 'smooth' });
+        }
+    }, [messages, typingSessions]);
+
+    const handleSaveLead = async () => {
+        if (!selectedSession?.session_uuid) return;
+        setIsSavingLead(true);
+        try {
+            await api.post(`/live-chat/update-lead/${selectedSession.session_uuid}`, editLeadData);
+
+            // Optimistic Update
+            setConversations(prev => prev.map(conv => {
+                if (conv.session_uuid === selectedSession.session_uuid) {
+                    return {
+                        ...conv,
+                        ...editLeadData,
+                        is_lead: true
+                    } as Conversation;
+                }
+                return conv;
+            }));
+
+            setIsEditingLead(false);
+            showToast('Lead updated successfully');
+        } catch (err) {
+            console.error("Failed to update lead", err);
+            showToast('Failed to update lead');
+        } finally {
+            setIsSavingLead(false);
+        }
     };
 
     const increaseFontSize = () => {
@@ -147,6 +204,15 @@ export default function LiveChatPage() {
                     </div>
                 </div>
                 <div className={styles.heroStats}>
+                    <button
+                        className={`${styles.soundToggle} ${audioEnabled ? styles.soundToggleActive : ''}`}
+                        onClick={() => playTestSound()}
+                        title="Click to enable or test notification sound"
+                    >
+                        <div className={styles.soundDot} />
+                        <span>Sound: {audioEnabled ? 'Active' : 'Click to Test'}</span>
+                        <Zap size={10} />
+                    </button>
                     <div className={styles.heroStat}>
                         <span className={styles.heroStatValue} style={{ color: '#34d399' }}>{analytics.active_visitors}</span>
                         <span className={styles.heroStatLabel}>Active Now</span>
@@ -270,13 +336,11 @@ export default function LiveChatPage() {
                                                 {conv.is_online && <div className={styles.onlineDot} title="Online" />}
                                             </div>
                                         </div>
-                                        <div className={`${styles.statusBadge} ${conv.session_status.toLowerCase() === 'active' ? styles.statusActive :
-                                            conv.current_mode === 'BOT' ? styles.statusBot :
-                                                conv.spam_flag ? styles.statusSpam : styles.statusClosed
+                                        <div className={`${styles.statusBadge} ${conv.session_status.toLowerCase() === 'active' ? (conv.current_mode === 'BOT' ? styles.statusBot : styles.statusActive) :
+                                            conv.spam_flag ? styles.statusSpam : styles.statusClosed
                                             }`}>
-                                            {conv.session_status.toLowerCase() === 'active' ? 'Active' :
-                                                conv.current_mode === 'BOT' ? 'Bot' :
-                                                    conv.spam_flag ? 'Spam' : 'Closed'}
+                                            {conv.session_status.toLowerCase() === 'active' ? (conv.current_mode === 'BOT' ? 'Active (Bot)' : 'Active (Agent)') :
+                                                conv.spam_flag ? 'Spam' : 'Closed'}
                                         </div>
                                     </div>
 
@@ -379,7 +443,16 @@ export default function LiveChatPage() {
                             </div>
 
                             <div className={styles.chatMessages}>
-                                {messages.filter(msg => msg.message_text && msg.message_text.trim() !== '').map((msg) => (
+                                {messagesLoading ? (
+                                    <div className={styles.messagesLoader}>
+                                        <RefreshCw className={styles.spinIcon} size={24} />
+                                        <p>Loading messages...</p>
+                                    </div>
+                                ) : messages.filter(msg => msg.message_text && msg.message_text.trim() !== '').length === 0 ? (
+                                    <div className={styles.messagesLoader}>
+                                        <p className={styles.noMessagesText}>No messages in this conversation</p>
+                                    </div>
+                                ) : messages.filter(msg => msg.message_text && msg.message_text.trim() !== '').map((msg) => (
                                     <div key={msg.id} className={`${styles.message} ${msg.message_type === 'user' ? styles.msgUser :
                                         msg.message_type === 'agent' ? styles.msgAgent :
                                             msg.message_type === 'form' ? styles.msgForm : styles.msgBot
@@ -423,10 +496,10 @@ export default function LiveChatPage() {
                                                             const data = JSON.parse(msg.message_text);
                                                             return (
                                                                 <div className={styles.formSummaryGrid}>
-                                                                    <div className={styles.formField}><span>Name:</span> {data.full_name}</div>
-                                                                    <div className={styles.formField}><span>Email:</span> {data.business_email}</div>
-                                                                    <div className={styles.formField}><span>Phone:</span> {data.contact_number}</div>
-                                                                    <div className={styles.formField}><span>Company:</span> {data.company_name}</div>
+                                                                    <div className={styles.formField}><span>Name:</span> {data.full_name || data.name}</div>
+                                                                    <div className={styles.formField}><span>Email:</span> {data.business_email || data.email}</div>
+                                                                    <div className={styles.formField}><span>Phone:</span> {data.contact_number || data.phone}</div>
+                                                                    <div className={styles.formField}><span>Company:</span> {data.company_name || data.company}</div>
                                                                 </div>
                                                             );
                                                         } catch {
@@ -584,26 +657,136 @@ export default function LiveChatPage() {
                         </div>
 
                         <div className={styles.panelSection}>
-                            <div className={styles.sectionHeader}>
+                            <div className={styles.sectionHeader} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                                 <div className={styles.sectionTitle}>
-                                    <User size={14} /> Contact Data
+                                    <User size={14} /> Full Lead Details
                                 </div>
+                                {!isEditingLead ? (
+                                    <button
+                                        onClick={() => setIsEditingLead(true)}
+                                        style={{ background: 'none', border: 'none', color: '#0070f3', cursor: 'pointer', fontSize: '12px' }}
+                                    >
+                                        Edit
+                                    </button>
+                                ) : (
+                                    <button
+                                        onClick={() => setIsEditingLead(false)}
+                                        style={{ background: 'none', border: 'none', color: '#666', cursor: 'pointer', fontSize: '12px' }}
+                                    >
+                                        Cancel
+                                    </button>
+                                )}
                             </div>
 
-                            <div className={styles.contactData}>
-                                <div className={styles.dataRow}>
-                                    <span className={styles.dataLabel}>Email</span>
-                                    <span className={styles.dataValue}>{selectedSession.lead_email || 'Not provided'}</span>
+                            {isEditingLead ? (
+                                <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', marginTop: '10px' }}>
+                                    <input
+                                        type="text"
+                                        placeholder="Name"
+                                        value={editLeadData.name}
+                                        onChange={(e) => setEditLeadData({ ...editLeadData, name: e.target.value })}
+                                        style={{ padding: '6px', borderRadius: '4px', border: '1px solid #e2e8f0', width: '100%' }}
+                                    />
+                                    <input
+                                        type="email"
+                                        placeholder="Email"
+                                        value={editLeadData.email}
+                                        onChange={(e) => setEditLeadData({ ...editLeadData, email: e.target.value })}
+                                        style={{ padding: '6px', borderRadius: '4px', border: '1px solid #e2e8f0', width: '100%' }}
+                                    />
+                                    <input
+                                        type="text"
+                                        placeholder="Phone"
+                                        value={editLeadData.phone}
+                                        onChange={(e) => setEditLeadData({ ...editLeadData, phone: e.target.value })}
+                                        style={{ padding: '6px', borderRadius: '4px', border: '1px solid #e2e8f0', width: '100%' }}
+                                    />
+                                    <input
+                                        type="text"
+                                        placeholder="Company"
+                                        value={editLeadData.company}
+                                        onChange={(e) => setEditLeadData({ ...editLeadData, company: e.target.value })}
+                                        style={{ padding: '6px', borderRadius: '4px', border: '1px solid #e2e8f0', width: '100%' }}
+                                    />
+                                    <input
+                                        type="text"
+                                        placeholder="Website"
+                                        value={editLeadData.website}
+                                        onChange={(e) => setEditLeadData({ ...editLeadData, website: e.target.value })}
+                                        style={{ padding: '6px', borderRadius: '4px', border: '1px solid #e2e8f0', width: '100%' }}
+                                    />
+                                    <input
+                                        type="text"
+                                        placeholder="Trade Type"
+                                        value={editLeadData.trade_type}
+                                        onChange={(e) => setEditLeadData({ ...editLeadData, trade_type: e.target.value })}
+                                        style={{ padding: '6px', borderRadius: '4px', border: '1px solid #e2e8f0', width: '100%' }}
+                                    />
+                                    <input
+                                        type="text"
+                                        placeholder="Country"
+                                        value={editLeadData.country_interested}
+                                        onChange={(e) => setEditLeadData({ ...editLeadData, country_interested: e.target.value })}
+                                        style={{ padding: '6px', borderRadius: '4px', border: '1px solid #e2e8f0', width: '100%' }}
+                                    />
+                                    <input
+                                        type="text"
+                                        placeholder="Product"
+                                        value={editLeadData.product}
+                                        onChange={(e) => setEditLeadData({ ...editLeadData, product: e.target.value })}
+                                        style={{ padding: '6px', borderRadius: '4px', border: '1px solid #e2e8f0', width: '100%' }}
+                                    />
+                                    <input
+                                        type="text"
+                                        placeholder="Requirement"
+                                        value={editLeadData.requirement_type}
+                                        onChange={(e) => setEditLeadData({ ...editLeadData, requirement_type: e.target.value })}
+                                        style={{ padding: '6px', borderRadius: '4px', border: '1px solid #e2e8f0', width: '100%' }}
+                                    />
+                                    <button
+                                        onClick={handleSaveLead}
+                                        disabled={isSavingLead}
+                                        style={{ marginTop: '8px', padding: '8px', background: '#0070f3', color: 'white', border: 'none', borderRadius: '4px', cursor: 'pointer' }}
+                                    >
+                                        {isSavingLead ? 'Saving...' : 'Save Lead'}
+                                    </button>
                                 </div>
-                                <div className={styles.dataRow}>
-                                    <span className={styles.dataLabel}>Phone</span>
-                                    <span className={styles.dataValue}>{selectedSession.lead_phone || 'Not provided'}</span>
+                            ) : (
+                                <div className={styles.contactData}>
+                                    <div className={styles.dataRow}>
+                                        <span className={styles.dataLabel}>Email</span>
+                                        <span className={styles.dataValue}>{selectedSession.lead_email || 'Not provided'}</span>
+                                    </div>
+                                    <div className={styles.dataRow}>
+                                        <span className={styles.dataLabel}>Phone</span>
+                                        <span className={styles.dataValue}>{selectedSession.lead_phone || 'Not provided'}</span>
+                                    </div>
+                                    <div className={styles.dataRow}>
+                                        <span className={styles.dataLabel}>Company</span>
+                                        <span className={styles.dataValue}>{selectedSession.lead_company || 'Not provided'}</span>
+                                    </div>
+                                    <div className={styles.dataRow}>
+                                        <span className={styles.dataLabel}>Website</span>
+                                        <span className={styles.dataValue}>{selectedSession.website || 'Not provided'}</span>
+                                    </div>
+                                    <div className={styles.dataRow}>
+                                        <span className={styles.dataLabel}>Trade Type</span>
+                                        <span className={styles.dataValue}>{selectedSession.trade_type || 'Not provided'}</span>
+                                    </div>
+                                    <div className={styles.dataRow}>
+                                        <span className={styles.dataLabel}>Country</span>
+                                        <span className={styles.dataValue}>{selectedSession.country_interested || 'Not provided'}</span>
+                                    </div>
+                                    <div className={styles.dataRow}>
+                                        <span className={styles.dataLabel}>Product</span>
+                                        <span className={styles.dataValue}>{selectedSession.product || 'Not provided'}</span>
+                                    </div>
+                                    <div className={styles.dataRow}>
+                                        <span className={styles.dataLabel}>Requirement</span>
+                                        <span className={styles.dataValue}>{selectedSession.requirement_type || 'Not provided'}</span>
+                                    </div>
                                 </div>
-                                <div className={styles.dataRow}>
-                                    <span className={styles.dataLabel}>Company</span>
-                                    <span className={styles.dataValue}>{selectedSession.lead_company || 'Not provided'}</span>
-                                </div>
-                            </div>
+                            )}
                         </div>
 
                         {/* Lead Form Data Section */}

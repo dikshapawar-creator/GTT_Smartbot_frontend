@@ -3,6 +3,7 @@
 import { useState, useCallback, useEffect, useRef } from 'react'
 import { auth } from '@/lib/auth'
 import api, { WS_BASE } from '@/config/api'
+import { playNotificationSound, showBrowserNotification } from '@/lib/notifications'
 import { wsManager, WSMessage } from '@/lib/wsManager'
 
 export type ChatViewState = 'pretakeover' | 'active' | 'ended'
@@ -10,7 +11,7 @@ export type FilterType = 'ALL' | 'ACTIVE' | 'BOT' | 'WAITING' | 'PRIORITY' | 'SP
 
 // ── Types ────────────────────────────────────────────────────────────────
 
-interface Conversation {
+export interface Conversation {
     session_id: number;
     session_uuid: string;
     session_status: 'ACTIVE' | 'CLOSED';
@@ -23,6 +24,11 @@ interface Conversation {
     lead_phone: string | null;
     lead_score: number;
     lead_status: string;
+    trade_type?: string | null;
+    country_interested?: string | null;
+    product?: string | null;
+    requirement_type?: string | null;
+    website?: string | null;
     spam_flag: boolean;
     last_message_at: string | null;
     message_count: number;
@@ -49,7 +55,7 @@ interface Conversation {
     lead_insights?: string;
 }
 
-interface ChatMessage {
+export interface ChatMessage {
     id: number;
     session_id: string;
     message_type: 'user' | 'bot' | 'agent' | 'system' | 'form';
@@ -62,7 +68,7 @@ interface ChatMessage {
     message_status?: 'sent' | 'delivered' | 'read';
 }
 
-interface Analytics {
+export interface Analytics {
     active_visitors: number;
     avg_lead_score: number;
     spam_visitors: number;
@@ -82,6 +88,11 @@ interface RawConversation {
     lead_phone?: string | null;
     lead_score?: number;
     lead_status?: string;
+    trade_type?: string | null;
+    country_interested?: string | null;
+    product?: string | null;
+    requirement_type?: string | null;
+    website?: string | null;
     spam_flag?: boolean;
     last_message_at?: string | null;
     message_count?: number;
@@ -131,6 +142,7 @@ export function useLiveChat() {
     const [messages, setMessages] = useState<ChatMessage[]>([]);
     const [newMessage, setNewMessage] = useState('');
     const [loading, setLoading] = useState(true);
+    const [messagesLoading, setMessagesLoading] = useState(false);
     const [error, setError] = useState<string | null>(null);
     const [analytics, setAnalytics] = useState<Analytics>({
         active_visitors: 0,
@@ -148,12 +160,42 @@ export function useLiveChat() {
     const typingTimeoutRef = useRef<Record<string, NodeJS.Timeout>>({});
     const sentMsgIds = useRef<Set<string>>(new Set());
     const lastTenantIdRef = useRef<string | null>(null);
+    const audioInitialized = useRef<boolean>(false);
+
+    const playTestSound = useCallback(async () => {
+        try {
+            const paths = ['/sound/notification.mp3.mp3', '/sounds/notification.mp3', '/sound/notification.mp3'];
+            for (const path of paths) {
+                try {
+                    const audio = new Audio(path);
+                    await audio.play();
+                    audioInitialized.current = true;
+                    return true;
+                } catch {
+                    continue;
+                }
+            }
+        } catch (e) {
+            console.error('Test sound failed', e);
+        }
+        return false;
+    }, []);
 
     const selectedSession = conversations.find(c => c.session_uuid === selectedSessionId) || null;
+
+    useEffect(() => {
+        if (typeof window !== 'undefined' && 'Notification' in window) {
+            if (Notification.permission === 'default') {
+                Notification.requestPermission().catch(e => console.log('Notification req failed:', e));
+            }
+        }
+    }, []);
 
     // ── Handle WebSocket Messages ───────────────────────────────────────────
 
     const fetchMessages = useCallback(async (sessionId: string) => {
+        setMessagesLoading(true);
+        setMessages([]); // Immediately clear old messages to prevent flickering
         try {
             const res = await api.get(`/live-chat/messages/${sessionId}?page=1&page_size=100`);
             setMessages(res.data.items || []);
@@ -161,6 +203,8 @@ export function useLiveChat() {
         } catch (err) {
             console.error('Failed to fetch messages:', err);
             setError('Failed to load messages');
+        } finally {
+            setMessagesLoading(false);
         }
     }, []);
 
@@ -171,6 +215,14 @@ export function useLiveChat() {
                 if (data.msg_id && sentMsgIds.current.has(String(data.msg_id))) {
                     // console.log('Ignoring echoed message:', data.msg_id);
                     return;
+                }
+
+                if (typeof document !== 'undefined' && data.sender !== 'agent') {
+                    const isTabInactive = document.hidden || !document.hasFocus();
+                    if (isTabInactive) {
+                        playNotificationSound();
+                        showBrowserNotification('New Live Chat Message', data.message || 'Incoming message...');
+                    }
                 }
 
                 if (data.session_id && String(data.session_id) === selectedSessionId) {
@@ -253,6 +305,11 @@ export function useLiveChat() {
                                     lead_score: data.lead_score ?? conv.lead_score,
                                     lead_status: data.lead_status || conv.lead_status,
                                     lead_insights: data.lead_insights || conv.lead_insights,
+                                    trade_type: data.trade_type !== undefined ? data.trade_type : conv.trade_type,
+                                    country_interested: data.country_interested !== undefined ? data.country_interested : conv.country_interested,
+                                    product: data.product !== undefined ? data.product : conv.product,
+                                    requirement_type: data.requirement_type !== undefined ? data.requirement_type : conv.requirement_type,
+                                    website: data.website !== undefined ? data.website : conv.website,
                                     is_lead: true
                                 }
                                 : conv
@@ -747,6 +804,7 @@ export function useLiveChat() {
         conversations: filteredConversations,
         selectedSession,
         messages,
+        messagesLoading,
         newMessage,
         loading,
         error,
@@ -771,6 +829,9 @@ export function useLiveChat() {
         setSelectedSessionId,
         setMessages,
         setChatViewState,
-        fetchConversations
+        setConversations,
+        fetchConversations,
+        playTestSound,
+        audioEnabled: typeof window !== 'undefined' ? (Notification.permission === 'granted') : false
     };
 }

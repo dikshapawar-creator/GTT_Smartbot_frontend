@@ -415,21 +415,111 @@
     cursor: pointer;
 }
 
-.dateInput {
-    flex: 1;
-    padding: 6px 8px;
+/* ── Enterprise Filter Redesign ────────────────────────────────────── */
+.quickFilters {
+    display: flex;
+    gap: 8px;
+    margin-bottom: 8px;
+}
+
+.quickBtn {
+    padding: 6px 12px;
     font-size: 11px;
+    font-weight: 600;
+    color: var(--color-text-secondary);
+    background: transparent;
     border: 1px solid var(--color-border);
-    border-radius: 4px;
-    background: var(--color-bg);
+    border-radius: 6px;
+    cursor: pointer;
+    transition: all 0.2s ease;
+}
+
+.quickBtn:hover {
+    background: rgba(43, 42, 155, 0.05);
+    border-color: #2B2A9B;
+}
+
+.quickBtnActive {
+    background: #2B2A9B !important;
+    color: white !important;
+    border-color: #2B2A9B !important;
+}
+
+.dateRowEnterprise {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    background: #f8fafc;
+    border: 1.5px solid var(--color-border);
+    border-radius: 10px;
+    padding: 6px 12px;
+    transition: all 0.2s ease;
+}
+
+.dateRowEnterprise:focus-within {
+    border-color: #2B2A9B;
+    background: #ffffff;
+    box-shadow: 0 0 0 3px rgba(43, 42, 155, 0.1);
+}
+
+.searchableInputWrap {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    background: #f8fafc;
+    border: 1.5px solid var(--color-border);
+    border-radius: 8px;
+    padding: 0 10px;
+    height: 34px;
+    transition: all 0.2s ease;
+}
+
+.searchableInputWrap:focus-within {
+    border-color: #2B2A9B;
+    background: #ffffff;
+    box-shadow: 0 0 0 3px rgba(43, 42, 155, 0.1);
+}
+
+.filterInput {
+    flex: 1;
+    border: none;
+    background: transparent;
+    font-size: 11px;
+    font-weight: 600;
     color: var(--color-text-primary);
     outline: none;
+    padding: 6px 0;
+}
+
+.dateInputWrap {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    flex: 1;
+}
+
+.inputIcon {
+    color: #64748b;
+}
+
+.dateInput {
+    flex: 1;
+    border: none;
+    background: transparent;
+    font-size: 11.5px;
+    font-weight: 600;
+    color: var(--color-text-primary);
+    outline: none;
+    cursor: pointer;
+    padding: 2px 0;
 }
 
 .dateSep {
     font-size: 10px;
-    color: var(--color-text-muted);
-    font-weight: 500;
+    font-weight: 800;
+    color: #94a3b8;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
 }
 
 /* Tabs */

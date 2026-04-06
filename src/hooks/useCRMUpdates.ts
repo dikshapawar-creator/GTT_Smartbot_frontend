@@ -4,6 +4,7 @@ import { useEffect, useCallback, useRef } from 'react';
 import { wsManager } from '@/lib/wsManager';
 import { auth } from '@/lib/auth';
 import { WS_BASE } from '@/config/api';
+import { playNotificationSound, showBrowserNotification } from '@/lib/notifications';
 
 export type CRMEventType =
     | 'INTENT_CREATED' | 'INTENT_UPDATED' | 'INTENT_DELETED'
@@ -50,16 +51,27 @@ export function useCRMUpdates(onEvent?: (event: CRMUpdateEvent) => void) {
         }
 
         const unsubscribe = wsManager.subscribe('message', (data: Record<string, unknown>) => {
-            if (data.purpose === 'crm_updates' && onEventRef.current) {
-                console.log('📬 CRM Update received:', data);
-                onEventRef.current(data as unknown as CRMUpdateEvent);
+            const msgData = data as Record<string, unknown> & { purpose?: string; message_type?: string; type?: string; message_text?: string };
+            if (msgData.purpose === 'crm_updates') {
+                // Enterprise Global Sound / Notifications
+                const isTabInactive = typeof document !== 'undefined' && (document.hidden || !document.hasFocus());
+                const isNotLivePage = typeof window !== 'undefined' && !window.location.pathname.includes('live-chat');
+                const isIncoming = msgData.message_type !== 'agent';
+
+                if ((isTabInactive || isNotLivePage) && isIncoming && msgData.type === 'NEW_MESSAGE') {
+                    playNotificationSound();
+                    showBrowserNotification('New Customer Message', msgData.message_text || 'Incoming message...');
+                }
+            }
+
+            if (onEventRef.current) {
+                console.log('📬 CRM Update received:', msgData);
+                onEventRef.current(msgData as unknown as CRMUpdateEvent);
             }
         });
 
         return () => {
-            unsubscribe();
-            // We don't necessarily disconnect here as other components might use it
-            // wsManager.disconnect('crm_updates');
+            if (unsubscribe) unsubscribe();
         };
     }, [connect]);
 

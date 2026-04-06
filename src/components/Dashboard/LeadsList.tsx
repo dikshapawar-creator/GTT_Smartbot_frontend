@@ -65,7 +65,10 @@ const ALLOWED_TRANSITIONS: Record<string, string[]> = {
     'CLOSED': ['IN_PROGRESS'],
     'COMPLETE': ['IN_PROGRESS', 'CLOSED'],
     'DEAD_LEAD': ['NEW', 'IN_PROGRESS'],
-    'WRONG_LEAD': ['NEW']
+    'WRONG_LEAD': ['NEW'],
+    'COLD': ['WARM', 'HOT', 'IN_PROGRESS', 'DEAD_LEAD'],
+    'WARM': ['HOT', 'COLD', 'IN_PROGRESS', 'QUALIFIED'],
+    'HOT': ['WARM', 'COLD', 'IN_PROGRESS', 'QUALIFIED', 'COMPLETE']
 };
 
 export default function LeadsList() {
@@ -384,14 +387,21 @@ export default function LeadsList() {
                                         <div className="flex flex-col gap-1">
                                             <div className={styles.tdTagGroup}>
                                                 {lead.trade_type && <span className={styles.tdTag}>{lead.trade_type}</span>}
-                                                {lead.country_interested && <span className={styles.tdTag}><MapPin size={10} className="inline" /> {lead.country_interested}</span>}
                                             </div>
                                             <div className={styles.tdSmall}>{lead.product && <span><Package size={10} className="inline mr-1" /> {lead.product}</span>}</div>
                                         </div>
                                     </td>
                                     <td>
                                         <div className="flex flex-col gap-1">
-                                            <div className={styles.tdSmall}><MapPin size={10} className="inline mr-1" /> {lead.country || 'Unknown'}, {lead.city || ''}</div>
+                                            <div className={styles.tdSmall}>
+                                                <MapPin size={10} className="inline mr-1" />
+                                                {lead.country_interested ? (
+                                                    <span style={{ color: '#6366f1', fontWeight: 600 }}>{lead.country_interested}</span>
+                                                ) : (
+                                                    lead.country || 'Unknown'
+                                                )}
+                                                {lead.city && `, ${lead.city}`}
+                                            </div>
                                             <div className={styles.tdSmall} style={{ fontSize: '10px', color: '#64748b' }}>
                                                 <Monitor size={10} className="inline mr-1" /> {lead.browser || 'Unknown'} / {lead.os || 'Unknown'}
                                             </div>
