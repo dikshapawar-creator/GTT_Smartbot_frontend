@@ -1,17 +1,18 @@
 'use client';
 
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, Suspense } from 'react';
+import { useSearchParams } from 'next/navigation';
 import {
     MessageCircle, Send, X, RefreshCw, Clock, User, Headphones, CheckCircle2,
     ShieldAlert, Star, Ban, Monitor, Zap, Activity, Shield, Settings, Search,
     Paperclip, Smile, AlertCircle, Eye, Building2
 } from 'lucide-react';
 import styles from './LiveChat.module.css';
-import { useLiveChat, Conversation } from '@/hooks/useLiveChat';
+import { useLiveChat, Conversation, FilterType } from '@/hooks/useLiveChat';
 import { auth } from '@/lib/auth';
 import api from '@/config/api';
 
-export default function LiveChatPage() {
+function LiveChatContent() {
     const {
         conversations, selectedSession, messages, messagesLoading, newMessage, loading, error, analytics,
         filter, searchQuery, chatViewState, typingSessions,
@@ -19,6 +20,15 @@ export default function LiveChatPage() {
         closeConversation, togglePriority, toggleSpam, blockVisitor, setSelectedSessionId, fetchConversations,
         playTestSound, audioEnabled, setConversations
     } = useLiveChat();
+
+    const searchParams = useSearchParams();
+
+    useEffect(() => {
+        const filterParam = searchParams.get('filter');
+        if (filterParam) {
+            setFilter(filterParam as FilterType);
+        }
+    }, [searchParams, setFilter]);
 
     const [fontSize, setFontSize] = useState<'small' | 'medium' | 'large' | 'xlarge'>('medium');
     const [liveDurations, setLiveDurations] = useState<Record<string, number>>({});
@@ -336,10 +346,10 @@ export default function LiveChatPage() {
                                                 {conv.is_online && <div className={styles.onlineDot} title="Online" />}
                                             </div>
                                         </div>
-                                        <div className={`${styles.statusBadge} ${conv.session_status.toLowerCase() === 'active' ? (conv.current_mode === 'BOT' ? styles.statusBot : styles.statusActive) :
+                                        <div className={`${styles.statusBadge} ${conv.session_status.toLowerCase() === 'active' ? ((conv.current_mode || '').toLowerCase() === 'bot' ? styles.statusBot : styles.statusActive) :
                                             conv.spam_flag ? styles.statusSpam : styles.statusClosed
                                             }`}>
-                                            {conv.session_status.toLowerCase() === 'active' ? (conv.current_mode === 'BOT' ? 'Active (Bot)' : 'Active (Agent)') :
+                                            {conv.session_status.toLowerCase() === 'active' ? ((conv.current_mode || '').toLowerCase() === 'bot' ? 'Active (Bot)' : 'Active (Agent)') :
                                                 conv.spam_flag ? 'Spam' : 'Closed'}
                                         </div>
                                     </div>
@@ -355,7 +365,7 @@ export default function LiveChatPage() {
                                     </div>
 
                                     <div className={styles.cardActions}>
-                                        {conv.session_status === 'ACTIVE' && conv.current_mode === 'BOT' && (
+                                        {conv.session_status.toLowerCase() === 'active' && (conv.current_mode || '').toLowerCase() === 'bot' && (
                                             <button
                                                 className={styles.takeoverBtn}
                                                 onClick={(e) => {
@@ -367,7 +377,7 @@ export default function LiveChatPage() {
                                             </button>
                                         )}
                                         <button className={styles.viewBtn}>
-                                            {conv.current_mode === 'HUMAN' ? (
+                                            {(conv.current_mode || '').toLowerCase() === 'agent' ? (
                                                 <><MessageCircle size={12} /> Chat</>
                                             ) : (
                                                 <><Eye size={12} /> View</>
@@ -925,5 +935,17 @@ export default function LiveChatPage() {
                 )}
             </div>
         </div >
+    );
+}
+
+export default function LiveChatPage() {
+    return (
+        <Suspense fallback={
+            <div style={{ display: 'flex', alignItems: 'center', justifyItems: 'center', height: '100vh', width: '100%', color: '#666' }}>
+                Loading Live Chat...
+            </div>
+        }>
+            <LiveChatContent />
+        </Suspense>
     );
 }

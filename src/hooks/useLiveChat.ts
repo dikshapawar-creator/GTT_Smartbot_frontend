@@ -14,8 +14,8 @@ export type FilterType = 'ALL' | 'ACTIVE' | 'BOT' | 'WAITING' | 'PRIORITY' | 'SP
 export interface Conversation {
     session_id: number;
     session_uuid: string;
-    session_status: 'ACTIVE' | 'CLOSED';
-    current_mode: 'BOT' | 'HUMAN';
+    session_status: string;  // backend returns lowercase: 'active', 'ended', 'bot', etc.
+    current_mode: string;   // backend returns lowercase: 'bot' or 'agent'
     agent_name: string | null;
     is_locked: boolean;
     lead_name: string | null;
@@ -778,12 +778,22 @@ export function useLiveChat() {
     // ── Filtered Conversations ──────────────────────────────────────────────
 
     const filteredConversations = conversations.filter(conv => {
+        // Normalize current_mode to lowercase (backend returns 'bot' or 'agent')
+        const mode = (conv.current_mode || '').toLowerCase();
+        const isBotMode = mode === 'bot';
+        const isHumanMode = mode === 'agent' || mode === 'human';
+        // "Waiting" = bot is handling, no agent has ever been assigned/joined
+        const isWaiting = isBotMode && !conv.assigned_agent_id && !conv.agent_joined_at;
+
         // Apply status filter
-        if (filter === 'ACTIVE' && conv.session_status !== 'ACTIVE') return false;
-        if (filter === 'BOT' && conv.current_mode !== 'BOT') return false;
-        if (filter === 'WAITING' && !(conv.session_status === 'ACTIVE' && conv.current_mode === 'BOT')) return false;
-        if (filter === 'PRIORITY' && conv.lead_status !== 'PRIORITY') return false;
-        if (filter === 'SPAM' && !conv.spam_flag) return false;
+        if (filter === 'ACTIVE' && !isHumanMode) return false;
+        if (filter === 'BOT' && !isBotMode) return false;
+        if (filter === 'WAITING' && !isWaiting) return false;
+
+        // Handle other filters
+        const f = filter as string;
+        if (f === 'PRIORITY' && conv.lead_status !== 'PRIORITY') return false;
+        if (f === 'SPAM' && !conv.spam_flag) return false;
 
         // Apply search filter
         if (searchQuery.trim()) {

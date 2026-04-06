@@ -1,5 +1,5 @@
 'use client';
-import { useState, useEffect, useRef, useCallback } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import NextImage from 'next/image';
 import styles from './Chatbot.module.css';
 import dynamic from 'next/dynamic';
@@ -441,6 +441,46 @@ export default function Chatbot({ tenantIdProp, tenantKeyProp }: { tenantIdProp?
         }
     }, [open, isInitialized, initSession]);
 
+    // ── Auto-popup logic ─────────────────────────────────────────────
+    useEffect(() => {
+        if (typeof window === 'undefined') return;
+
+        // Check if we've already tried to auto-open in this specific mount
+        let hasTriggered = false;
+
+        const hasShownInSession = sessionStorage.getItem('chatbot_auto_popup_session_shown');
+        if (hasShownInSession === 'true') {
+            console.log('[Chatbot] Auto-popup already shown in this session.');
+            return;
+        }
+
+        const timer = setTimeout(() => {
+            if (hasTriggered) return;
+
+            setOpen(prevOpen => {
+                if (prevOpen) {
+                    console.log('[Chatbot] Already open (manual).');
+                    return prevOpen;
+                }
+
+                console.log('[Chatbot] 🚀 Triggering auto-popup (session: first time)...');
+                hasTriggered = true;
+                sessionStorage.setItem('chatbot_auto_popup_session_shown', 'true');
+
+                // Signal shell to resize iframe
+                try {
+                    window.parent.postMessage({ type: 'gtt-widget-resize', open: true }, '*');
+                } catch (err) {
+                    console.warn('[Chatbot] Resize postMessage failed', err);
+                }
+
+                return true;
+            });
+        }, 4000);
+
+        return () => clearTimeout(timer);
+    }, []);
+
     // ── Periodic and Visibility-based Re-sync ────────────────────────
     useEffect(() => {
         if (!isInitialized || !sessionToken) return;
@@ -460,6 +500,30 @@ export default function Chatbot({ tenantIdProp, tenantKeyProp }: { tenantIdProp?
             document.removeEventListener('visibilitychange', handleVisibilityChange);
         };
     }, [isInitialized, sessionToken, syncServerTime]);
+
+    // ── Handle sending READ status to server ──────────────────────────
+    useEffect(() => {
+        if (!open || !isInitialized || !sessionToken || wsManager.getStatus('chatbot') !== 'OPEN') return;
+
+        // Find messages from agent or bot that are not marked as read
+        const unreadMessages = messages.filter(m => (m.role === 'agent' || m.role === 'bot') && !m.is_read);
+
+        if (unreadMessages.length > 0) {
+            console.log(`[Chatbot] Sending READ status for ${unreadMessages.length} messages`);
+
+            // Mark them locally as read first for immediate UI update
+            setMessages(prev => prev.map(m =>
+                (m.role === 'agent' || m.role === 'bot') ? { ...m, is_read: true } : m
+            ));
+
+            // Send to server
+            wsManager.send({
+                type: 'MESSAGE_READ',
+                session_id: sessionToken,
+                last_msg_id: unreadMessages[unreadMessages.length - 1].id
+            }, 'chatbot');
+        }
+    }, [open, messages, isInitialized, sessionToken]);
 
     // ── WebSocket connect for live agent chat ────────────────────────
     const connectClientWebSocket = useCallback((sessionId: string) => {
@@ -508,7 +572,26 @@ export default function Chatbot({ tenantIdProp, tenantKeyProp }: { tenantIdProp?
                 return;
             }
 
-            if (!data.message && data.type !== 'system') return;
+            if (!data.message && data.type !== 'system' && data.type !== 'CHAT_ENDED') return;
+
+            // 🔴 Agent closed the session — reset widget to allow new conversation
+            if (data.type === 'CHAT_ENDED') {
+                setConversationStatus('bot');
+                setStatusText('Online');
+                // Add a system message informing the user
+                setMessages(prev => [...prev, {
+                    id: `${Date.now()}-ended`,
+                    role: 'system' as const,
+                    type: 'text' as const,
+                    content: data.message || 'This conversation was closed by an agent. Send a message to start a new chat.',
+                    created_at_ist: formatToIST(new Date(getSyncedNow(serverOffset)))
+                }]);
+                // Clear the stored session token so next message starts a fresh session
+                try { localStorage.removeItem('session_token'); } catch { /* ignore */ }
+                setSessionToken('');
+                setIsInitialized(false);
+                return;
+            }
 
             const role = data.sender === 'agent' ? 'agent' : data.sender === 'user' ? 'user' : data.sender === 'system' ? 'system' : 'bot';
             setMessages((prev) => [...prev, {
@@ -808,22 +891,78 @@ export default function Chatbot({ tenantIdProp, tenantKeyProp }: { tenantIdProp?
         }
 
         const urlRegex = /(https?:\/\/[^\s]+)/g;
-        return cleanText.split(urlRegex).map((part, i) => {
-            if (part.match(urlRegex)) {
-                return (
+        const markdownLinkRegex = /\[([^\]]+)\]\((https?:\/\/[^\s)]+)\)/g;
+
+        // First, handle markdown links [text](url)
+        let parts: (string | React.ReactNode)[] = [cleanText];
+
+        // Process markdown links
+        let newParts: (string | React.ReactNode)[] = [];
+        parts.forEach(part => {
+            if (typeof part !== 'string') {
+                newParts.push(part);
+                return;
+            }
+
+            let lastIndex = 0;
+            let match;
+            while ((match = markdownLinkRegex.exec(part)) !== null) {
+                // Add text before match
+                if (match.index > lastIndex) {
+                    newParts.push(part.substring(lastIndex, match.index));
+                }
+
+                const linkText = match[1];
+                const linkUrl = match[2];
+
+                newParts.push(
                     <a
-                        key={i}
-                        href={part}
+                        key={`md-${match.index}`}
+                        href={linkUrl}
                         target="_blank"
                         rel="noopener noreferrer"
                         className={styles.messageLink}
                     >
-                        {part}
+                        {linkText}
                     </a>
                 );
+                lastIndex = markdownLinkRegex.lastIndex;
             }
-            return part;
+            if (lastIndex < part.length) {
+                newParts.push(part.substring(lastIndex));
+            }
         });
+        parts = newParts;
+
+        // Then, handle plain URLs in remaining string parts
+        newParts = [];
+        parts.forEach(part => {
+            if (typeof part !== 'string') {
+                newParts.push(part);
+                return;
+            }
+
+            const subParts = part.split(urlRegex);
+            subParts.forEach((subPart, i) => {
+                if (subPart.match(urlRegex)) {
+                    newParts.push(
+                        <a
+                            key={`url-${i}`}
+                            href={subPart}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className={styles.messageLink}
+                        >
+                            {subPart}
+                        </a>
+                    );
+                } else if (subPart) {
+                    newParts.push(subPart);
+                }
+            });
+        });
+
+        return newParts;
     };
 
     const renderMessage = (msg: Message) => {

@@ -5,8 +5,8 @@
 /* ── FAB ──────────────────────────────────────────────────────────────────── */
 .fabWrapper {
     position: fixed;
-    bottom: 24px;
-    right: 20px;
+    bottom: 20px;
+    right: 28px;
     z-index: 9999;
     display: flex;
     flex-direction: column;
@@ -39,20 +39,25 @@
     align-items: center;
     justify-content: center;
     overflow: hidden;
-    transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+    transition: transform 0.2s ease, box-shadow 0.2s ease;
 }
 
 .fab:hover {
-    transform: translateY(-3px) scale(1.06);
-    box-shadow: none;
+    transform: translateY(-4px);
+    box-shadow: 0 6px 16px rgba(0, 0, 0, 0.25);
+}
+
+.fab:active {
+    transform: translateY(-2px) scale(0.97);
 }
 
 /* ── Panel ────────────────────────────────────────────────────────────────── */
 .panel {
     position: fixed;
-    bottom: 24px;
-    right: 24px;
+    bottom: 20px;
+    right: 28px;
     z-index: 9998;
+    transform-origin: bottom right;
 
     width: 400px;
     height: 540px;
