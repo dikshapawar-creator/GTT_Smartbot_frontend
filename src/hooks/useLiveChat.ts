@@ -7,7 +7,8 @@ import { playNotificationSound, showBrowserNotification } from '@/lib/notificati
 import { wsManager, WSMessage } from '@/lib/wsManager'
 
 export type ChatViewState = 'pretakeover' | 'active' | 'ended'
-export type FilterType = 'ALL' | 'ACTIVE' | 'BOT' | 'WAITING' | 'PRIORITY' | 'SPAM'
+export type FilterType = 'ALL' | 'ACTIVE' | 'BOT' | 'WAITING' | 'PRIORITY' | 'SPAM' | 'MISSED'
+
 
 // ── Types ────────────────────────────────────────────────────────────────
 
@@ -53,6 +54,9 @@ export interface Conversation {
     created_at_ist?: string;
     last_message_ist?: string;
     lead_insights?: string;
+    user_message_count?: number;
+    has_user_message?: boolean;
+    is_lead?: boolean;
 }
 
 export interface ChatMessage {
@@ -782,8 +786,18 @@ export function useLiveChat() {
         const mode = (conv.current_mode || '').toLowerCase();
         const isBotMode = mode === 'bot';
         const isHumanMode = mode === 'agent' || mode === 'human';
-        // "Waiting" = bot is handling, no agent has ever been assigned/joined
-        const isWaiting = isBotMode && !conv.assigned_agent_id && !conv.agent_joined_at;
+        const hasInteraction = (Number(conv.user_message_count || 0) > 0) || conv.is_lead || !!conv.lead_email;
+        // "Waiting" = must be ACTIVE/BOT/WAITING, no agent CURRENTLY assigned, and there's interaction
+        // We include both bot and human mode sessions (if human mode but no agent, it's definitely waiting)
+        const isWaiting = (conv.session_status === 'active' || conv.session_status === 'bot' || conv.session_status === 'waiting' || conv.session_status === 'agent') &&
+            !conv.assigned_agent_id && hasInteraction;
+
+        // Global noise filter: exclude old sessions with no interaction if it's bot mode
+        // Note: frontend also checks 'freshness' to match backend grace period (15 mins)
+        const createdAt = new Date(conv.created_at || new Date());
+        const isFresh = (new Date().getTime() - createdAt.getTime()) < 15 * 60 * 1000; // 15 minutes
+
+        if (isBotMode && !hasInteraction && !isFresh) return false;
 
         // Apply status filter
         if (filter === 'ACTIVE' && !isHumanMode) return false;
@@ -812,6 +826,7 @@ export function useLiveChat() {
     return {
         // State
         conversations: filteredConversations,
+        allConversations: conversations,
         selectedSession,
         messages,
         messagesLoading,

@@ -137,7 +137,7 @@ export default function HistoryPage() {
     // Filters & Pagination
     const [page, setPage] = useState(1);
     const [searchTerm, setSearchTerm] = useState('');
-    const [activeTab, setActiveTab] = useState<'all' | 'active' | 'closed'>('all');
+    const [activeTab, setActiveTab] = useState<'all' | 'active' | 'closed' | 'missed'>('all');
     const [dateFrom, setDateFrom] = useState('');
     const [dateTo, setDateTo] = useState('');
     const [activeRange, setActiveRange] = useState<'all' | 'today' | 'yesterday' | '7d' | '30d' | 'custom'>('all');
@@ -237,6 +237,7 @@ export default function HistoryPage() {
         };
         if (activeTab === 'active') params.status_filter = 'active';
         if (activeTab === 'closed') params.status_filter = 'ended';
+        if (activeTab === 'missed') params.status_filter = 'missed';
         if (dateFrom) params.date_from = new Date(dateFrom).toISOString();
         if (dateTo) params.date_to = new Date(dateTo).toISOString();
         if (countryFilter) params.country = countryFilter;
@@ -484,9 +485,16 @@ export default function HistoryPage() {
     const filteredItems = useMemo(() => {
         return (data?.items || [])
             .filter(c => {
+                const hasInteraction = Number(c.message_count || 0) > 0 || !!c.lead_name || !!c.lead_email;
+                const isBotMode = !c.agent_joined_at;
+
+                // Global noise filter: exclude bot-only greeting sessions in all history tabs
+                if (isBotMode && !hasInteraction) return false;
+
                 const isEnded = c.session_status?.toLowerCase() === 'ended' || c.session_status?.toLowerCase() === 'closed';
                 if (activeTab === 'active') return !isEnded;
                 if (activeTab === 'closed') return isEnded;
+                if (activeTab === 'missed') return isBotMode;
                 return true;
             })
             .filter(c => {
@@ -507,12 +515,25 @@ export default function HistoryPage() {
             .sort((a, b) => new Date(b.created_at || '').getTime() - new Date(a.created_at || '').getTime());
     }, [data?.items, activeTab, searchTerm, deviceFilter, spamFilter]);
 
-    const getTabCount = (tab: 'all' | 'active' | 'closed') => {
+    const getTabCount = (tab: 'all' | 'active' | 'closed' | 'missed') => {
         if (!data?.items) return 0;
-        if (tab === 'all') return data.items.length;
-        return data.items.filter(c => {
+
+        const filtered = data.items.filter(c => {
+            const hasInteraction = Number(c.message_count || 0) > 0 || !!c.lead_name || !!c.lead_email;
+            const isBotMode = !c.agent_joined_at;
+            // Global noise filter: exclude bot-only greeting sessions in all counts
+            if (isBotMode && !hasInteraction) return false;
+            return true;
+        });
+
+        if (tab === 'all') return filtered.length;
+        if (tab === 'missed') return filtered.filter(c => !c.agent_joined_at).length;
+
+        return filtered.filter(c => {
             const isEnded = c.session_status?.toLowerCase() === 'ended' || c.session_status?.toLowerCase() === 'closed';
-            return tab === 'active' ? !isEnded : isEnded;
+            if (tab === 'active') return !isEnded;
+            if (tab === 'closed') return isEnded;
+            return true;
         }).length;
     };
 
@@ -674,9 +695,9 @@ export default function HistoryPage() {
                     </div>
 
                     <div className={histStyles.tabBar}>
-                        {(['all', 'active', 'closed'] as const).map(t => (
+                        {(['all', 'active', 'closed', 'missed'] as const).map(t => (
                             <button key={t} onClick={() => setActiveTab(t)} className={`${histStyles.tab} ${activeTab === t ? histStyles.tabActive : ''}`}>
-                                {t.charAt(0).toUpperCase() + t.slice(1)}
+                                {t === 'missed' ? 'Missed Chats' : t.charAt(0).toUpperCase() + t.slice(1)}
                                 <span className={histStyles.tabCount}>({getTabCount(t)})</span>
                             </button>
                         ))}

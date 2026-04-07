@@ -15,7 +15,7 @@ import api from '@/config/api';
 function LiveChatContent() {
     const {
         conversations, selectedSession, messages, messagesLoading, newMessage, loading, error, analytics,
-        filter, searchQuery, chatViewState, typingSessions,
+        filter, searchQuery, chatViewState, typingSessions, allConversations,
         setFilter, setSearchQuery, openChat, intervene, sendMessage, handleInputChange,
         closeConversation, togglePriority, toggleSpam, blockVisitor, setSelectedSessionId, fetchConversations,
         playTestSound, audioEnabled, setConversations
@@ -235,7 +235,12 @@ function LiveChatContent() {
                     <div className={styles.heroStatDivider} />
                     <div className={styles.heroStat}>
                         <span className={styles.heroStatValue} style={{ color: '#fbbf24' }}>
-                            {conversations.filter(c => c.session_status === 'ACTIVE' && c.current_mode === 'BOT').length}
+                            {allConversations.filter(c => {
+                                const mode = (c.current_mode || '').toLowerCase();
+                                const isBotMode = mode === 'bot';
+                                const hasInteraction = (Number(c.user_message_count || 0) > 0) || c.is_lead || !!c.lead_email;
+                                return c.session_status === 'ACTIVE' && isBotMode && !c.assigned_agent_id && !c.agent_joined_at && hasInteraction;
+                            }).length}
                         </span>
                         <span className={styles.heroStatLabel}>Waiting</span>
                     </div>

@@ -58,6 +58,7 @@ interface DashboardStats {
         new_leads: number;
         active_chats: number;
         total_messages: number;
+        bot_greetings: number;
     };
     recent_leads: Array<{
         id: string;
@@ -446,6 +447,14 @@ export default function Dashboard({ children }: { children?: React.ReactNode }) 
                                     </div>
                                     <div className={styles.kpiValue}>{statsLoading ? "..." : stats?.kpis.total_messages || 0}</div>
                                     <div className={styles.kpiSub}>Total messages processed</div>
+                                </div>
+                                <div className={styles.kpiCard}>
+                                    <div className={styles.kpiTop}>
+                                        <span className={styles.kpiLabel}>Total Traffic</span>
+                                        <span className={`${styles.kpiChange} ${styles.changeUp}`}>Bot Greeted</span>
+                                    </div>
+                                    <div className={styles.kpiValue}>{statsLoading ? "..." : stats?.kpis.bot_greetings || 0}</div>
+                                    <div className={styles.kpiSub}>Visitors opened the bot</div>
                                 </div>
                             </div>
 
