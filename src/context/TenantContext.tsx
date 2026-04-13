@@ -100,7 +100,7 @@ export function TenantProvider({ children }: { children: ReactNode }) {
             if (auth.isAuthenticated()) {
                 refreshTenants();
             }
-        }, 60000); // Pulse every 60s
+        }, 300000); // Pulse every 5 minutes
 
         return () => clearInterval(interval);
     }, [setSelectedTenantId, refreshTenants]);

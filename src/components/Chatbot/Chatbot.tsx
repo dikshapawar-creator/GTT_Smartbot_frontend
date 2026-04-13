@@ -474,6 +474,20 @@ export default function Chatbot({ tenantIdProp, tenantKeyProp }: { tenantIdProp?
                     console.warn('[Chatbot] Resize postMessage failed', err);
                 }
 
+                // Close popup if visitor is not interacting after 10 seconds
+                setTimeout(() => {
+                    const hasUserMessage = messagesRef.current.some(m => m.role === 'user');
+                    const isTyping = inputRef.current && inputRef.current.value.trim().length > 0;
+
+                    if (!hasUserMessage && !isTyping) {
+                        console.log('[Chatbot] Auto-closing after 10s of inactivity.');
+                        setOpen(false);
+                        try {
+                            window.parent.postMessage({ type: 'gtt-widget-resize', open: false }, '*');
+                        } catch (err) {}
+                    }
+                }, 10000);
+
                 return true;
             });
         }, 4000);

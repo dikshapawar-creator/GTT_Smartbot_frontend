@@ -441,8 +441,18 @@ export function useLiveChat() {
 
     // ── REST API Functions ──────────────────────────────────────────────────
 
-    const fetchConversations = useCallback(async () => {
+    const fetchConversations = useCallback(async (force = false) => {
         try {
+            if (!force) {
+                const cached = localStorage.getItem("gtt_conversations_cache");
+                const cacheTime = localStorage.getItem("gtt_conversations_cache_time");
+                if (cached && cacheTime && Date.now() - parseInt(cacheTime) < 30000) {
+                    setConversations(JSON.parse(cached));
+                    setLoading(false);
+                    return;
+                }
+            }
+
             const res = await api.get('/live-chat/conversations');
             const fetchedConversations = res.data || [];
 
@@ -451,6 +461,9 @@ export function useLiveChat() {
                 ? localStorage.getItem('selected_tenant_id')
                 : null;
             console.log(`📊 Fetched ${fetchedConversations.length} conversations for tenant ${currentTenantId}`);
+
+            localStorage.setItem("gtt_conversations_cache", JSON.stringify(fetchedConversations));
+            localStorage.setItem("gtt_conversations_cache_time", Date.now().toString());
 
             setConversations(fetchedConversations);
             setError(null);
@@ -462,9 +475,20 @@ export function useLiveChat() {
         }
     }, []);
 
-    const fetchAnalytics = useCallback(async () => {
+    const fetchAnalytics = useCallback(async (force = false) => {
         try {
+            if (!force) {
+                const cached = localStorage.getItem("gtt_analytics_cache");
+                const cacheTime = localStorage.getItem("gtt_analytics_cache_time");
+                if (cached && cacheTime && Date.now() - parseInt(cacheTime) < 60000) {
+                    setAnalytics(JSON.parse(cached));
+                    return;
+                }
+            }
+
             const res = await api.get('/live-chat/analytics');
+            localStorage.setItem("gtt_analytics_cache", JSON.stringify(res.data));
+            localStorage.setItem("gtt_analytics_cache_time", Date.now().toString());
             setAnalytics(res.data);
         } catch (err) {
             console.error('Failed to fetch analytics:', err);
@@ -673,8 +697,8 @@ export function useLiveChat() {
     // Handle refresh trigger from NEW_CONVERSATION events
     useEffect(() => {
         if (refreshTrigger > 0) {
-            fetchConversations();
-            fetchAnalytics();
+            fetchConversations(true);
+            fetchAnalytics(true);
         }
     }, [refreshTrigger, fetchConversations, fetchAnalytics]);
 
@@ -682,8 +706,8 @@ export function useLiveChat() {
     useEffect(() => {
         const handleTenantChange = () => {
             console.log('🔄 Tenant context changed, refreshing conversations...');
-            fetchConversations();
-            fetchAnalytics();
+            fetchConversations(true);
+            fetchAnalytics(true);
 
             // Reconnect global WebSocket with new tenant context
             wsManager.disconnect('crm_updates');
@@ -730,7 +754,7 @@ export function useLiveChat() {
             }
         });
 
-        // Keep 10s polling as a fallback
+        // Keep 60s polling as a fallback (increased to prevent usage limit issues)
         const pollInterval = setInterval(() => {
             const wsStatus = wsManager.getStatus('crm_updates');
             if (wsStatus !== 'OPEN') {
@@ -739,7 +763,7 @@ export function useLiveChat() {
                 fetchConversations();
                 fetchAnalytics();
             }
-        }, 10000);
+        }, 60000);
 
         // Copy ref to variable for safe cleanup
         const currentTypingTimeouts = typingTimeoutRef.current;
